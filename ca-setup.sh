@@ -57,7 +57,7 @@ chmod 400 $ROOT_CA_DIR/certs/*
 echo "ROOT CA CERT:"
 cat $ROOT_CA_DIR/certs/ca.cert.txt
 # wait for keypress
-read -t 3 -n 1
+read -n 1
 
 # setup intermediate CA
 DEVICEID_CA_DIR=./deviceid-ca
@@ -74,7 +74,6 @@ openssl genpkey -algorithm $KEY_ALG $KEY_OPTS -out private/ca.key.pem
 chmod 400 private/ca.key.pem
 popd
 
-# create CSR for intermediate
 # interactive
 DEVICEID_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=deviceid-ca"
 openssl req \
@@ -108,3 +107,94 @@ openssl x509 \
 	-in $DEVICEID_CA_DIR/certs/ca.cert.pem \
 	-out $DEVICEID_CA_DIR/certs/ca.cert.der
 chmod 444 $DEVICEID_CA_DIR/certs/*
+
+# Create CSR for mock deviceid embedded intermediate CA. We use this to create
+# template that the RoT uses to create CSRs for DeviceId cerdentials and certs
+# for keys certified by DeviceId.
+# embedded intermediate CA.
+DEVICEID_EMBEDDED_CA_DIR=./deviceid-embedded-ca
+mkdir $DEVICEID_EMBEDDED_CA_DIR
+pushd $DEVICEID_EMBEDDED_CA_DIR
+mkdir certs crl csr newcerts private
+chmod 700 private
+touch index.txt
+echo 1000 > serial
+echo 1000 > crlnumber
+
+# create deviceid embedded intermediate CA key
+openssl genpkey -algorithm $KEY_ALG $KEY_OPTS -out private/ca.key.pem
+chmod 400 private/ca.key.pem
+popd
+
+# Create CSR for intermediate CA mocking the embedded CA in each platform
+# represented by the DeviceId key pair. This key is a sibling to all other
+# DeviceId certs.
+DEVICEID_EMBEDDED_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=666666666666"
+openssl req \
+      -config openssl.cnf \
+      -subj "$DEVICEID_EMBEDDED_CA_SUBJ" \
+      -new \
+      -$HASH \
+      -key $DEVICEID_EMBEDDED_CA_DIR/private/ca.key.pem \
+      -out $DEVICEID_EMBEDDED_CA_DIR/csr/ca.csr.pem
+
+# Create and sign cert for mock DeviceId intermediate embedded CA.
+# interactive
+openssl ca \
+      -config openssl.cnf \
+      -batch \
+      -name ca_deviceid \
+      -extensions v3_deviceid_embedded_ca \
+      -days 3650 \
+      -notext \
+      -md $HASH \
+      -in $DEVICEID_EMBEDDED_CA_DIR/csr/ca.csr.pem \
+      -out $DEVICEID_EMBEDDED_CA_DIR/certs/ca.cert.pem
+
+openssl x509 \
+	-in $DEVICEID_EMBEDDED_CA_DIR/certs/ca.cert.pem \
+	-noout \
+	-text \
+	> $DEVICEID_EMBEDDED_CA_DIR/certs/ca.cert.txt
+openssl x509 \
+	-outform der \
+	-in $DEVICEID_EMBEDDED_CA_DIR/certs/ca.cert.pem \
+	-out $DEVICEID_EMBEDDED_CA_DIR/certs/ca.cert.der
+
+# Create and sign cert for client cert / mock Alias cert.
+openssl genpkey -algorithm $KEY_ALG $KEY_OPTS -out $DEVICEID_EMBEDDED_CA_DIR/private/leaf.key.pem
+chmod 400 $DEVICEID_EMBEDDED_CA_DIR/private/leaf.key.pem
+
+# will CNs collide?
+DEVICEID_EMBEDDED_LEAF_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=666666666666"
+openssl req \
+      -config openssl.cnf \
+      -subj "$DEVICEID_EMBEDDED_LEAF_SUBJ" \
+      -new \
+      -$HASH \
+      -key $DEVICEID_EMBEDDED_CA_DIR/private/leaf.key.pem \
+      -out $DEVICEID_EMBEDDED_CA_DIR/csr/leaf.csr.pem
+
+# Create and sign cert for mock leaf cert certified by the DeviceId
+# intermediate embedded CA.
+# interactive
+openssl ca \
+      -config openssl.cnf \
+      -batch \
+      -name ca_deviceid_embedded \
+      -extensions v3_deviceid_leaf_cert \
+      -days 3650 \
+      -notext \
+      -md $HASH \
+      -in $DEVICEID_EMBEDDED_CA_DIR/csr/leaf.csr.pem \
+      -out $DEVICEID_EMBEDDED_CA_DIR/certs/leaf.cert.pem
+
+openssl x509 \
+	-in $DEVICEID_EMBEDDED_CA_DIR/certs/leaf.cert.pem \
+	-noout \
+	-text \
+	> $DEVICEID_EMBEDDED_CA_DIR/certs/leaf.cert.txt
+openssl x509 \
+	-outform der \
+	-in $DEVICEID_EMBEDDED_CA_DIR/certs/leaf.cert.pem \
+	-out $DEVICEID_EMBEDDED_CA_DIR/certs/leaf.cert.der
