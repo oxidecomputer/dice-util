@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEVICEID_CA_DIR=./deviceid-ca
+DEVICEID_CA_DIR=./deviceid-embedded-ca
 ROLLBACKS="index.txt index.txt.attr serial"
 
 for FILE in $ROLLBACKS

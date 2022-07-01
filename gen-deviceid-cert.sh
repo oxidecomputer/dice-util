@@ -27,7 +27,7 @@ openssl ca \
     -config openssl.cnf \
     -batch \
     -name ca_deviceid \
-    -extensions v3_deviceid \
+    -extensions v3_deviceid_ca \
     -days 3650 \
     -notext \
     -md $HASH \
