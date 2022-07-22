@@ -1,3 +1,8 @@
+openssl_conf = openssl_init
+
+[openssl_init]
+oid_section = OIDs
+
 [ ca ]
 # `man ca`
 default_ca = CA_root
@@ -192,11 +197,13 @@ keyUsage = critical, digitalSignature, cRLSign, keyCertSign
 # This will prevent us from creating any intermediate embedded CAs.
 basicConstraints = critical, CA:true, pathlen:0
 keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
 
 [ v3_deviceid_leaf_cert ]
 # Extensions for server certificates (`man x509v3_config`).
 basicConstraints = CA:FALSE
 keyUsage = critical, digitalSignature, keyAgreement, keyEncipherment
+certificatePolicies = critical, tcg-dice-kp-attestInit
 
 [ usr_cert ]
 # Extensions for client certificates (`man x509v3_config`).
@@ -219,3 +226,7 @@ subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid,issuer
 keyUsage = critical, digitalSignature
 extendedKeyUsage = critical, OCSPSigning
+
+[OIDs]
+tcg-dice-kp-attestInit = 2.23.133.5.4.100.8
+tcg-dice-kp-eca = 2.23.133.5.4.100.12
