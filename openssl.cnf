@@ -92,6 +92,35 @@ default_days      = 375
 preserve          = no
 policy            = policy_strict
 
+[ ca_selfsigned_deviceid_embedded ]
+# Directory and file locations.
+dir               = ./deviceid-selfsigned-embedded-ca
+certs             = $dir/certs
+crl_dir           = $dir/crl
+new_certs_dir     = $dir/newcerts
+database          = $dir/index.txt
+serial            = $dir/serial
+RANDFILE          = $dir/private/.rand
+
+# The root key and root certificate.
+private_key       = $dir/private/ca.key.pem
+certificate       = $dir/certs/ca.cert.pem
+
+# For certificate revocation lists.
+crlnumber         = $dir/crlnumber
+crl               = $dir/crl/ca.crl.pem
+crl_extensions    = crl_ext
+default_crl_days  = 30
+
+# SHA-1 is deprecated, so use SHA-2 instead.
+default_md        = sha3-256
+
+name_opt          = ca_default
+cert_opt          = ca_default
+default_days      = 375
+preserve          = no
+policy            = policy_strict
+
 [ policy_strict ]
 # The root CA should only sign intermediate certificates that match.
 # See the POLICY FORMAT section of `man ca`.
@@ -101,6 +130,7 @@ localityName            = match
 organizationName        = match
 organizationalUnitName  = optional
 commonName              = supplied
+serialNumber            = optional
 emailAddress            = optional
 
 [ policy_loose ]
@@ -112,6 +142,7 @@ localityName            = optional
 organizationName        = optional
 organizationalUnitName  = optional
 commonName              = supplied
+serialNumber            = optional
 emailAddress            = optional
 
 [ req ]
@@ -134,6 +165,7 @@ localityName                    = Locality Name
 0.organizationName              = Organization Name
 organizationalUnitName          = Organizational Unit Name
 commonName                      = Common Name
+serialNumber                    = Serial Number
 emailAddress                    = Email Address
 
 # Optionally, specify some defaults.
@@ -146,15 +178,11 @@ emailAddress_default            = security@oxidecomputer.com
 
 [ v3_root_ca ]
 # Extensions for a typical CA (`man x509v3_config`).
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer
 basicConstraints = critical, CA:true
 keyUsage = critical, digitalSignature, cRLSign, keyCertSign
 
 [ v3_deviceid_ca ]
 # Extensions for a typical intermediate CA (`man x509v3_config`).
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer
 basicConstraints = critical, CA:true, pathlen:1
 keyUsage = critical, digitalSignature, cRLSign, keyCertSign
 
@@ -162,14 +190,11 @@ keyUsage = critical, digitalSignature, cRLSign, keyCertSign
 # Extensions for the DeviceId embedded CA
 # NOTE: pathlen:0 prevents us from signing any additional intermediates.
 # This will prevent us from creating any intermediate embedded CAs.
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer
 basicConstraints = critical, CA:true, pathlen:0
 keyUsage = critical, digitalSignature, cRLSign, keyCertSign
 
 [ v3_deviceid_leaf_cert ]
 # Extensions for server certificates (`man x509v3_config`).
-authorityKeyIdentifier = keyid:always,issuer
 basicConstraints = CA:FALSE
 keyUsage = critical, digitalSignature, keyAgreement, keyEncipherment
 

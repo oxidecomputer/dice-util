@@ -16,8 +16,9 @@ mkdir certs crl csr newcerts private
 chmod 700 private
 touch index.txt
 echo "unique_subject = yes" > index.txt.attr
-echo 1000 > serial
-echo 1000 > crlnumber
+# keep sn small to save a byte
+echo 10 > serial
+echo 10 > crlnumber
 
 popd
 
@@ -53,6 +54,10 @@ openssl ca \
     -extensions v3_deviceid_embedded_ca \
     -in $DEVICEID_CA_DIR/csr/ca.csr.pem \
     -out $DEVICEID_CA_DIR/certs/ca.cert.pem
+openssl x509 \
+    -in $DEVICEID_CA_DIR/certs/ca.cert.pem \
+    -outform DER \
+    -out $DEVICEID_CA_DIR/certs/ca.cert.der
 
 # leaf cert
 # create key
@@ -72,6 +77,7 @@ openssl req \
     -key $DEVICEID_CA_DIR/private/leaf.key.pem \
     -$HASH \
     -out $DEVICEID_CA_DIR/csr/leaf.csr.pem
+# generate certificatae
 openssl ca \
     -config openssl.cnf \
     -batch \
@@ -83,3 +89,7 @@ openssl ca \
     -md $HASH \
     -in $DEVICEID_CA_DIR/csr/leaf.csr.pem \
     -out $DEVICEID_CA_DIR/certs/leaf.cert.pem
+openssl x509 \
+    -in $DEVICEID_CA_DIR/certs/leaf.cert.pem \
+    -outform DER \
+    -out $DEVICEID_CA_DIR/certs/leaf.cert.der

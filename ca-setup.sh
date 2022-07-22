@@ -56,8 +56,6 @@ chmod 400 $ROOT_CA_DIR/certs/*
 
 echo "ROOT CA CERT:"
 cat $ROOT_CA_DIR/certs/ca.cert.txt
-# wait for keypress
-read -n 1
 
 # setup intermediate CA
 DEVICEID_CA_DIR=./deviceid-ca
@@ -75,7 +73,7 @@ chmod 400 private/ca.key.pem
 popd
 
 # interactive
-DEVICEID_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=deviceid-ca"
+DEVICEID_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=device-id-ca"
 openssl req \
       -config openssl.cnf \
       -subj "$DEVICEID_CA_SUBJ" \
@@ -129,7 +127,7 @@ popd
 # Create CSR for intermediate CA mocking the embedded CA in each platform
 # represented by the DeviceId key pair. This key is a sibling to all other
 # DeviceId certs.
-DEVICEID_EMBEDDED_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=666666666666"
+DEVICEID_EMBEDDED_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=device-id"
 openssl req \
       -config openssl.cnf \
       -subj "$DEVICEID_EMBEDDED_CA_SUBJ" \
@@ -165,8 +163,7 @@ openssl x509 \
 openssl genpkey -algorithm $KEY_ALG $KEY_OPTS -out $DEVICEID_EMBEDDED_CA_DIR/private/leaf.key.pem
 chmod 400 $DEVICEID_EMBEDDED_CA_DIR/private/leaf.key.pem
 
-# will CNs collide?
-DEVICEID_EMBEDDED_LEAF_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=666666666666"
+DEVICEID_EMBEDDED_LEAF_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=alias"
 openssl req \
       -config openssl.cnf \
       -subj "$DEVICEID_EMBEDDED_LEAF_SUBJ" \
