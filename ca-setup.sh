@@ -2,6 +2,25 @@
 
 set -e
 
+# The cert hierarchy created by this script
+#
+# - root CA
+# Root / self signed certificate authority key & cert.
+# Configured by [v3_root_ca] section in openssl.conf
+#
+# - DeviceId intermediate CA
+# Intermediate CA used to certify DeviceId certs.
+# Configured by [v3_deviceid_ca] section in openssl.conf
+#
+# - DeviceId embedded CA
+# Another intermediate CA but this one represents a DeviceId on a platform.
+# Configured by [v3_deviceid_embedded_ca] section in openssl.conf
+#
+# - leaf cert
+# A certificate used to sign stuff other than certs. This one is a mock of the
+# Alias cert so it's used to attest to measurements.
+# Configured by [v3_deviceid_leaf_cert].
+
 HASH=sha3-256
 KEY_ALG_RSA=RSA
 KEY_OPTS_RSA4K="-pkeyopt rsa_keygen_bits:4096"
