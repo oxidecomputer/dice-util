@@ -1,0 +1,41 @@
+# openssl asn1parse -genconf asn1.cnf -noout -out asn1.der
+
+# TCG DICE TcbInfo structure with 2 FWID entries as an x509v3 certificate
+# extension. Extensions in x509v3 are all collected in a top level SEQUENCE:
+# https://www.rfc-editor.org/rfc/rfc5280#section-4.2
+asn1=SEQUENCE:ext_tcg_dice_TcbInfo
+
+# Extensions are a sequence of (OID, BOOL, OCTET STRING).
+# The extension is encoded in the OCTET STRING (field3):
+# https://www.rfc-editor.org/rfc/rfc5280#appendix-A.1
+[ext_tcg_dice_TcbInfo]
+field1=OID:2.23.133.5.4 # OID for tcg_dice_TcbInfo
+field2=BOOL:TRUE
+field3=OCTWRAP,SEQUENCE:DiceTcbInfo
+
+# In this case we're encoding a SEQUENCE of DiceTcbInfo from:
+# https://trustedcomputinggroup.org/resource/dice-attestation-architecture/
+# Currently we only plan to record the FWID.
+[DiceTcbInfo]
+field1=IMPLICIT:6,SEQUENCE:fwids
+
+# Instantiations of the FWID structure for test data.
+[fwids]
+field1=SEQUENCE:sha512_null
+field2=SEQUENCE:sha3_256_null
+field3=SEQUENCE:sha3_512_null
+
+# Instantiation of FWID with sha512 hash
+[sha512_null]
+field1=OID:2.16.840.1.101.3.4.2.3
+field2=FORMAT:HEX,OCTETSTRING:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+# Instantiation of FWID with sha3-256 hash
+[sha3_256_null]
+field1=OID:2.16.840.1.101.3.4.2.8
+field2=FORMAT:HEX,OCTETSTRING:0000000000000000000000000000000000000000000000000000000000000000
+
+# Instantiation of FWID with sha3-512 hash
+[sha3_512_null]
+field1=OID:2.16.840.1.101.3.4.2.10
+field2=FORMAT:HEX,OCTETSTRING:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000

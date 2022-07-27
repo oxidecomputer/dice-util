@@ -204,16 +204,18 @@ certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
 basicConstraints = CA:FALSE
 keyUsage = critical, digitalSignature, keyAgreement, keyEncipherment
 certificatePolicies = critical, tcg-dice-kp-attestInit
+2.23.133.5.4=critical, ASN1:SEQUENCE:dice_tcb_info
 
-[ usr_cert ]
-# Extensions for client certificates (`man x509v3_config`).
-basicConstraints = CA:FALSE
-nsCertType = client, email
-nsComment = "OpenSSL Generated Client Certificate"
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid,issuer
-keyUsage = critical, nonRepudiation, digitalSignature, keyEncipherment
-extendedKeyUsage = clientAuth, emailProtection
+[dice_tcb_info]
+field1=IMPLICIT:6,SEQUENCE:fwids
+
+[fwids]
+field1=SEQUENCE:sha3_256_null
+
+[sha3_256_null]
+field1=OID:2.16.840.1.101.3.4.2.8
+field2=FORMAT:HEX,OCTETSTRING:0000000000000000000000000000000000000000000000000000000000000000
+#f69338a3130958434be0aa0390389f85ad0577bac4d4c4c4466d6b73f175d037b1480b018b556bc56dfaf828a0c275bb527b818c429cffbcd9cfbb08de43f7d4
 
 [ crl_ext ]
 # Extension for CRLs (`man x509v3_config`).
