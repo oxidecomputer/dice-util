@@ -12,6 +12,8 @@ use salty::constants::{
     PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH,
 };
 
+use std::{path::Path, process::Command};
+
 pub const ED25519_PUB_LEN: usize = PUBLICKEY_SERIALIZED_LENGTH;
 pub const ED25519_SIG_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
 // TODO: get this programatically from the cert / csr
@@ -58,6 +60,32 @@ fn get_roffsets(
     } else {
         None
     }
+}
+
+// Shamelessly borrowed from hubris call_rustfmt
+pub fn rustfmt(
+    path: impl AsRef<Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let which_out =
+        Command::new("rustup").args(["which", "rustfmt"]).output()?;
+
+    if !which_out.status.success() {
+        return Err(format!(
+            "rustup which returned status {}",
+            which_out.status
+        )
+        .into());
+    }
+
+    let out_str = std::str::from_utf8(&which_out.stdout)?.trim();
+
+    //println!("will invoke: {}", out_str);
+
+    let fmt_status = Command::new(out_str).arg(path.as_ref()).status()?;
+    if !fmt_status.success() {
+        return Err(format!("rustfmt returned status {}", fmt_status).into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
