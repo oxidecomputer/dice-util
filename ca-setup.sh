@@ -223,8 +223,8 @@ pushd $DEVICEID_ECA_DIR
 mkdir certs crl csr newcerts private
 chmod 700 private
 touch index.txt
-echo 1000 > serial
-echo 1000 > crlnumber
+echo 10 > serial
+echo 10 > crlnumber
 popd
 
 DEVICEID_ECA_KEY=$KEY_DIR/deviceid-eca.key.pem
@@ -270,7 +270,7 @@ openssl ca \
       -batch \
       -name ca_intermediate \
       -extensions v3_deviceid_eca \
-      -days 3650 \
+      -enddate '99991231235959Z' \
       -notext \
       -md $HASH \
       -in $DEVICEID_ECA_CSR_PEM \
@@ -325,7 +325,7 @@ openssl ca \
       -batch \
       -name ca_deviceid_eca \
       -extensions v3_alias \
-      -days 3650 \
+      -enddate '99991231235959Z' \
       -notext \
       -md $HASH \
       -in $ALIAS_CSR_PEM \
@@ -379,7 +379,7 @@ openssl ca \
       -batch \
       -name ca_deviceid_eca \
       -extensions v3_swdsp \
-      -days 3650 \
+      -enddate '99991231235959Z' \
       -notext \
       -md $HASH \
       -in $SWDSP_CSR_PEM \
