@@ -44,10 +44,69 @@ if [ ! -d $KEY_DIR ]; then
 fi
 
 #######
+# self-signed DeviceId root
+#######
+
+# create key for root CA if not already done
+DEVICEID_ECA_SELF_KEY=$KEY_DIR/deviceid-eca.key.pem
+if [ ! -f $DEVICEID_ECA_SELF_KEY ]; then
+    openssl genpkey \
+        -algorithm $KEY_ALG $KEY_OPTS \
+        -out $DEVICEID_ECA_SELF_KEY
+    chmod 400 $DEVICEID_ECA_SELF_KEY
+fi
+
+DEVICEID_SELF_CA_DIR=./deviceid-eca-self
+mkdir $DEVICEID_SELF_CA_DIR
+pushd $DEVICEID_SELF_CA_DIR
+mkdir certs crl csr newcerts private
+chmod 700 private
+touch index.txt
+echo "unique_subject = yes" > index.txt.attr
+# keep sn small to save a byte
+echo 10 > serial
+echo 10 > crlnumber
+popd
+
+DEVICEID_CA_CSR_PEM=$DEVICEID_SELF_CA_DIR/csr/ca.cert.pem
+DEVICEID_CA_CERT_PEM=$DEVICEID_SELF_CA_DIR/certs/ca.cert.pem
+DEVICEID_CA_CERT_DER=$DEVICEID_SELF_CA_DIR/certs/ca.cert.der
+DEVICEID_CA_CERT_TXT=$DEVICEID_SELF_CA_DIR/certs/ca.cert.txt
+
+SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=device-id"
+openssl req \
+    -new \
+    -config openssl.cnf \
+    -subj "$SUBJ" \
+    -key $DEVICEID_ECA_SELF_KEY \
+    -$HASH \
+    -out $DEVICEID_CA_CSR_PEM
+openssl ca \
+    -config openssl.cnf \
+    -batch \
+    -selfsign \
+    -startdate "$(date -u +%Y%m%d%H%M%SZ)" \
+    -enddate '99991231235959Z' \
+    -name ca_selfsigned_deviceid_embedded \
+    -extensions v3_deviceid_eca \
+    -in $DEVICEID_CA_CSR_PEM \
+    -out $DEVICEID_CA_CERT_PEM
+openssl x509 \
+    -in $DEVICEID_CA_CERT_PEM \
+    -outform DER \
+    -out $DEVICEID_CA_CERT_DER
+openssl x509 \
+    -in $DEVICEID_CA_CERT_PEM \
+    -noout \
+    -text \
+    > $DEVICEID_CA_CERT_TXT
+
+#######
 # root CA
 #######
 # this CA is the root of the key hierarchy, it is self signed
 # this key is only used to sign certs for intermediate CAs, never leaf certs
+# we use the same key for the self-signed DeviceId CA above
 ROOT_CA_DIR=./root-ca
 mkdir $ROOT_CA_DIR
 pushd $ROOT_CA_DIR
@@ -57,7 +116,6 @@ touch index.txt
 echo 1000 > serial
 popd
 
-# create key for root CA if not already done
 ROOT_CA_KEY=$KEY_DIR/root-ca.key.pem
 if [ ! -f $ROOT_CA_KEY ]; then
     openssl genpkey \
@@ -65,6 +123,7 @@ if [ ! -f $ROOT_CA_KEY ]; then
         -out $ROOT_CA_KEY
     chmod 400 $ROOT_CA_KEY
 fi
+
 
 ROOT_CA_CERT_PEM=$ROOT_CA_DIR/certs/ca.cert.pem
 ROOT_CA_CERT_DER=$ROOT_CA_DIR/certs/ca.cert.der
