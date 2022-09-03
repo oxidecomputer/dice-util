@@ -83,6 +83,11 @@ impl<'a> Cert<'a> {
         .ok_or(CertError::NoSerialNumber)
     }
 
+    pub fn get_serial_number(&self) -> Result<u8> {
+        let sn = self.get_bytes(self.get_serial_number_offsets()?);
+        Ok(sn[0])
+    }
+
     // ANS.1 TLVs & OID for commonName (x.520 DN component)
     const SELFCERT_ISSUER_SN_PATTERN: [u8; 11] = [
         0x31, 0x15, 0x30, 0x13, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0C,
@@ -98,6 +103,10 @@ impl<'a> Cert<'a> {
         .ok_or(CertError::NoIssuerSn)
     }
 
+    pub fn get_issuer_sn(&self) -> Result<&[u8]> {
+        Ok(self.get_bytes(self.get_issuer_sn_offsets()?))
+    }
+
     // ASN.1 TLVs & for Sequence & UTCTime
     const NOTBEFORE_PATTERN: [u8; 4] = [0x30, 0x20, 0x17, 0x0D];
     const NOTBEFORE_LEN: usize = 13;
@@ -109,6 +118,10 @@ impl<'a> Cert<'a> {
             Self::NOTBEFORE_LEN,
         )
         .ok_or(CertError::NoNotBefore)
+    }
+
+    pub fn get_notbefore(&self) -> Result<&[u8]> {
+        Ok(self.get_bytes(self.get_issuer_sn_offsets()?))
     }
 
     // ASN.1 TLVs & OID for commonName (x.520 DN component)
@@ -127,6 +140,10 @@ impl<'a> Cert<'a> {
             Self::SELFCERT_SUBJECT_SN_LEN,
         )
         .ok_or(CertError::NoSubjectSn)
+    }
+
+    pub fn get_subject_sn(&self) -> Result<&[u8]> {
+        Ok(self.get_bytes(self.get_subject_sn_offsets()?))
     }
 
     const SELFCERT_PUB_PATTERN: [u8; 12] = [
@@ -158,6 +175,10 @@ impl<'a> Cert<'a> {
                 .ok_or(CertError::NoSignData)?;
 
         Ok((Self::SIGN_BEGIN, offset))
+    }
+
+    pub fn get_signdata(&self) -> Result<&[u8]> {
+        Ok(self.get_bytes(self.get_signdata_offsets()?))
     }
 
     pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {

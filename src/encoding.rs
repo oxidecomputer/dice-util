@@ -87,8 +87,8 @@ fn decode_obj(
 /// We assume it's an Ed25519 key & use known offsets that we think will work.
 /// Or not.
 pub fn decode_key(
-    path: PathBuf,
-    encoding: Encoding,
+    path: &PathBuf,
+    encoding: &Encoding,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     match encoding {
         Encoding::PEM => {

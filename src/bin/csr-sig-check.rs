@@ -1,5 +1,5 @@
 use clap::Parser;
-use dice_cert_tmpl::{Csr, Encoding, MissingFieldError, encoding};
+use dice_cert_tmpl::{Csr, Encoding, encoding};
 use std::{path::PathBuf, process};
 
 use salty::{
@@ -19,28 +19,25 @@ struct Args {
     csr_path: PathBuf,
 }
 
-fn main() -> Result<(), MissingFieldError> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let mut csr_der = match args.csr_path.to_str() {
-        Some(csr_path) => {
-            encoding::decode_csr(csr_path, args.encoding).expect("decode_csr")
-        }
-        None => {
-            eprintln!("Invalid path");
+    let mut csr = encoding::decode_csr(&args.csr_path, args.encoding)?;
+    let csr = Csr::from_slice(&mut csr);
+
+    let public: &[u8; PUBLICKEY_SERIALIZED_LENGTH] = 
+        csr.get_pub()?.try_into()?;
+
+    let pubkey: PublicKey = match public.try_into() {
+        Ok(pubkey) => pubkey,
+        Err(_) => {
+            eprintln!("Bad public key.");
             process::exit(1);
         }
     };
 
-    let csr = Csr::from_slice(&mut csr_der);
-
-    let public: &[u8; PUBLICKEY_SERIALIZED_LENGTH] = 
-        csr.get_pub()?.try_into().unwrap();
-
-    let pubkey: PublicKey = public.try_into().unwrap();
-
     let sig: &[u8; SIGNATURE_SERIALIZED_LENGTH] =
-        csr.get_sig()?.try_into().unwrap();
+        csr.get_sig()?.try_into()?;
     let sig: Signature = sig.into();
 
     let data = csr.get_signdata()?;
