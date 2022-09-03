@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key: &[u8; 32] = &key[..].try_into()?;
     let keypair: Keypair = key.try_into()?;
 
-    let mut cert = encoding::decode_cert(&args.cert, args.encoding)?;
+    let mut cert = encoding::decode_cert(&args.cert, &args.encoding)?;
     let cert = Cert::from_slice(&mut cert);
 
     let sig: &[u8; SIGNATURE_SERIALIZED_LENGTH] =

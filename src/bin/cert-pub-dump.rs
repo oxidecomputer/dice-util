@@ -16,7 +16,7 @@ struct Args {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let mut cert = encoding::decode_cert(&args.cert_path, args.encoding)?;
+    let mut cert = encoding::decode_cert(&args.cert_path, &args.encoding)?;
     let cert = Cert::from_slice(&mut cert);
     let pubkey = cert.get_pub()?;
 

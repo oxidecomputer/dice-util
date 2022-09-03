@@ -49,21 +49,21 @@ impl FromStr for Encoding {
 
 pub fn decode_cert(
     path: &PathBuf,
-    encoding: Encoding,
+    encoding: &Encoding,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     decode_obj(path, encoding, PEM_CERT_TAG)
 }
 
 pub fn decode_csr(
     path: &PathBuf,
-    encoding: Encoding,
+    encoding: &Encoding,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     decode_obj(path, encoding, PEM_CSR_TAG)
 }
 
 fn decode_obj(
     path: &PathBuf,
-    encoding: Encoding,
+    encoding: &Encoding,
     tag: &str,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     match encoding {
