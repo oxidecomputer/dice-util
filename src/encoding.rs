@@ -5,6 +5,7 @@
 use std::{error::Error, fmt, fs, io::Write, path::PathBuf, str::FromStr};
 
 pub const PRIV_KEY_TAG: &str = "PRIVATE KEY";
+pub const PEM_CERT_TAG: &str = "CERTIFICATE";
 pub const PEM_CSR_TAG: &str = "CERTIFICATE REQUEST";
 
 /// Enum to represent possible encodings.
@@ -46,20 +47,35 @@ impl FromStr for Encoding {
     }
 }
 
-pub fn decode_csr(
-    path: &str,
+pub fn decode_cert(
+    path: &PathBuf,
     encoding: Encoding,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    decode_obj(path, encoding, PEM_CERT_TAG)
+}
+
+pub fn decode_csr(
+    path: &PathBuf,
+    encoding: Encoding,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    decode_obj(path, encoding, PEM_CSR_TAG)
+}
+
+fn decode_obj(
+    path: &PathBuf,
+    encoding: Encoding,
+    tag: &str,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     match encoding {
         Encoding::PEM => {
-            let csr_str = fs::read_to_string(path)?;
-            let csr_pem = pem::parse(csr_str)?;
+            let obj = fs::read_to_string(path)?;
+            let parsed = pem::parse(obj)?;
 
-            if csr_pem.tag != PEM_CSR_TAG {
+            if parsed.tag != tag {
                 return Err(Box::new(EncodingError::BadTag));
             }
 
-            Ok(csr_pem.contents)
+            Ok(parsed.contents)
         }
         Encoding::DER => Ok(fs::read(path)?),
         Encoding::RAW => Err(Box::new(EncodingError::InvalidEncoding)),

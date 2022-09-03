@@ -3,8 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 pub mod csr;
+pub mod cert;
 pub mod encoding;
 
+pub use crate::cert::{Cert, CertError};
 pub use crate::csr::{Csr, MissingFieldError};
 pub use crate::encoding::{Encoding, EncodingError};
 
