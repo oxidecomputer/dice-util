@@ -1,5 +1,5 @@
 use clap::Parser;
-use dice_cert_tmpl::{Csr, Encoding, encoding};
+use dice_cert_tmpl::{encoding, Csr, Encoding};
 use std::{io, io::Write, path::PathBuf};
 
 #[derive(Parser, Debug)]

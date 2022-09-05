@@ -1,5 +1,5 @@
 use clap::Parser;
-use dice_cert_tmpl::{Csr, Encoding, encoding};
+use dice_cert_tmpl::{encoding, Csr, Encoding};
 use std::{path::PathBuf, process};
 
 use salty::{
@@ -25,8 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut csr = encoding::decode_csr(&args.csr_path, &args.encoding)?;
     let csr = Csr::from_slice(&mut csr);
 
-    let public: &[u8; PUBLICKEY_SERIALIZED_LENGTH] = 
-        csr.get_pub()?.try_into()?;
+    let public: &[u8; PUBLICKEY_SERIALIZED_LENGTH] = csr.get_pub()?.try_into()?;
 
     let pubkey: PublicKey = match public.try_into() {
         Ok(pubkey) => pubkey,
@@ -36,8 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let sig: &[u8; SIGNATURE_SERIALIZED_LENGTH] =
-        csr.get_sig()?.try_into()?;
+    let sig: &[u8; SIGNATURE_SERIALIZED_LENGTH] = csr.get_sig()?.try_into()?;
     let sig: Signature = sig.into();
 
     let data = csr.get_signdata()?;

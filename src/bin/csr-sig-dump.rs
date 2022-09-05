@@ -1,5 +1,5 @@
 use clap::Parser;
-use dice_cert_tmpl::{Csr, Encoding, encoding};
+use dice_cert_tmpl::{encoding, Csr, Encoding};
 use std::{io, io::Write, path::PathBuf};
 
 #[derive(Parser, Debug)]
@@ -14,7 +14,6 @@ struct Args {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     let args = Args::parse();
 
     let mut csr = encoding::decode_csr(&args.csr_path, &args.encoding)?;

@@ -2,17 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
-pub mod csr;
 pub mod cert;
+pub mod csr;
 pub mod encoding;
 
 pub use crate::cert::{Cert, CertError};
 pub use crate::csr::{Csr, MissingFieldError};
 pub use crate::encoding::{Encoding, EncodingError};
 
-use salty::constants::{
-    PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH,
-};
+use salty::constants::{PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH};
 
 use std::{path::Path, process::Command};
 
@@ -26,11 +24,7 @@ fn get_pattern_offset(data: &[u8], pattern: &[u8]) -> Option<usize> {
     data.windows(pattern.len()).position(|w| w == pattern)
 }
 
-fn get_offsets(
-    data: &[u8],
-    pattern: &[u8],
-    length: usize,
-) -> Option<(usize, usize)> {
+fn get_offsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, usize)> {
     let offset = get_pattern_offset(data, pattern)?;
 
     let start = offset + pattern.len();
@@ -47,11 +41,7 @@ fn get_pattern_roffset(data: &[u8], pattern: &[u8]) -> Option<usize> {
     data.windows(pattern.len()).rposition(|w| w == pattern)
 }
 
-fn get_roffsets(
-    data: &[u8],
-    pattern: &[u8],
-    length: usize,
-) -> Option<(usize, usize)> {
+fn get_roffsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, usize)> {
     let offset = get_pattern_roffset(data, pattern)?;
 
     let start = offset + pattern.len();
@@ -65,18 +55,11 @@ fn get_roffsets(
 }
 
 // Shamelessly borrowed from hubris call_rustfmt
-pub fn rustfmt(
-    path: impl AsRef<Path>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let which_out =
-        Command::new("rustup").args(["which", "rustfmt"]).output()?;
+pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
+    let which_out = Command::new("rustup").args(["which", "rustfmt"]).output()?;
 
     if !which_out.status.success() {
-        return Err(format!(
-            "rustup which returned status {}",
-            which_out.status
-        )
-        .into());
+        return Err(format!("rustup which returned status {}", which_out.status).into());
     }
 
     let out_str = std::str::from_utf8(&which_out.stdout)?.trim();

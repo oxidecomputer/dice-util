@@ -1,12 +1,8 @@
 use clap::Parser;
-use dice_cert_tmpl::{Cert, Encoding, encoding};
+use dice_cert_tmpl::{encoding, Cert, Encoding};
 use std::path::PathBuf;
 
-use salty::{
-    constants::SIGNATURE_SERIALIZED_LENGTH,
-    signature::Signature,
-    Keypair,
-};
+use salty::{constants::SIGNATURE_SERIALIZED_LENGTH, signature::Signature, Keypair};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -33,8 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut cert = encoding::decode_cert(&args.cert, &args.encoding)?;
     let cert = Cert::from_slice(&mut cert);
 
-    let sig: &[u8; SIGNATURE_SERIALIZED_LENGTH] =
-        cert.get_sig()?.try_into()?;
+    let sig: &[u8; SIGNATURE_SERIALIZED_LENGTH] = cert.get_sig()?.try_into()?;
     let sig: Signature = sig.into();
 
     let data = cert.get_signdata()?;

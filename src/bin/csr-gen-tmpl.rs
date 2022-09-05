@@ -1,5 +1,5 @@
 use clap::Parser;
-use dice_cert_tmpl::{Csr, Encoding, encoding};
+use dice_cert_tmpl::{encoding, Csr, Encoding};
 use std::{fs, io::Write, path::PathBuf};
 use tempfile::NamedTempFile;
 
@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut csr = encoding::decode_csr(&args.csr_path, &args.encoding)?;
     let mut out = NamedTempFile::new()?;
-    
+
     println!("{:?}", out.path());
 
     let mut csr = Csr::from_slice(&mut csr);
