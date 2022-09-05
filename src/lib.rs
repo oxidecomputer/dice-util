@@ -12,7 +12,7 @@ pub use crate::encoding::{Encoding, EncodingError};
 
 use salty::constants::{PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH};
 
-use std::{path::Path, process::Command};
+use std::{fmt, path::Path, process::Command};
 
 pub const ED25519_PUB_LEN: usize = PUBLICKEY_SERIALIZED_LENGTH;
 pub const ED25519_SIG_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
@@ -70,6 +70,16 @@ pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>>
     if !fmt_status.success() {
         return Err(format!("rustfmt returned status {}", fmt_status).into());
     }
+    Ok(())
+}
+
+pub fn arrayfmt(data: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "[ ")?;
+    for &byte in data {
+        write!(f, "{:#04x}, ", byte)?;
+    }
+    write!(f, "]")?;
+
     Ok(())
 }
 

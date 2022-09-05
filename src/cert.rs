@@ -46,6 +46,12 @@ type Result<T> = result::Result<T, CertError>;
 
 pub struct Cert<'a>(pub &'a mut [u8]);
 
+impl<'a> fmt::Display for Cert<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        crate::arrayfmt(self.as_bytes(), f)
+    }
+}
+
 impl<'a> Cert<'a> {
     pub fn from_slice(buf: &'a mut [u8]) -> Self {
         Self(buf)
@@ -183,15 +189,18 @@ impl<'a> Cert<'a> {
         &self.as_bytes()[start..end]
     }
 
-    const FWID_BEGIN: [u8; 31] = [
-        0x06, 0x05, 0x67, 0x81, 0x05, 0x05, 0x04, 0x01, 0x01, 0xFF, 0x04, 0x33, 0x30, 0x31, 0xA6,
-        0x2F, 0x30, 0x2D, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x08, 0x04,
-        0x20,
-    ];
+    //06 06 67 81 05 05 04 01 01 01 FF 04 33 30 31
+    //A6 2F 30 2D 06 09 60 86 48 01 65 03 04 02 08
+    //04 20
     // SHA3_256 length
-    const FWID_LEN: usize = 32;
+    const FWID_PATTERN: [u8; 32] = [
+        0x06, 0x06, 0x67, 0x81, 0x05, 0x05, 0x04, 0x01, 0x01, 0x01, 0xFF, 0x04, 0x33, 0x30, 0x31,
+        0xA6, 0x2F, 0x30, 0x2D, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x08,
+        0x04, 0x20,
+    ];
+    const FWID_LEN: usize = Self::FWID_PATTERN.len();
     pub fn get_fwid_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::FWID_BEGIN, Self::FWID_LEN).ok_or(CertError::NoFwid)
+        crate::get_offsets(self.0, &Self::FWID_PATTERN, Self::FWID_LEN).ok_or(CertError::NoFwid)
     }
 }
 

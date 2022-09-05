@@ -37,13 +37,7 @@ pub struct Csr<'a>(&'a mut [u8]);
 
 impl<'a> fmt::Display for Csr<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[ ")?;
-        for &byte in self.as_bytes() {
-            write!(f, "{:#04x}, ", byte)?;
-        }
-        write!(f, "]")?;
-
-        Ok(())
+        crate::arrayfmt(self.as_bytes(), f)
     }
 }
 
