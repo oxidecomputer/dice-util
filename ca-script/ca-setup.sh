@@ -2,24 +2,26 @@
 
 set -e
 
-# The cert hierarchy created by this script
+# All openssl commands in this script are configured by the file `openssl.cnf`.
+# This script creates a hierarchy of certificates as follows:
 #
 # - root CA
 # Root / self signed certificate authority key & cert.
-# Configured by [v3_root_ca] section in openssl.conf
+# CA configuration section: [ ca_root ]
+# v3 extension section: [v3_root_ca]
 #
-# - DeviceId intermediate CA
+# - intermediate CA
 # Intermediate CA used to certify DeviceId certs.
-# Configured by [v3_deviceid_ca] section in openssl.conf
+# CA configuration section: [ ca_intermediate ]
+# v3 extension section [v3_deviceid_ca]
 #
-# - DeviceId embedded CA
-# Another intermediate CA but this one represents a DeviceId on a platform.
-# Configured by [v3_deviceid_embedded_ca] section in openssl.conf
+# - DeviceId embedded CA (ECA)
+# Another intermediate CA, this one represents the platform identity / DeviceId.
+# CA configuration section: [ ca_deviceid_eca ]
+# v3 extension section: [v3_deviceid_eca]
 #
-# - leaf cert
-# A certificate used to sign stuff other than certs. This one is a mock of the
-# Alias cert so it's used to attest to measurements.
-# Configured by [v3_deviceid_leaf_cert].
+
+OPENSSL_CNF=openssl.cnf
 
 HASH=sha3-256
 KEY_ALG_RSA=RSA
@@ -76,13 +78,13 @@ DEVICEID_CA_CERT_TXT=$DEVICEID_SELF_CA_DIR/certs/ca.cert.txt
 SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=device-id"
 openssl req \
     -new \
-    -config openssl.cnf \
+    -config $OPENSSL_CNF \
     -subj "$SUBJ" \
     -key $DEVICEID_ECA_SELF_KEY \
     -$HASH \
     -out $DEVICEID_CA_CSR_PEM
 openssl ca \
-    -config openssl.cnf \
+    -config $OPENSSL_CNF \
     -batch \
     -selfsign \
     -startdate "$(date -u +%Y%m%d%H%M%SZ)" \
@@ -132,7 +134,7 @@ ROOT_CA_CERT_TXT=$ROOT_CA_DIR/certs/ca.cert.txt
 # create CSR for root CA - self signed
 ROOT_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=root-ca"
 openssl req \
-      -config openssl.cnf \
+      -config $OPENSSL_CNF \
       -subj "$ROOT_CA_SUBJ" \
       -key $ROOT_CA_KEY \
       -new -x509 \
@@ -177,7 +179,7 @@ INT_CA_CSR=$ROOT_CA_DIR/csr/intermediate-ca.csr.pem
 
 INT_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=intermediate-ca"
 openssl req \
-      -config openssl.cnf \
+      -config $OPENSSL_CNF \
       -subj "$INT_CA_SUBJ" \
       -new \
       -$HASH \
@@ -192,7 +194,7 @@ INT_CA_CERT_TXT=$INT_CA_DIR/certs/ca.cert.txt
 # NOTE the -name ca_root field, this causes `openssl ca` to get the signing
 # key for the CA from the config file section `ca_root`.
 openssl ca \
-      -config openssl.cnf \
+      -config $OPENSSL_CNF \
       -batch \
       -name ca_root \
       -extensions v3_intermediate_ca \
@@ -243,7 +245,7 @@ DEVICEID_ECA_CSR_TXT=$INT_CA_DIR/csr/deviceid-eca.csr.txt
 
 DEVICEID_ECA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=device-id"
 openssl req \
-      -config openssl.cnf \
+      -config $OPENSSL_CNF \
       -subj "$DEVICEID_ECA_SUBJ" \
       -new \
       -$HASH \
@@ -266,7 +268,7 @@ DEVICEID_ECA_CERT_TXT=$DEVICEID_ECA_DIR/certs/ca.cert.txt
 # Create and sign cert for mock DeviceId ECA.
 # Sign DeviceId ECA cert with intermediate CA.
 openssl ca \
-      -config openssl.cnf \
+      -config $OPENSSL_CNF \
       -batch \
       -name ca_intermediate \
       -extensions v3_deviceid_eca \
@@ -306,7 +308,7 @@ ALIAS_CSR_PEM="$DEVICEID_ECA_DIR/csr/alias.csr.pem"
 
 ALIAS_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=alias"
 openssl req \
-      -config openssl.cnf \
+      -config $OPENSSL_CNF \
       -subj "$ALIAS_SUBJ" \
       -new \
       -$HASH \
@@ -317,11 +319,8 @@ ALIAS_CERT_PEM="$DEVICEID_ECA_DIR/certs/alias.cert.pem"
 ALIAS_CERT_DER="$DEVICEID_ECA_DIR/certs/alias.cert.der"
 ALIAS_CERT_TXT="$DEVICEID_ECA_DIR/certs/alias.cert.txt"
 
-# Create and sign cert for mock leaf cert certified by the DeviceId
-# intermediate embedded CA.
-# interactive
 openssl ca \
-      -config openssl.cnf \
+      -config $OPENSSL_CNF \
       -batch \
       -name ca_deviceid_eca \
       -extensions v3_alias \
@@ -360,7 +359,7 @@ SWDSP_CSR_PEM="$DEVICEID_ECA_DIR/csr/swdsp.csr.pem"
 
 SWDSP_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=swd-sp"
 openssl req \
-      -config openssl.cnf \
+      -config $OPENSSL_CNF \
       -subj "$SWDSP_SUBJ" \
       -new \
       -$HASH \
@@ -371,11 +370,8 @@ SWDSP_CERT_PEM="$DEVICEID_ECA_DIR/certs/swdsp.cert.pem"
 SWDSP_CERT_DER="$DEVICEID_ECA_DIR/certs/swdsp.cert.der"
 SWDSP_CERT_TXT="$DEVICEID_ECA_DIR/certs/swdsp.cert.txt"
 
-# Create and sign cert for mock leaf cert certified by the DeviceId
-# intermediate embedded CA.
-# interactive
 openssl ca \
-      -config openssl.cnf \
+      -config $OPENSSL_CNF \
       -batch \
       -name ca_deviceid_eca \
       -extensions v3_swdsp \
