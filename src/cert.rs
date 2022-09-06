@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{ED25519_PUB_LEN, ED25519_SIG_LEN, SN_LEN};
+use crate::{
+    FWID_LEN, ISSUER_SN_LEN, NOTBEFORE_LEN, PUBLIC_KEY_LEN, SERIAL_NUMBER_LEN, SIGNATURE_LEN,
+    SIGNDATA_BEGIN, SUBJECT_SN_LEN,
+};
 use std::{error, fmt, result};
 
 // Clippy hates this type name. But renaming it to CertMissingFieldError like
@@ -78,14 +81,9 @@ impl<'a> Cert<'a> {
     const SERIAL_NUMBER_PATTERN: [u8; 7] = [0xa0, 0x03, 0x02, 0x01, 0x02, 0x02, 0x01];
     // the SN can be up to 20 bytes (per rfd5280), but we only mint a few certs
     // so a single byte is plenty
-    const SERIAL_NUMBER_LEN: usize = 1;
     pub fn get_serial_number_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(
-            self.0,
-            &Self::SERIAL_NUMBER_PATTERN,
-            Self::SERIAL_NUMBER_LEN,
-        )
-        .ok_or(CertError::NoSerialNumber)
+        crate::get_offsets(self.0, &Self::SERIAL_NUMBER_PATTERN, SERIAL_NUMBER_LEN)
+            .ok_or(CertError::NoSerialNumber)
     }
 
     pub fn get_serial_number(&self) -> Result<u8> {
@@ -94,18 +92,13 @@ impl<'a> Cert<'a> {
     }
 
     // ANS.1 TLVs & OID for commonName (x.520 DN component)
-    const SELFCERT_ISSUER_SN_PATTERN: [u8; 11] = [
+    const ISSUER_SN_PATTERN: [u8; 11] = [
         0x31, 0x15, 0x30, 0x13, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0C,
     ];
-    const SELFCERT_ISSUER_SN_LEN: usize = SN_LEN;
 
     pub fn get_issuer_sn_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(
-            self.0,
-            &Self::SELFCERT_ISSUER_SN_PATTERN,
-            Self::SELFCERT_ISSUER_SN_LEN,
-        )
-        .ok_or(CertError::NoIssuerSn)
+        crate::get_offsets(self.0, &Self::ISSUER_SN_PATTERN, ISSUER_SN_LEN)
+            .ok_or(CertError::NoIssuerSn)
     }
 
     pub fn get_issuer_sn(&self) -> Result<&[u8]> {
@@ -114,10 +107,9 @@ impl<'a> Cert<'a> {
 
     // ASN.1 TLVs & for Sequence & UTCTime
     const NOTBEFORE_PATTERN: [u8; 4] = [0x30, 0x20, 0x17, 0x0D];
-    const NOTBEFORE_LEN: usize = 13;
 
     pub fn get_notbefore_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::NOTBEFORE_PATTERN, Self::NOTBEFORE_LEN)
+        crate::get_offsets(self.0, &Self::NOTBEFORE_PATTERN, NOTBEFORE_LEN)
             .ok_or(CertError::NoNotBefore)
     }
 
@@ -126,33 +118,27 @@ impl<'a> Cert<'a> {
     }
 
     // ASN.1 TLVs & OID for commonName (x.520 DN component)
-    const SELFCERT_SUBJECT_SN_PATTERN: [u8; 11] = [
+    const SUBJECT_SN_PATTERN: [u8; 11] = [
         0x31, 0x15, 0x30, 0x13, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0C,
     ];
-    const SELFCERT_SUBJECT_SN_LEN: usize = SN_LEN;
 
     // when issuer and subject SN are the same length their identifying
     // patterns are the same. This function searches backward for the pattern
     // since issuer comes before subject in the structure
     pub fn get_subject_sn_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(
-            self.0,
-            &Self::SELFCERT_SUBJECT_SN_PATTERN,
-            Self::SELFCERT_SUBJECT_SN_LEN,
-        )
-        .ok_or(CertError::NoSubjectSn)
+        crate::get_roffsets(self.0, &Self::SUBJECT_SN_PATTERN, SUBJECT_SN_LEN)
+            .ok_or(CertError::NoSubjectSn)
     }
 
     pub fn get_subject_sn(&self) -> Result<&[u8]> {
         Ok(self.get_bytes(self.get_subject_sn_offsets()?))
     }
 
-    const SELFCERT_PUB_PATTERN: [u8; 12] = [
+    const PUBLIC_KEY_PATTERN: [u8; 12] = [
         0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03, 0x21, 0x00,
     ];
-    const SELFCERT_PUB_LEN: usize = ED25519_PUB_LEN;
     pub fn get_pub_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::SELFCERT_PUB_PATTERN, Self::SELFCERT_PUB_LEN)
+        crate::get_offsets(self.0, &Self::PUBLIC_KEY_PATTERN, PUBLIC_KEY_LEN)
             .ok_or(CertError::NoPub)
     }
 
@@ -160,7 +146,6 @@ impl<'a> Cert<'a> {
         Ok(self.get_bytes(self.get_pub_offsets()?))
     }
 
-    const SIGN_BEGIN: usize = 0x4;
     const SIGNDATA_PATTERN: [u8; 10] = [0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03, 0x41, 0x00];
 
     pub fn get_signdata_offsets(&self) -> Result<(usize, usize)> {
@@ -169,7 +154,7 @@ impl<'a> Cert<'a> {
         let offset = crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
             .ok_or(CertError::NoSignData)?;
 
-        Ok((Self::SIGN_BEGIN, offset))
+        Ok((SIGNDATA_BEGIN, offset))
     }
 
     pub fn get_signdata(&self) -> Result<&[u8]> {
@@ -177,8 +162,7 @@ impl<'a> Cert<'a> {
     }
 
     pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::SIGNDATA_PATTERN, ED25519_SIG_LEN)
-            .ok_or(CertError::NoSig)
+        crate::get_roffsets(self.0, &Self::SIGNDATA_PATTERN, SIGNATURE_LEN).ok_or(CertError::NoSig)
     }
 
     pub fn get_sig(&self) -> Result<&[u8]> {
@@ -198,9 +182,8 @@ impl<'a> Cert<'a> {
         0xA6, 0x2F, 0x30, 0x2D, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x08,
         0x04, 0x20,
     ];
-    const FWID_LEN: usize = Self::FWID_PATTERN.len();
     pub fn get_fwid_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::FWID_PATTERN, Self::FWID_LEN).ok_or(CertError::NoFwid)
+        crate::get_offsets(self.0, &Self::FWID_PATTERN, FWID_LEN).ok_or(CertError::NoFwid)
     }
 }
 
@@ -373,13 +356,13 @@ mod tests {
         let (start_msg, end_msg) = cert.get_signdata_offsets().expect("signdata");
         let (start_sig, end_sig) = cert.get_sig_offsets().map_err(|e| panic!("{}", e)).unwrap();
         let (start_pub, end_pub) = cert.get_pub_offsets().map_err(|e| panic!("{}", e)).unwrap();
-        let pubkey: &[u8; ED25519_PUB_LEN] = &cert.as_bytes()[start_pub..end_pub]
+        let pubkey: &[u8; PUBLIC_KEY_LEN] = &cert.as_bytes()[start_pub..end_pub]
             .try_into()
             .expect("pubkey try_into");
         let pubkey = PublicKey::try_from(pubkey).expect("pubkey");
 
         // massage bytes from Cert slice representation of sig into sized array
-        let sig: &[u8; ED25519_SIG_LEN] = cert.as_bytes()[start_sig..end_sig]
+        let sig: &[u8; SIGNATURE_LEN] = cert.as_bytes()[start_sig..end_sig]
             .try_into()
             .expect("bad sig size");
 

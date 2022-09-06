@@ -14,11 +14,17 @@ use salty::constants::{PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH}
 
 use std::{error::Error, fmt, io::Write, path::Path, process::Command};
 
-pub const ED25519_PUB_LEN: usize = PUBLICKEY_SERIALIZED_LENGTH;
-pub const ED25519_SIG_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
-// TODO: get this programatically from the cert / csr
-pub const SN_LEN: usize = 12;
-pub const CN_LEN: usize = SN_LEN;
+// csr / cert field sizes
+// get this from sha3 crate as a const requires const generics
+const FWID_LEN: usize = 32;
+const ISSUER_SN_LEN: usize = 12;
+const NOTBEFORE_LEN: usize = 13;
+const PUBLIC_KEY_LEN: usize = PUBLICKEY_SERIALIZED_LENGTH;
+const SERIAL_NUMBER_LEN: usize = 1;
+const SIGNATURE_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
+// TODO: This is brittle. Size of the ASN.1 structure will effect this offset.
+const SIGNDATA_BEGIN: usize = 0x4;
+const SUBJECT_SN_LEN: usize = ISSUER_SN_LEN;
 
 /// Get the offset of a given pattern within the provided buffer.
 fn get_pattern_offset(data: &[u8], pattern: &[u8]) -> Option<usize> {

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{ED25519_PUB_LEN, ED25519_SIG_LEN};
+use crate::{PUBLIC_KEY_LEN, SIGNATURE_LEN, SIGNDATA_BEGIN, SUBJECT_SN_LEN};
 use std::{error, fmt, result};
 
 #[derive(Debug, PartialEq)]
@@ -63,9 +63,8 @@ impl<'a> Csr<'a> {
         0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65,
         0x70, 0x03, 0x21, 0x00,
     ];
-    const PUB_LEN: usize = ED25519_PUB_LEN;
     pub fn get_pub_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::PUB_PATTERN, Self::PUB_LEN).ok_or(MissingFieldError::Pub)
+        crate::get_offsets(self.0, &Self::PUB_PATTERN, PUBLIC_KEY_LEN).ok_or(MissingFieldError::Pub)
     }
 
     pub fn get_pub(&self) -> Result<&[u8]> {
@@ -79,13 +78,12 @@ impl<'a> Csr<'a> {
         0x31, 0x15, 0x30, 0x13, 0x06, 0x03, 0x55, 0x04,
         0x05, 0x13, 0x0C,
     ];
-    const SUBJECT_SN_LEN: usize = Self::SUBJECT_SN_PATTERN.len();
 
     // when issuer and subject SN are the same length their identifying
     // patterns are the same. This function searches backward for the pattern
     // since issuer comes before subject in the structure
     pub fn get_subject_sn_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::SUBJECT_SN_PATTERN, Self::SUBJECT_SN_LEN)
+        crate::get_roffsets(self.0, &Self::SUBJECT_SN_PATTERN, SUBJECT_SN_LEN)
             .ok_or(MissingFieldError::SubjectSn)
     }
 
@@ -95,9 +93,8 @@ impl<'a> Csr<'a> {
         0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03,
         0x41, 0x00,
     ];
-    const SIG_LEN: usize = ED25519_SIG_LEN;
     pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::SIG_PATTERN, Self::SIG_LEN).ok_or(MissingFieldError::Sig)
+        crate::get_roffsets(self.0, &Self::SIG_PATTERN, SIGNATURE_LEN).ok_or(MissingFieldError::Sig)
     }
 
     pub fn get_sig(&self) -> Result<&[u8]> {
@@ -106,24 +103,19 @@ impl<'a> Csr<'a> {
         Ok(&self.0[start..end])
     }
 
-    // TODO: This is brittle. Size of the CSR will effect this offset. Smaller
-    // CSRs will begin sign data at 3 bytes, larger ones at 4 bytes. This is a
-    // strong argument for using a propper ASN.1 parser here.
-    const SIGN_BEGIN: usize = 0x4;
-
     #[rustfmt::skip]
     const SIGNDATA_PATTERN: [u8; 7] = [
         0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70,
     ];
 
     pub fn get_signdata_offsets(&self) -> Result<(usize, usize)> {
-        // CSR data to sign is between offset SIGN_BEGIN & beginning of this
+        // CSR data to sign is between offset SIGNDATA_BEGIN & beginning of this
         // pattern in the CSR. This is the end of the certificationRequestInfo
         // field in the CSR.
         let pattern_offset = crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
             .ok_or(MissingFieldError::SignData)?;
 
-        Ok((Self::SIGN_BEGIN, pattern_offset))
+        Ok((SIGNDATA_BEGIN, pattern_offset))
     }
 
     pub fn get_signdata(&self) -> Result<&[u8]> {
