@@ -20,10 +20,14 @@ pub const ED25519_SIG_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
 pub const SN_LEN: usize = 12;
 pub const CN_LEN: usize = SN_LEN;
 
+/// Get the offset of a given pattern within the provided buffer.
 fn get_pattern_offset(data: &[u8], pattern: &[u8]) -> Option<usize> {
     data.windows(pattern.len()).position(|w| w == pattern)
 }
 
+/// Get the start and end offset of length bytes starting at the end of a
+/// given pattern. This convenience function is intended to make it easy to
+/// get a slice of the data between these two offsets.
 fn get_offsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, usize)> {
     let offset = get_pattern_offset(data, pattern)?;
 
@@ -37,10 +41,16 @@ fn get_offsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, usi
     }
 }
 
+/// Get the offset of a given pattern within the provided buffer. This
+/// variation performs a reverse search of the buffer.
 fn get_pattern_roffset(data: &[u8], pattern: &[u8]) -> Option<usize> {
     data.windows(pattern.len()).rposition(|w| w == pattern)
 }
 
+/// Get the start and end offset of length bytes starting at the end of a
+/// given pattern in the given data slice by reverse search. This convenience
+/// function is intended to make it easy to get a slice of the data between
+/// these two offsets.
 fn get_roffsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, usize)> {
     let offset = get_pattern_roffset(data, pattern)?;
 
@@ -54,7 +64,8 @@ fn get_roffsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, us
     }
 }
 
-// Shamelessly borrowed from hubris call_rustfmt
+/// Format the given file using 'rustfmt' in place.
+/// This was shamelessly borrowed from hubris call_rustfmt.
 pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
     let which_out = Command::new("rustup").args(["which", "rustfmt"]).output()?;
 
@@ -64,8 +75,6 @@ pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
 
     let out_str = std::str::from_utf8(&which_out.stdout)?.trim();
 
-    //println!("will invoke: {}", out_str);
-
     let fmt_status = Command::new(out_str).arg(path.as_ref()).status()?;
     if !fmt_status.success() {
         return Err(format!("rustfmt returned status {}", fmt_status).into());
@@ -73,6 +82,8 @@ pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Format a slice for use on the right hand side of an assignment. This is
+/// used for generating const arrays for templates.
 pub fn arrayfmt(data: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "[ ")?;
     for &byte in data {
@@ -83,6 +94,8 @@ pub fn arrayfmt(data: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
     Ok(())
 }
 
+/// Given a type implementing 'Write', a string prefix and the start & end
+/// offsets this function writes const values for the length, start and end.
 pub fn write_offsets<T: Write>(
     f: &mut T,
     prefix: &str,
