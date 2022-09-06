@@ -12,7 +12,7 @@ pub use crate::encoding::{Encoding, EncodingError};
 
 use salty::constants::{PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH};
 
-use std::{fmt, path::Path, process::Command};
+use std::{error::Error, fmt, io::Write, path::Path, process::Command};
 
 pub const ED25519_PUB_LEN: usize = PUBLICKEY_SERIALIZED_LENGTH;
 pub const ED25519_SIG_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
@@ -55,7 +55,7 @@ fn get_roffsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, us
 }
 
 // Shamelessly borrowed from hubris call_rustfmt
-pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
     let which_out = Command::new("rustup").args(["which", "rustfmt"]).output()?;
 
     if !which_out.status.success() {
@@ -80,6 +80,22 @@ pub fn arrayfmt(data: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
     }
     write!(f, "]")?;
 
+    Ok(())
+}
+
+pub fn write_offsets<T: Write>(
+    f: &mut T,
+    prefix: &str,
+    start: usize,
+    end: usize,
+) -> Result<(), Box<dyn Error>> {
+    writeln!(f, "const {}_START: usize = {};", prefix, start)?;
+    writeln!(f, "const {}_LENGTH: usize = {};", prefix, end - start)?;
+    writeln!(
+        f,
+        "const {}_END: usize = {}_START + {}_LENGTH;",
+        prefix, prefix, prefix
+    )?;
     Ok(())
 }
 

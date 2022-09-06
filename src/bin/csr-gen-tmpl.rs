@@ -24,28 +24,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut csr = Csr::from_slice(&mut csr);
 
+    writeln!(out, "const SIZE: usize = {};", csr.len())?;
+
     let (start, end) = csr.get_pub_offsets()?;
-    writeln!(out, "const PUB_START: usize = {};", start)?;
-    writeln!(out, "const PUB_END: usize = {};", end)?;
-    writeln!(out, "const PUB_LENGTH: usize = {};", end - start)?;
+    dice_cert_tmpl::write_offsets(&mut out, "PUB", start, end)?;
     csr.clear_range(start, end);
 
     let (start, end) = csr.get_subject_sn_offsets()?;
-    writeln!(out, "const SN_START: usize = {};", start)?;
-    writeln!(out, "const SN_END: usize = {};", end)?;
-    writeln!(out, "const SN_LENGTH: usize = {};", end - start)?;
+    dice_cert_tmpl::write_offsets(&mut out, "SUBJECT_SN", start, end)?;
     csr.clear_range(start, end);
 
     let (start, end) = csr.get_sig_offsets()?;
-    writeln!(out, "const SIG_START: usize = {};", start)?;
-    writeln!(out, "const SIG_END: usize = {};", end)?;
-    writeln!(out, "const SIG_LENGTH: usize = {};", end - start)?;
+    dice_cert_tmpl::write_offsets(&mut out, "SIG", start, end)?;
     csr.clear_range(start, end);
 
     let (start, end) = csr.get_signdata_offsets()?;
-    writeln!(out, "const SIGNDATA_START: usize = {};", start)?;
-    writeln!(out, "const SIGNDATA_END: usize = {};", end)?;
-    writeln!(out, "const SIGNDATA_LENGTH: usize = {};", end - start)?;
+    dice_cert_tmpl::write_offsets(&mut out, "SIGNDATA", start, end)?;
+    // don't clear sign data
 
     writeln!(out, "const CSR_TMPL: [u8; {}] = {};", csr.len(), csr)?;
 
