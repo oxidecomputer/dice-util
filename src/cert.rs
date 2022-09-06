@@ -201,9 +201,9 @@ mod tests {
     use super::*;
 
     // Changes to the file included for each test will break these tests
-    // because expected results are harded coded here.
+    // because expected results are hard coded here.
     const TEST_DER: &[u8] =
-        include_bytes!("../data/deviceid-selfcert-tmpl.der");
+        include_bytes!("../ca-script/deviceid-eca-self/certs/ca.cert.der");
     fn init() -> [u8; TEST_DER.len()] {
         let mut buf = [0u8; TEST_DER.len()];
         buf.copy_from_slice(TEST_DER);
@@ -360,7 +360,8 @@ mod tests {
     // this test is specific to the alias / leaf cert
     #[test]
     fn cert_get_fwid_offsets() {
-        const TEST_DER: &[u8] = include_bytes!("../data/alias-cert-tmpl.der");
+        const TEST_DER: &[u8] =
+            include_bytes!("../ca-script/deviceid-eca/certs/alias.cert.der");
         let mut der = [0u8; TEST_DER.len()];
         der.copy_from_slice(TEST_DER);
 
@@ -371,28 +372,25 @@ mod tests {
 
     use salty::signature::{PublicKey, Signature};
     #[test]
-    fn cert_sig_check() {
+    fn cert_sig_check() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start_msg, end_msg) =
-            cert.get_signdata_offsets().expect("signdata");
-        let (start_sig, end_sig) =
-            cert.get_sig_offsets().map_err(|e| panic!("{}", e)).unwrap();
-        let (start_pub, end_pub) =
-            cert.get_pub_offsets().map_err(|e| panic!("{}", e)).unwrap();
-        let pubkey: &[u8; PUBLIC_KEY_LEN] = &cert.as_bytes()
-            [start_pub..end_pub]
-            .try_into()
-            .expect("pubkey try_into");
+        let (start_msg, end_msg) = cert.get_signdata_offsets()?;
+        let (start_sig, end_sig) = cert.get_sig_offsets()?;
+        let (start_pub, end_pub) = cert.get_pub_offsets()?;
+        let pubkey: &[u8; PUBLIC_KEY_LEN] =
+            &cert.as_bytes()[start_pub..end_pub].try_into()?;
+
+        // none of the salty error simplement Error trait
         let pubkey = PublicKey::try_from(pubkey).expect("pubkey");
 
         // massage bytes from Cert slice representation of sig into sized array
-        let sig: &[u8; SIGNATURE_LEN] = cert.as_bytes()[start_sig..end_sig]
-            .try_into()
-            .expect("bad sig size");
+        let sig: &[u8; SIGNATURE_LEN] =
+            cert.as_bytes()[start_sig..end_sig].try_into()?;
 
         let sig = Signature::from(sig);
         let res = pubkey.verify(&cert.as_bytes()[start_msg..end_msg], &sig);
         assert!(res.is_ok());
+        Ok(())
     }
 }
