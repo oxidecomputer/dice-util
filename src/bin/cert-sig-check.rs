@@ -2,7 +2,9 @@ use clap::Parser;
 use dice_cert_tmpl::{encoding, Cert, Encoding};
 use std::path::PathBuf;
 
-use salty::{constants::SIGNATURE_SERIALIZED_LENGTH, signature::Signature, Keypair};
+use salty::{
+    constants::SIGNATURE_SERIALIZED_LENGTH, signature::Signature, Keypair,
+};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]

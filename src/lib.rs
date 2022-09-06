@@ -10,7 +10,9 @@ pub use crate::cert::{Cert, CertError};
 pub use crate::csr::{Csr, MissingFieldError};
 pub use crate::encoding::{Encoding, EncodingError};
 
-use salty::constants::{PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH};
+use salty::constants::{
+    PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH,
+};
 
 use std::{error::Error, fmt, io::Write, path::Path, process::Command};
 
@@ -34,7 +36,11 @@ fn get_pattern_offset(data: &[u8], pattern: &[u8]) -> Option<usize> {
 /// Get the start and end offset of length bytes starting at the end of a
 /// given pattern. This convenience function is intended to make it easy to
 /// get a slice of the data between these two offsets.
-fn get_offsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, usize)> {
+fn get_offsets(
+    data: &[u8],
+    pattern: &[u8],
+    length: usize,
+) -> Option<(usize, usize)> {
     let offset = get_pattern_offset(data, pattern)?;
 
     let start = offset + pattern.len();
@@ -57,7 +63,11 @@ fn get_pattern_roffset(data: &[u8], pattern: &[u8]) -> Option<usize> {
 /// given pattern in the given data slice by reverse search. This convenience
 /// function is intended to make it easy to get a slice of the data between
 /// these two offsets.
-fn get_roffsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, usize)> {
+fn get_roffsets(
+    data: &[u8],
+    pattern: &[u8],
+    length: usize,
+) -> Option<(usize, usize)> {
     let offset = get_pattern_roffset(data, pattern)?;
 
     let start = offset + pattern.len();
@@ -73,10 +83,15 @@ fn get_roffsets(data: &[u8], pattern: &[u8], length: usize) -> Option<(usize, us
 /// Format the given file using 'rustfmt' in place.
 /// This was shamelessly borrowed from hubris call_rustfmt.
 pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
-    let which_out = Command::new("rustup").args(["which", "rustfmt"]).output()?;
+    let which_out =
+        Command::new("rustup").args(["which", "rustfmt"]).output()?;
 
     if !which_out.status.success() {
-        return Err(format!("rustup which returned status {}", which_out.status).into());
+        return Err(format!(
+            "rustup which returned status {}",
+            which_out.status
+        )
+        .into());
     }
 
     let out_str = std::str::from_utf8(&which_out.stdout)?.trim();

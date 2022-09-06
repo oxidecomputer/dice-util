@@ -47,15 +47,25 @@ impl FromStr for Encoding {
     }
 }
 
-pub fn decode_cert(path: &PathBuf, encoding: &Encoding) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn decode_cert(
+    path: &PathBuf,
+    encoding: &Encoding,
+) -> Result<Vec<u8>, Box<dyn Error>> {
     decode_obj(path, encoding, PEM_CERT_TAG)
 }
 
-pub fn decode_csr(path: &PathBuf, encoding: &Encoding) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn decode_csr(
+    path: &PathBuf,
+    encoding: &Encoding,
+) -> Result<Vec<u8>, Box<dyn Error>> {
     decode_obj(path, encoding, PEM_CSR_TAG)
 }
 
-fn decode_obj(path: &PathBuf, encoding: &Encoding, tag: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+fn decode_obj(
+    path: &PathBuf,
+    encoding: &Encoding,
+    tag: &str,
+) -> Result<Vec<u8>, Box<dyn Error>> {
     match encoding {
         Encoding::PEM => {
             let obj = fs::read_to_string(path)?;
@@ -76,7 +86,10 @@ fn decode_obj(path: &PathBuf, encoding: &Encoding, tag: &str) -> Result<Vec<u8>,
 /// This code doesn't parse the DER, and doesn't validate the key type.
 /// We assume it's an Ed25519 key & use known offsets that we think will work.
 /// Or not.
-pub fn decode_key(path: &PathBuf, encoding: &Encoding) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn decode_key(
+    path: &PathBuf,
+    encoding: &Encoding,
+) -> Result<Vec<u8>, Box<dyn Error>> {
     match encoding {
         Encoding::PEM => {
             let key_str = fs::read_to_string(path)?;
@@ -109,7 +122,11 @@ pub fn decode_key(path: &PathBuf, encoding: &Encoding) -> Result<Vec<u8>, Box<dy
     }
 }
 
-pub fn buf_out_fmt<F: Write>(out: &mut F, name: &str, slice: &[u8]) -> Result<(), Box<dyn Error>> {
+pub fn buf_out_fmt<F: Write>(
+    out: &mut F,
+    name: &str,
+    slice: &[u8],
+) -> Result<(), Box<dyn Error>> {
     writeln!(out, "\nconst {}: [u8; {}] = [", name, slice.len())?;
     for (i, elm) in slice.iter().enumerate() {
         if i % 8 == 0 {

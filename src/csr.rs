@@ -18,7 +18,9 @@ impl error::Error for MissingFieldError {}
 impl fmt::Display for MissingFieldError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MissingFieldError::SubjectSn => write!(f, "subject serial number not found."),
+            MissingFieldError::SubjectSn => {
+                write!(f, "subject serial number not found.")
+            }
             MissingFieldError::Pub => write!(f, "No public key found in CSR."),
             MissingFieldError::Sig => {
                 write!(f, "Could not find signature region.")
@@ -64,7 +66,8 @@ impl<'a> Csr<'a> {
         0x70, 0x03, 0x21, 0x00,
     ];
     pub fn get_pub_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::PUB_PATTERN, PUBLIC_KEY_LEN).ok_or(MissingFieldError::Pub)
+        crate::get_offsets(self.0, &Self::PUB_PATTERN, PUBLIC_KEY_LEN)
+            .ok_or(MissingFieldError::Pub)
     }
 
     pub fn get_pub(&self) -> Result<&[u8]> {
@@ -94,7 +97,8 @@ impl<'a> Csr<'a> {
         0x41, 0x00,
     ];
     pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::SIG_PATTERN, SIGNATURE_LEN).ok_or(MissingFieldError::Sig)
+        crate::get_roffsets(self.0, &Self::SIG_PATTERN, SIGNATURE_LEN)
+            .ok_or(MissingFieldError::Sig)
     }
 
     pub fn get_sig(&self) -> Result<&[u8]> {
@@ -112,8 +116,9 @@ impl<'a> Csr<'a> {
         // CSR data to sign is between offset SIGNDATA_BEGIN & beginning of this
         // pattern in the CSR. This is the end of the certificationRequestInfo
         // field in the CSR.
-        let pattern_offset = crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
-            .ok_or(MissingFieldError::SignData)?;
+        let pattern_offset =
+            crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
+                .ok_or(MissingFieldError::SignData)?;
 
         Ok((SIGNDATA_BEGIN, pattern_offset))
     }
@@ -223,7 +228,8 @@ mod tests {
     fn get_pub_offsets() {
         let mut csr: [u8; CSR.len()] = init(CSR);
         let csr = Csr::from_slice(&mut csr);
-        let (start, end) = csr.get_pub_offsets().map_err(|e| panic!("{}", e)).unwrap();
+        let (start, end) =
+            csr.get_pub_offsets().map_err(|e| panic!("{}", e)).unwrap();
         assert_eq!(&csr.as_bytes()[start..end], PUB);
     }
 
@@ -231,7 +237,8 @@ mod tests {
     fn get_sig_offsets() {
         let mut csr: [u8; CSR.len()] = init(CSR);
         let csr = Csr::from_slice(&mut csr);
-        let (start, end) = csr.get_sig_offsets().map_err(|e| panic!("{}", e)).unwrap();
+        let (start, end) =
+            csr.get_sig_offsets().map_err(|e| panic!("{}", e)).unwrap();
         assert_eq!(&csr.as_bytes()[start..end], SIG);
     }
 
@@ -250,6 +257,9 @@ mod tests {
     fn get_signdata_offsets_bad() {
         let mut csr = [0u8; 10];
         let csr = Csr::from_slice(&mut csr);
-        assert_eq!(csr.get_signdata_offsets(), Err(MissingFieldError::SignData));
+        assert_eq!(
+            csr.get_signdata_offsets(),
+            Err(MissingFieldError::SignData)
+        );
     }
 }
