@@ -200,6 +200,8 @@ impl<'a> Cert<'a> {
 mod tests {
     use super::*;
 
+    type Result = result::Result<(), Box<dyn error::Error>>;
+
     // Changes to the file included for each test will break these tests
     // because expected results are hard coded here.
     const TEST_DER: &[u8] =
@@ -213,30 +215,26 @@ mod tests {
 
     const SERIAL_NUMBER_EXPECTED: u8 = 0x10;
     #[test]
-    fn cert_get_serial_number_offsets() {
+    fn cert_get_serial_number_offsets() -> Result {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert
-            .get_serial_number_offsets()
-            .map_err(|e| panic!("{}", e))
-            .unwrap();
+        let (start, end) = cert.get_serial_number_offsets()?;
         assert_eq!(
             &cert.as_bytes()[start..end],
             // SN appears to be big endian?
             SERIAL_NUMBER_EXPECTED.to_be_bytes()
         );
+        Ok(())
     }
 
     const SN_EXPECTED: &str = "000000000000";
     #[test]
-    fn cert_get_issuer_sn_offsets() {
+    fn cert_get_issuer_sn_offsets() -> Result {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert
-            .get_issuer_sn_offsets()
-            .map_err(|e| panic!("{}", e))
-            .unwrap();
+        let (start, end) = cert.get_issuer_sn_offsets()?;
         assert_eq!(&cert.as_bytes()[start..end], SN_EXPECTED.as_bytes());
+        Ok(())
     }
 
     const NOTBEFORE_EXPECTED: [u8; 13] = [
@@ -244,25 +242,21 @@ mod tests {
         0x5A,
     ];
     #[test]
-    fn cert_get_notbefore_offsets() {
+    fn cert_get_notbefore_offsets() -> Result {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert
-            .get_notbefore_offsets()
-            .map_err(|e| panic!("{}", e))
-            .unwrap();
+        let (start, end) = cert.get_notbefore_offsets()?;
         assert_eq!(&cert.as_bytes()[start..end], NOTBEFORE_EXPECTED);
+        Ok(())
     }
 
     #[test]
-    fn cert_get_subject_sn_offsets() {
+    fn cert_get_subject_sn_offsets() -> Result {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert
-            .get_subject_sn_offsets()
-            .map_err(|e| panic!("{}", e))
-            .unwrap();
+        let (start, end) = cert.get_subject_sn_offsets()?;
         assert_eq!(&cert.as_bytes()[start..end], SN_EXPECTED.as_bytes());
+        Ok(())
     }
 
     // sed -E "s/(\S)(\s|$)/\1,  /g;s/(\s|^)(\S)/0x\2/g"
@@ -273,12 +267,12 @@ mod tests {
     ];
 
     #[test]
-    fn cert_get_pub_offsets() {
+    fn cert_get_pub_offsets() -> Result {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start, end) =
-            cert.get_pub_offsets().map_err(|e| panic!("{}", e)).unwrap();
+        let (start, end) = cert.get_pub_offsets()?;
         assert_eq!(&cert.as_bytes()[start..end], &PUB_EXPECTED);
+        Ok(())
     }
 
     const SIGNDATA_EXPECTED: [u8; 453] = [
@@ -323,7 +317,7 @@ mod tests {
     ];
 
     #[test]
-    fn cert_get_signdata_offsets() {
+    fn cert_get_signdata_offsets() -> Result {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let (start, end) = cert
@@ -331,6 +325,7 @@ mod tests {
             .map_err(|e| panic!("{}", e))
             .unwrap();
         assert_eq!(&cert.as_bytes()[start..end], &SIGNDATA_EXPECTED);
+        Ok(())
     }
     const SIG_EXPECTED: [u8; 64] = [
         0x0A, 0x71, 0xA8, 0xF6, 0x02, 0xEB, 0xDC, 0xC3, 0x5F, 0xC5, 0xF1, 0xE0,
@@ -342,7 +337,7 @@ mod tests {
     ];
 
     #[test]
-    fn cert_get_sig_offsets() {
+    fn cert_get_sig_offsets() -> Result {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         // I'm not convinced this is better than just an 'unwrap()'
@@ -350,6 +345,7 @@ mod tests {
         let (start, end) =
             cert.get_sig_offsets().map_err(|e| panic!("{}", e)).unwrap();
         assert_eq!(&cert.as_bytes()[start..end], &SIG_EXPECTED);
+        Ok(())
     }
 
     const FWID_EXPECTED: [u8; 32] = [
@@ -359,7 +355,7 @@ mod tests {
     ];
     // this test is specific to the alias / leaf cert
     #[test]
-    fn cert_get_fwid_offsets() {
+    fn cert_get_fwid_offsets() -> Result {
         const TEST_DER: &[u8] =
             include_bytes!("../ca-script/deviceid-eca/certs/alias.cert.der");
         let mut der = [0u8; TEST_DER.len()];
@@ -368,11 +364,12 @@ mod tests {
         let cert = Cert::from_slice(&mut der);
         let (start, end) = cert.get_fwid_offsets().unwrap();
         assert_eq!(&cert.as_bytes()[start..end], &FWID_EXPECTED);
+        Ok(())
     }
 
     use salty::signature::{PublicKey, Signature};
     #[test]
-    fn cert_sig_check() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn cert_sig_check() -> Result {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let (start_msg, end_msg) = cert.get_signdata_offsets()?;

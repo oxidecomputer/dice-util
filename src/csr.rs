@@ -136,7 +136,7 @@ mod tests {
 
     // TODO: include_bytes! from file
     #[rustfmt::skip]
-    const CSR: &'static [u8] = &[
+    const CSR: [u8; 224] = [
         0x30, 0x81, 0xdd, 0x30, 0x81, 0x90, 0x02, 0x01,
         0x00, 0x30, 0x5d, 0x31, 0x0b, 0x30, 0x09, 0x06,
         0x03, 0x55, 0x04, 0x06, 0x13, 0x02, 0x47, 0x42,
@@ -210,47 +210,33 @@ mod tests {
         0xa0, 0x00,
     ];
 
-    // Test init function to create a mutable array with the CSR copied from
-    // the const CSR
-    const fn init<const N: usize>(a: &[u8]) -> [u8; N] {
-        let mut res = [0u8; N];
-
-        let mut i: usize = 0;
-        while i < N {
-            res[i] = a[i];
-            i += 1;
-        }
-
-        res
-    }
+    type Result = result::Result<(), Box<dyn error::Error>>;
 
     #[test]
-    fn get_pub_offsets() {
-        let mut csr: [u8; CSR.len()] = init(CSR);
+    fn get_pub_offsets() -> Result {
+        let mut csr = CSR.clone();
         let csr = Csr::from_slice(&mut csr);
-        let (start, end) =
-            csr.get_pub_offsets().map_err(|e| panic!("{}", e)).unwrap();
+        let (start, end) = csr.get_pub_offsets()?;
         assert_eq!(&csr.as_bytes()[start..end], PUB);
+        Ok(())
     }
 
     #[test]
-    fn get_sig_offsets() {
-        let mut csr: [u8; CSR.len()] = init(CSR);
+    fn get_sig_offsets() -> Result {
+        let mut csr = CSR.clone();
         let csr = Csr::from_slice(&mut csr);
-        let (start, end) =
-            csr.get_sig_offsets().map_err(|e| panic!("{}", e)).unwrap();
+        let (start, end) = csr.get_sig_offsets()?;
         assert_eq!(&csr.as_bytes()[start..end], SIG);
+        Ok(())
     }
 
     #[test]
-    fn get_signdata_offsets() {
-        let mut csr: [u8; CSR.len()] = init(CSR);
+    fn get_signdata_offsets() -> Result {
+        let mut csr = CSR.clone();
         let csr = Csr::from_slice(&mut csr);
-        let (start, end) = csr
-            .get_signdata_offsets()
-            .map_err(|e| panic!("{}", e))
-            .unwrap();
+        let (start, end) = csr.get_signdata_offsets()?;
         assert_eq!(&csr.as_bytes()[start..end], SIGNDATA);
+        Ok(())
     }
 
     #[test]
