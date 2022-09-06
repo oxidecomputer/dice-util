@@ -3,49 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    FWID_LEN, ISSUER_SN_LEN, NOTBEFORE_LEN, PUBLIC_KEY_LEN, SERIAL_NUMBER_LEN,
-    SIGNATURE_LEN, SIGNDATA_BEGIN, SUBJECT_SN_LEN,
+    MissingFieldError, FWID_LEN, ISSUER_SN_LEN, NOTBEFORE_LEN, PUBLIC_KEY_LEN,
+    SERIAL_NUMBER_LEN, SIGNATURE_LEN, SIGNDATA_BEGIN, SUBJECT_SN_LEN,
 };
-use std::{error, fmt, result};
+use std::{fmt, result};
 
-// Clippy hates this type name. But renaming it to CertMissingFieldError like
-// we did in the Csr module causes the compiler to panic.
-#[derive(Debug, PartialEq)]
-pub enum CertError {
-    NoAuthorityKeyId,
-    NoFwid,
-    NoIssuerSn,
-    NoNotBefore,
-    NoPub,
-    NoSerialNumber,
-    NoSig,
-    NoSignData,
-    NoSubjectSn,
-    NoSubjectKeyId,
-}
-
-impl error::Error for CertError {}
-
-impl fmt::Display for CertError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            CertError::NoAuthorityKeyId => {
-                write!(f, "authorityKeyId not found")
-            }
-            CertError::NoIssuerSn => write!(f, "No issuer SN found."),
-            CertError::NoFwid => write!(f, "No FWID found."),
-            CertError::NoNotBefore => write!(f, "No not before found."),
-            CertError::NoPub => write!(f, "No public key found."),
-            CertError::NoSerialNumber => write!(f, "No serial number found."),
-            CertError::NoSig => write!(f, "No signature found."),
-            CertError::NoSignData => write!(f, "No signdata found."),
-            CertError::NoSubjectKeyId => write!(f, "No subject key ID found."),
-            CertError::NoSubjectSn => write!(f, "No subject SN found."),
-        }
-    }
-}
-
-type Result<T> = result::Result<T, CertError>;
+type Result<T> = result::Result<T, MissingFieldError>;
 
 pub struct Cert<'a>(pub &'a mut [u8]);
 
@@ -88,7 +51,7 @@ impl<'a> Cert<'a> {
             &Self::SERIAL_NUMBER_PATTERN,
             SERIAL_NUMBER_LEN,
         )
-        .ok_or(CertError::NoSerialNumber)
+        .ok_or(MissingFieldError::SerialNumber)
     }
 
     pub fn get_serial_number(&self) -> Result<u8> {
@@ -103,7 +66,7 @@ impl<'a> Cert<'a> {
 
     pub fn get_issuer_sn_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::ISSUER_SN_PATTERN, ISSUER_SN_LEN)
-            .ok_or(CertError::NoIssuerSn)
+            .ok_or(MissingFieldError::IssuerSn)
     }
 
     pub fn get_issuer_sn(&self) -> Result<&[u8]> {
@@ -115,7 +78,7 @@ impl<'a> Cert<'a> {
 
     pub fn get_notbefore_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::NOTBEFORE_PATTERN, NOTBEFORE_LEN)
-            .ok_or(CertError::NoNotBefore)
+            .ok_or(MissingFieldError::NotBefore)
     }
 
     pub fn get_notbefore(&self) -> Result<&[u8]> {
@@ -132,7 +95,7 @@ impl<'a> Cert<'a> {
     // since issuer comes before subject in the structure
     pub fn get_subject_sn_offsets(&self) -> Result<(usize, usize)> {
         crate::get_roffsets(self.0, &Self::SUBJECT_SN_PATTERN, SUBJECT_SN_LEN)
-            .ok_or(CertError::NoSubjectSn)
+            .ok_or(MissingFieldError::SubjectSn)
     }
 
     pub fn get_subject_sn(&self) -> Result<&[u8]> {
@@ -144,7 +107,7 @@ impl<'a> Cert<'a> {
     ];
     pub fn get_pub_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::PUBLIC_KEY_PATTERN, PUBLIC_KEY_LEN)
-            .ok_or(CertError::NoPub)
+            .ok_or(MissingFieldError::PublicKey)
     }
 
     pub fn get_pub(&self) -> Result<&[u8]> {
@@ -159,7 +122,7 @@ impl<'a> Cert<'a> {
         // pattern. This is the end of the certificationRequestInfo field.
         let offset =
             crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
-                .ok_or(CertError::NoSignData)?;
+                .ok_or(MissingFieldError::SignData)?;
 
         Ok((SIGNDATA_BEGIN, offset))
     }
@@ -170,7 +133,7 @@ impl<'a> Cert<'a> {
 
     pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
         crate::get_roffsets(self.0, &Self::SIGNDATA_PATTERN, SIGNATURE_LEN)
-            .ok_or(CertError::NoSig)
+            .ok_or(MissingFieldError::Signature)
     }
 
     pub fn get_sig(&self) -> Result<&[u8]> {
@@ -192,13 +155,14 @@ impl<'a> Cert<'a> {
     ];
     pub fn get_fwid_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::FWID_PATTERN, FWID_LEN)
-            .ok_or(CertError::NoFwid)
+            .ok_or(MissingFieldError::Fwid)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{error, result};
 
     type Result = result::Result<(), Box<dyn error::Error>>;
 

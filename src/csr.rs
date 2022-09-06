@@ -2,35 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{PUBLIC_KEY_LEN, SIGNATURE_LEN, SIGNDATA_BEGIN, SUBJECT_SN_LEN};
-use std::{error, fmt, result};
-
-#[derive(Debug, PartialEq)]
-pub enum MissingFieldError {
-    SubjectSn,
-    Pub,
-    Sig,
-    SignData,
-}
-
-impl error::Error for MissingFieldError {}
-
-impl fmt::Display for MissingFieldError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            MissingFieldError::SubjectSn => {
-                write!(f, "subject serial number not found.")
-            }
-            MissingFieldError::Pub => write!(f, "No public key found in CSR."),
-            MissingFieldError::Sig => {
-                write!(f, "Could not find signature region.")
-            }
-            MissingFieldError::SignData => {
-                write!(f, "Unable to find data region to sign.")
-            }
-        }
-    }
-}
+use crate::{
+    MissingFieldError, PUBLIC_KEY_LEN, SIGNATURE_LEN, SIGNDATA_BEGIN,
+    SUBJECT_SN_LEN,
+};
+use std::{fmt, result};
 
 type Result<T> = result::Result<T, MissingFieldError>;
 
@@ -67,7 +43,7 @@ impl<'a> Csr<'a> {
     ];
     pub fn get_pub_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::PUB_PATTERN, PUBLIC_KEY_LEN)
-            .ok_or(MissingFieldError::Pub)
+            .ok_or(MissingFieldError::PublicKey)
     }
 
     pub fn get_pub(&self) -> Result<&[u8]> {
@@ -98,7 +74,7 @@ impl<'a> Csr<'a> {
     ];
     pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
         crate::get_roffsets(self.0, &Self::SIG_PATTERN, SIGNATURE_LEN)
-            .ok_or(MissingFieldError::Sig)
+            .ok_or(MissingFieldError::Signature)
     }
 
     pub fn get_sig(&self) -> Result<&[u8]> {
@@ -133,6 +109,9 @@ impl<'a> Csr<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{error, result};
+
+    type Result = result::Result<(), Box<dyn error::Error>>;
 
     // TODO: include_bytes! from file
     #[rustfmt::skip]
@@ -209,8 +188,6 @@ mod tests {
         0xef, 0x68, 0x97, 0x1e, 0xab, 0xa0, 0x87, 0x70,
         0xa0, 0x00,
     ];
-
-    type Result = result::Result<(), Box<dyn error::Error>>;
 
     #[test]
     fn get_pub_offsets() -> Result {

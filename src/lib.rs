@@ -6,15 +6,15 @@ pub mod cert;
 pub mod csr;
 pub mod encoding;
 
-pub use crate::cert::{Cert, CertError};
-pub use crate::csr::{Csr, MissingFieldError};
+pub use crate::cert::Cert;
+pub use crate::csr::Csr;
 pub use crate::encoding::{Encoding, EncodingError};
 
 use salty::constants::{
     PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH,
 };
 
-use std::{error::Error, fmt, io::Write, path::Path, process::Command};
+use std::{error, fmt, io::Write, path::Path, process::Command};
 
 // csr / cert field sizes
 // get this from sha3 crate as a const requires const generics
@@ -27,6 +27,41 @@ const SIGNATURE_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
 // TODO: This is brittle. Size of the ASN.1 structure will effect this offset.
 const SIGNDATA_BEGIN: usize = 0x4;
 const SUBJECT_SN_LEN: usize = ISSUER_SN_LEN;
+
+#[derive(Debug, PartialEq)]
+pub enum MissingFieldError {
+    AuthorityKeyId,
+    Fwid,
+    IssuerSn,
+    NotBefore,
+    PublicKey,
+    SerialNumber,
+    Signature,
+    SignData,
+    SubjectSn,
+}
+
+impl error::Error for MissingFieldError {}
+
+impl fmt::Display for MissingFieldError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MissingFieldError::AuthorityKeyId => {
+                write!(f, "authorityKeyId not found")
+            }
+            MissingFieldError::IssuerSn => write!(f, "Issuer SN not found."),
+            MissingFieldError::Fwid => write!(f, "FWID not found."),
+            MissingFieldError::NotBefore => write!(f, "NotBefore not found."),
+            MissingFieldError::PublicKey => write!(f, "Public key not found."),
+            MissingFieldError::SerialNumber => {
+                write!(f, "Serial number not found.")
+            }
+            MissingFieldError::Signature => write!(f, "Signature not found."),
+            MissingFieldError::SignData => write!(f, "Signdata not found."),
+            MissingFieldError::SubjectSn => write!(f, "Subject SN found."),
+        }
+    }
+}
 
 /// Get the offset of a given pattern within the provided buffer.
 fn get_pattern_offset(data: &[u8], pattern: &[u8]) -> Option<usize> {
@@ -82,7 +117,7 @@ fn get_roffsets(
 
 /// Format the given file using 'rustfmt' in place.
 /// This was shamelessly borrowed from hubris call_rustfmt.
-pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
+pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn error::Error>> {
     let which_out =
         Command::new("rustup").args(["which", "rustfmt"]).output()?;
 
@@ -122,7 +157,7 @@ pub fn write_offsets<T: Write>(
     prefix: &str,
     start: usize,
     end: usize,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<dyn error::Error>> {
     writeln!(f, "const {}_START: usize = {};", prefix, start)?;
     writeln!(f, "const {}_LENGTH: usize = {};", prefix, end - start)?;
     writeln!(
