@@ -152,18 +152,16 @@ pub fn arrayfmt(data: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
 
 /// Given a type implementing 'Write', a string prefix and the start & end
 /// offsets this function writes const values for the length, start and end.
-pub fn write_offsets<T: Write>(
+pub fn write_range<T: Write>(
     f: &mut T,
     prefix: &str,
     start: usize,
     end: usize,
 ) -> Result<(), Box<dyn error::Error>> {
-    writeln!(f, "const {}_START: usize = {};", prefix, start)?;
-    writeln!(f, "const {}_LENGTH: usize = {};", prefix, end - start)?;
     writeln!(
         f,
-        "const {}_END: usize = {}_START + {}_LENGTH;",
-        prefix, prefix, prefix
+        "pub const {}_RANGE: Range<usize> = {}..{};",
+        prefix, start, end
     )?;
     Ok(())
 }
