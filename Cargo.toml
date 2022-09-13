@@ -1,11 +1,5 @@
-[package]
-name = "dice-cert-tmpl"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[dependencies]
-chrono = "0.4"
-clap = { version = "3", features = ["derive"] }
-pem = "1"
-salty = "0.2"
-tempfile = "3"
+members = [
+    "dice-cert-tmpl",
+]

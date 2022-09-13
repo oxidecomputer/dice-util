@@ -124,6 +124,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "dice-mfg"
+version = "0.1.0"
+
+[[package]]
 name = "ed25519"
 version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
