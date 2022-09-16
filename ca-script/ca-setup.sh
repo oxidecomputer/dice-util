@@ -345,52 +345,52 @@ ALIAS_CERT_CHAIN_PEM=$DEVICEID_ECA_DIR/certs/alias-cert-chain.pem
 cat $INT_CA_CERT_PEM $DEVICEID_ECA_CERT_PEM $ALIAS_CERT_PEM > $ALIAS_CERT_CHAIN_PEM
 
 ######
-# SWD-SP
+# SP-MEASURE
 ######
-# Create and sign cert for client cert / mock SWD-SP cert.
-SWDSP_KEY="$KEY_DIR/swdsp.key.pem"
-if [ ! -f $SWDSP_KEY ]; then
+# Create and sign cert for client cert / mock SP-MEASURE cert.
+SP_MEASURE_KEY="$KEY_DIR/sp-measure.key.pem"
+if [ ! -f $SP_MEASURE_KEY ]; then
     openssl genpkey \
         -algorithm $KEY_ALG $KEY_OPTS \
-        -out $SWDSP_KEY
+        -out $SP_MEASURE_KEY
 fi
 
-SWDSP_CSR_PEM="$DEVICEID_ECA_DIR/csr/swdsp.csr.pem"
+SP_MEASURE_CSR_PEM="$DEVICEID_ECA_DIR/csr/sp-measure.csr.pem"
 
-SWDSP_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=swd-sp"
+SP_MEASURE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=sp-measure"
 openssl req \
       -config $OPENSSL_CNF \
-      -subj "$SWDSP_SUBJ" \
+      -subj "$SP_MEASURE_SUBJ" \
       -new \
       -$HASH \
-      -key $SWDSP_KEY \
-      -out $SWDSP_CSR_PEM
+      -key $SP_MEASURE_KEY \
+      -out $SP_MEASURE_CSR_PEM
 
-SWDSP_CERT_PEM="$DEVICEID_ECA_DIR/certs/swdsp.cert.pem"
-SWDSP_CERT_DER="$DEVICEID_ECA_DIR/certs/swdsp.cert.der"
-SWDSP_CERT_TXT="$DEVICEID_ECA_DIR/certs/swdsp.cert.txt"
+SP_MEASURE_CERT_PEM="$DEVICEID_ECA_DIR/certs/sp-measure.cert.pem"
+SP_MEASURE_CERT_DER="$DEVICEID_ECA_DIR/certs/sp-measure.cert.der"
+SP_MEASURE_CERT_TXT="$DEVICEID_ECA_DIR/certs/sp-measure.cert.txt"
 
 openssl ca \
       -config $OPENSSL_CNF \
       -batch \
       -name ca_deviceid_eca \
-      -extensions v3_swdsp \
+      -extensions v3_spmeasure \
       -enddate '99991231235959Z' \
       -notext \
       -md $HASH \
-      -in $SWDSP_CSR_PEM \
-      -out $SWDSP_CERT_PEM
+      -in $SP_MEASURE_CSR_PEM \
+      -out $SP_MEASURE_CERT_PEM
 
 openssl x509 \
-	-in $SWDSP_CERT_PEM \
+	-in $SP_MEASURE_CERT_PEM \
 	-noout \
 	-text \
-	> $SWDSP_CERT_TXT
+	> $SP_MEASURE_CERT_TXT
 openssl x509 \
 	-outform der \
-	-in $SWDSP_CERT_PEM \
-	-out $SWDSP_CERT_DER
+	-in $SP_MEASURE_CERT_PEM \
+	-out $SP_MEASURE_CERT_DER
 
 # create file with cert chain: intermediate & deviceid-eca
-SWDSP_CERT_CHAIN_PEM=$DEVICEID_ECA_DIR/certs/swdsp-cert-chain.pem
-cat $INT_CA_CERT_PEM $DEVICEID_ECA_CERT_PEM $SWDSP_CERT_PEM > $SWDSP_CERT_CHAIN_PEM
+SP_MEASURE_CERT_CHAIN_PEM=$DEVICEID_ECA_DIR/certs/sp-measure-cert-chain.pem
+cat $INT_CA_CERT_PEM $DEVICEID_ECA_CERT_PEM $SP_MEASURE_CERT_PEM > $SP_MEASURE_CERT_CHAIN_PEM

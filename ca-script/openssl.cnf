@@ -206,7 +206,7 @@ keyUsage = critical, digitalSignature, keyAgreement, keyEncipherment
 certificatePolicies = tcg-dice-kp-attestInit
 dice-tcb-info=critical, ASN1:SEQUENCE:dice_tcb_info
 
-[ v3_swdsp ]
+[ v3_spmeasure ]
 # will need to adjust the pathlen for deviceid_eca to allow it to sign?
 basicConstraints = critical, CA:true, pathlen:0
 keyUsage = critical, digitalSignature, cRLSign, keyCertSign
