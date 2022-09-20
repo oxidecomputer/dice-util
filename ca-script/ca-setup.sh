@@ -394,3 +394,54 @@ openssl x509 \
 # create file with cert chain: intermediate & deviceid-eca
 SP_MEASURE_CERT_CHAIN_PEM=$DEVICEID_ECA_DIR/certs/sp-measure-cert-chain.pem
 cat $INT_CA_CERT_PEM $DEVICEID_ECA_CERT_PEM $SP_MEASURE_CERT_PEM > $SP_MEASURE_CERT_CHAIN_PEM
+
+######
+# trust-quorum-dhe
+######
+# Create and sign cert for client cert / mock SP-MEASURE cert.
+TQDHE_KEY="$KEY_DIR/trust-quorum-dhe.key.pem"
+if [ ! -f $TQDHE_KEY ]; then
+    openssl genpkey \
+        -algorithm $KEY_ALG $KEY_OPTS \
+        -out $TQDHE_KEY
+fi
+
+TQDHE_CSR_PEM="$DEVICEID_ECA_DIR/csr/trust-quorum-dhe.csr.pem"
+
+TQDHE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=trust-quorum-dhe"
+openssl req \
+      -config $OPENSSL_CNF \
+      -subj "$TQDHE_SUBJ" \
+      -new \
+      -$HASH \
+      -key $TQDHE_KEY \
+      -out $TQDHE_CSR_PEM
+
+TQDHE_CERT_PEM="$DEVICEID_ECA_DIR/certs/trust-quorum-dhe.cert.pem"
+TQDHE_CERT_DER="$DEVICEID_ECA_DIR/certs/trust-quorum-dhe.cert.der"
+TQDHE_CERT_TXT="$DEVICEID_ECA_DIR/certs/trust-quorum-dhe.cert.txt"
+
+openssl ca \
+      -config $OPENSSL_CNF \
+      -batch \
+      -name ca_deviceid_eca \
+      -extensions v3_trust_quorum_dhe \
+      -enddate '99991231235959Z' \
+      -notext \
+      -md $HASH \
+      -in $TQDHE_CSR_PEM \
+      -out $TQDHE_CERT_PEM
+
+openssl x509 \
+	-in $TQDHE_CERT_PEM \
+	-noout \
+	-text \
+	> $TQDHE_CERT_TXT
+openssl x509 \
+	-outform der \
+	-in $TQDHE_CERT_PEM \
+	-out $TQDHE_CERT_DER
+
+# create file with cert chain: intermediate & deviceid-eca
+TQDHE_CERT_CHAIN_PEM=$DEVICEID_ECA_DIR/certs/trust-quorum-dhe-cert-chain.pem
+cat $INT_CA_CERT_PEM $DEVICEID_ECA_CERT_PEM $TQDHE_CERT_PEM > $TQDHE_CERT_CHAIN_PEM
