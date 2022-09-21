@@ -1,0 +1,10 @@
+[package]
+name = "dice-mfg"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "3", features = ["derive"] }
+dice-mfg-msgs = { path = "../dice-mfg-msgs" }
+pem = "1"
+serialport = "4"

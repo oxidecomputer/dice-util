@@ -1,0 +1,10 @@
+[package]
+name = "dice-mfg-msgs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+corncobs = "0.1"
+hubpack = "0.1"
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde-big-array = "0.4"

@@ -2,4 +2,6 @@
 
 members = [
     "dice-cert-tmpl",
+    "dice-mfg",
+    "dice-mfg-msgs",
 ]
