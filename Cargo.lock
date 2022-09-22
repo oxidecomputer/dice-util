@@ -167,6 +167,7 @@ dependencies = [
  "dice-mfg-msgs",
  "pem",
  "serialport",
+ "string-error",
 ]
 
 [[package]]
@@ -536,6 +537,12 @@ name = "signature"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0ea32af43239f0d353a7dd75a22d94c329c8cdaafdcb4c1c1335aa10c298a4a"
+
+[[package]]
+name = "string-error"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "439558b73299d7afdf52c36399c3c812cca10fe5ca08429f38815df5bacf3ef7"
 
 [[package]]
 name = "strsim"

@@ -8,3 +8,4 @@ clap = { version = "3", features = ["derive"] }
 dice-mfg-msgs = { path = "../dice-mfg-msgs" }
 pem = "1"
 serialport = "4"
+string-error = "0.1"

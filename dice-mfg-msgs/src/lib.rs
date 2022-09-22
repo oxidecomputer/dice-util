@@ -1,23 +1,78 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 #![cfg_attr(not(test), no_std)]
 
 use hubpack::SerializedSize;
-//use serde_big_array::BigArray;
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, SerializedSize)]
 pub struct CommsCheck(pub [u8; 32]);
 
+const BLOB_SIZE: usize = 512;
+
+#[derive(Clone, Deserialize, Serialize, SerializedSize)]
+pub struct Blob(#[serde(with = "BigArray")] [u8; BLOB_SIZE]);
+
+impl TryFrom<&[u8]> for Blob {
+    type Error = Error;
+
+    fn try_from(s: &[u8]) -> Result<Self, Self::Error> {
+        if s.len() > BLOB_SIZE {
+            return Err(Self::Error::SliceTooBig);
+        }
+        let mut buf = [0u8; BLOB_SIZE];
+        buf[..s.len()].copy_from_slice(s);
+
+        Ok(Self(buf))
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, SerializedSize)]
+pub struct SizedBlob {
+    pub size: u16,
+    pub data: Blob,
+}
+
+impl TryFrom<&[u8]> for SizedBlob {
+    type Error = Error;
+
+    fn try_from(s: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self {
+            // this is a lossy conversion but if s.len() > u16::MAX then the
+            // following try_from will produce an error
+            size: s.len() as u16,
+            data: Blob::try_from(s)?,
+        })
+    }
+}
+
+impl SizedBlob {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data.0[..]
+    }
+}
+
 // large variants in enum is intentional: this is how we do serialization
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, PartialEq, Deserialize, Serialize, SerializedSize)]
+#[derive(Deserialize, Serialize, SerializedSize)]
 pub enum Msgs {
     Break,
     HowYouDoin(CommsCheck),
     NotGreat,
     NotBad,
+    // this is an analog to the SerialNumber type in hubris/lib/dice
+    // this may not be the best place for this
+    SerialNumber([u8; 12]),
+    SerialNumberAck,
+    PlzSendCsr,
+    Csr(SizedBlob),
+    CsrAck,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize, SerializedSize)]
+#[derive(Deserialize, Serialize, SerializedSize)]
 pub struct Msg {
     pub id: u32,
     pub msg: Msgs,
@@ -28,6 +83,7 @@ pub enum Error {
     Decode,
     Deserialize,
     Serialize,
+    SliceTooBig,
 }
 
 impl Msg {
