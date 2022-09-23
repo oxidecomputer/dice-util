@@ -8,10 +8,7 @@ use hubpack::SerializedSize;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
-#[derive(Debug, PartialEq, Deserialize, Serialize, SerializedSize)]
-pub struct CommsCheck(pub [u8; 32]);
-
-const BLOB_SIZE: usize = 512;
+const BLOB_SIZE: usize = 768;
 
 #[derive(Clone, Deserialize, Serialize, SerializedSize)]
 pub struct Blob(#[serde(with = "BigArray")] [u8; BLOB_SIZE]);
@@ -60,16 +57,15 @@ impl SizedBlob {
 #[derive(Deserialize, Serialize, SerializedSize)]
 pub enum Msgs {
     Break,
-    HowYouDoin(CommsCheck),
-    NotGreat,
-    NotBad,
     // this is an analog to the SerialNumber type in hubris/lib/dice
     // this may not be the best place for this
     SerialNumber([u8; 12]),
     SerialNumberAck,
-    PlzSendCsr,
     Csr(SizedBlob),
-    CsrAck,
+    CsrPlz,
+    NoSerialNumber,
+    Ping,
+    Pong,
 }
 
 #[derive(Deserialize, Serialize, SerializedSize)]
