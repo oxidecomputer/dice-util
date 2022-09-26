@@ -5,7 +5,7 @@
 use clap::Parser;
 use dice_mfg::Result;
 use serialport::{DataBits, FlowControl, Parity, StopBits};
-use std::{fs, path::PathBuf, time::Duration};
+use std::time::Duration;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -21,10 +21,6 @@ struct Args {
     /// ping-pong count
     #[clap(long, default_value = "5")]
     ping_pong_count: u8,
-
-    /// Destination path for CSR
-    #[clap(long)]
-    csr_path: PathBuf,
 }
 
 fn main() -> Result<()> {
@@ -39,20 +35,10 @@ fn main() -> Result<()> {
         .stop_bits(StopBits::One)
         .open()?;
 
-    if !dice_mfg::ping_pong_loop(&mut port, args.ping_pong_count)? {
+    if dice_mfg::ping_pong_loop(&mut port, args.ping_pong_count)? {
+        dice_mfg::send_break(&mut port)
+    } else {
         println!("no pings ack'd: aborting");
-        return Ok(());
+        Ok(())
     }
-
-    let csr = dice_mfg::get_csr(&mut port)?;
-
-    // write to file
-    println!("writing CSR to file: {:?}", args.csr_path);
-    let size = usize::from(csr.size);
-    match fs::write(args.csr_path, &csr.as_bytes()[..size]) {
-        Ok(_) => println!("success!"),
-        Err(e) => println!("Error: {:?}", e),
-    };
-
-    Ok(())
 }

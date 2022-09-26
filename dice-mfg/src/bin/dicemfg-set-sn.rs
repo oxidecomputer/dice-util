@@ -30,7 +30,8 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let sn = dice_mfg::validate_sn(&args.serial_number)?;
+    // can clap this this for us?
+    let sn = validate_sn(&args.serial_number)?;
 
     println!("device: {}, baud: {}", args.serial_dev, args.baud);
     let mut port = serialport::new(args.serial_dev.clone(), args.baud)
@@ -41,7 +42,28 @@ fn main() -> Result<()> {
         .stop_bits(StopBits::One)
         .open()?;
 
-    dice_mfg::ping_pong_loop(&mut port, args.ping_pong_count)?;
+    if dice_mfg::ping_pong_loop(&mut port, args.ping_pong_count)? {
+        dice_mfg::set_sn(&mut port, sn)
+    } else {
+        println!("no pings ack'd: aborting");
+        Ok(())
+    }
+}
 
-    dice_mfg::set_sn(&mut port, sn)
+pub fn validate_sn(s: &String) -> Result<[u8; 12]> {
+    let s = String::from(s);
+    for c in s.chars() {
+        if !c.is_ascii_alphanumeric() {
+            return Err(string_error::into_err(String::from(format!(
+                "invalid character in serial number: \'{}\'",
+                c
+            ))));
+        }
+    }
+
+    Ok(s.as_bytes().try_into().or_else(|_| {
+        Err(string_error::into_err(String::from(
+            "serial number is the wrong length, should be 12 characters",
+        )))
+    })?)
 }

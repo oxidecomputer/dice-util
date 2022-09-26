@@ -18,6 +18,8 @@ pub enum Error {
     Decode,
     PingRange,
     NoSerialNumber,
+    ConfigIncomplete,
+    NoResponse,
 }
 
 impl std::error::Error for Error {}
@@ -37,12 +39,46 @@ impl fmt::Display for Error {
             Error::NoSerialNumber => {
                 write!(f, "Platform has no serial number: can't generate CSR.")
             }
+            Error::ConfigIncomplete => {
+                write!(f, "Configuration incomplete.")
+            }
+            Error::NoResponse => {
+                write!(f, "No pings acknowledged: check connection to RoT")
+            }
         }
     }
 }
 
+pub fn set_intermediate(
+    port: &mut Box<dyn SerialPort>,
+    cert: SizedBlob,
+) -> Result<()> {
+    println!("sending Intermediate cert ...");
+    let msg = Msg {
+        id: 0,
+        msg: Msgs::IntermediateCert(cert),
+    };
+
+    send_msg(port, &msg)?;
+    recv_ack(port)
+}
+
+pub fn set_deviceid(
+    port: &mut Box<dyn SerialPort>,
+    cert: SizedBlob,
+) -> Result<()> {
+    println!("sending DeviceId cert ...");
+    let msg = Msg {
+        id: 0,
+        msg: Msgs::DeviceIdCert(cert),
+    };
+
+    send_msg(port, &msg)?;
+    recv_ack(port)
+}
+
 pub fn get_csr(port: &mut Box<dyn SerialPort>) -> Result<SizedBlob> {
-    println!("requesting CSR");
+    println!("requesting CSR ...");
     let msg = Msg {
         id: 1,
         msg: Msgs::CsrPlz,
@@ -50,14 +86,42 @@ pub fn get_csr(port: &mut Box<dyn SerialPort>) -> Result<SizedBlob> {
 
     send_msg(port, &msg)?;
 
-    println!("waiting for CSR");
     let resp = recv_msg(port).map_err(|_| Error::Recv)?;
 
     match resp.msg {
         Msgs::Csr(csr) => Ok(csr),
-        Msgs::NoSerialNumber => Err(Box::new(Error::NoSerialNumber)),
+        // RoT will nak a request for the DeviceId CSR if it hasn't been given
+        // a serial number yet.
+        Msgs::Nak => Err(Box::new(Error::NoSerialNumber)),
         _ => {
             println!("got unexpected response, was expecting SerialNumberAck");
+            Err(Box::new(Error::WrongMsg))
+        }
+    }
+}
+
+pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
+    print!("sending Break ... ");
+    let msg = Msg {
+        id: 1,
+        msg: Msgs::Break,
+    };
+
+    send_msg(port, &msg)?;
+
+    let resp = recv_msg(port).map_err(|_| Error::Recv)?;
+
+    match resp.msg {
+        Msgs::Ack => {
+            println!("success");
+            Ok(())
+        }
+        Msgs::Nak => {
+            println!("failure: command refused.");
+            Err(Box::new(Error::ConfigIncomplete))
+        }
+        _ => {
+            println!("got unexpected response");
             Err(Box::new(Error::WrongMsg))
         }
     }
@@ -70,28 +134,28 @@ pub fn set_sn(port: &mut Box<dyn SerialPort>, sn: [u8; 12]) -> Result<()> {
         msg: Msgs::SerialNumber(sn),
     };
 
-    send_msg(port, &msg)
+    send_msg(port, &msg);
+    recv_ack(port)
 }
 
-pub fn ping_pong_loop(port: &mut Box<dyn SerialPort>, count: u8) -> Result<()> {
-    let end = count;
-
+pub fn ping_pong_loop(
+    port: &mut Box<dyn SerialPort>,
+    count: u8,
+) -> Result<bool> {
     for i in (Range {
         start: 0,
         end: count,
     }) {
         match ping_pong(port) {
-            Ok(_) => break,
-            Err(_) => {
-                if i == end {
-                    return Err(Box::new(Error::PingRange));
-                }
+            Ok(_) => return Ok(true),
+            Err(e) => {
+                println!("ping {} failed: \"{}\"", i, e);
                 continue;
             }
         }
     }
 
-    Ok(())
+    Ok(false)
 }
 
 pub fn ping_pong(port: &mut Box<dyn SerialPort>) -> Result<()> {
@@ -102,38 +166,23 @@ pub fn ping_pong(port: &mut Box<dyn SerialPort>) -> Result<()> {
     };
 
     send_msg(port, &msg)?;
+    recv_ack(port)
+}
 
-    println!("waiting for pong");
+pub fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {
+    print!("waiting for Ack ... ");
     let resp = recv_msg(port).map_err(|_| Error::Recv)?;
 
     match resp.msg {
-        Msgs::Pong => {
+        Msgs::Ack => {
             println!("success!");
             Ok(())
         }
         _ => {
-            println!("got unexpected response, was expecting SerialNumberAck");
+            println!("unexpected response");
             Err(Box::new(Error::WrongMsg))
         }
     }
-}
-
-pub fn validate_sn(s: &String) -> Result<[u8; 12]> {
-    let s = String::from(s);
-    for c in s.chars() {
-        if !c.is_ascii_alphanumeric() {
-            return Err(string_error::into_err(String::from(format!(
-                "invalid character in serial number: \'{}\'",
-                c
-            ))));
-        }
-    }
-
-    Ok(s.as_bytes().try_into().or_else(|_| {
-        Err(string_error::into_err(String::from(
-            "serial number is the wrong length, should be 12 characters",
-        )))
-    })?)
 }
 
 fn send_msg(port: &mut Box<dyn SerialPort>, msg: &Msg) -> Result<()> {
@@ -147,7 +196,7 @@ fn send_msg(port: &mut Box<dyn SerialPort>, msg: &Msg) -> Result<()> {
 
 fn recv_msg(port: &mut Box<dyn SerialPort>) -> Result<Msg> {
     let mut encoded_buf = [0xFFu8; Msg::MAX_ENCODED_SIZE];
-    println!("recv_msg w/ MAX_ENCODED_SIZE: {}", Msg::MAX_ENCODED_SIZE);
+    //println!("recv_msg w/ MAX_ENCODED_SIZE: {}", Msg::MAX_ENCODED_SIZE);
 
     let size = read_all(port, &mut encoded_buf)?;
 

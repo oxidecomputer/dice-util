@@ -27,6 +27,12 @@ impl TryFrom<&[u8]> for Blob {
     }
 }
 
+impl Default for Blob {
+    fn default() -> Self {
+        Self([0u8; BLOB_SIZE])
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize, SerializedSize)]
 pub struct SizedBlob {
     pub size: u16,
@@ -46,6 +52,15 @@ impl TryFrom<&[u8]> for SizedBlob {
     }
 }
 
+impl Default for SizedBlob {
+    fn default() -> Self {
+        Self {
+            size: 0,
+            data: Blob::default(),
+        }
+    }
+}
+
 impl SizedBlob {
     pub fn as_bytes(&self) -> &[u8] {
         &self.data.0[..]
@@ -56,18 +71,19 @@ impl SizedBlob {
 #[allow(clippy::large_enum_variant)]
 #[derive(Deserialize, Serialize, SerializedSize)]
 pub enum Msgs {
+    Ack,
     Break,
-    // this is an analog to the SerialNumber type in hubris/lib/dice
-    // this may not be the best place for this
-    SerialNumber([u8; 12]),
-    SerialNumberAck,
     Csr(SizedBlob),
     CsrPlz,
-    NoSerialNumber,
+    DeviceIdCert(SizedBlob),
+    IntermediateCert(SizedBlob),
+    Nak,
     Ping,
-    Pong,
+    // this is an analog to the SerialNumber type in hubris/lib/dice
+    SerialNumber([u8; 12]),
 }
 
+// TODO: we don't use message ids, simplify this
 #[derive(Deserialize, Serialize, SerializedSize)]
 pub struct Msg {
     pub id: u32,

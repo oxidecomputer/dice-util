@@ -3,7 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use clap::Parser;
-use dice_mfg::Result;
+use dice_mfg::{Error, Result};
+use dice_mfg_msgs::SizedBlob;
 use serialport::{DataBits, FlowControl, Parity, StopBits};
 use std::{fs, path::PathBuf, time::Duration};
 
@@ -22,13 +23,18 @@ struct Args {
     #[clap(long, default_value = "5")]
     ping_pong_count: u8,
 
-    /// Destination path for CSR
+    /// Path to DevcieId cert
     #[clap(long)]
-    csr_path: PathBuf,
+    cert_path: PathBuf,
+    // encoding pem / der?
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
+
+    let cert = fs::read_to_string(&args.cert_path)?;
+    let cert = pem::parse(cert)?;
+    let cert = SizedBlob::try_from(&cert.contents[..]).expect("cert too big");
 
     println!("device: {}, baud: {}", args.serial_dev, args.baud);
     let mut port = serialport::new(args.serial_dev.clone(), args.baud)
@@ -39,20 +45,11 @@ fn main() -> Result<()> {
         .stop_bits(StopBits::One)
         .open()?;
 
-    if !dice_mfg::ping_pong_loop(&mut port, args.ping_pong_count)? {
+    if dice_mfg::ping_pong_loop(&mut port, args.ping_pong_count)? {
+        println!("sending intermediate cert from file: {:?}", args.cert_path);
+        dice_mfg::set_intermediate(&mut port, cert)
+    } else {
         println!("no pings ack'd: aborting");
-        return Ok(());
+        Err(Box::new(Error::NoResponse))
     }
-
-    let csr = dice_mfg::get_csr(&mut port)?;
-
-    // write to file
-    println!("writing CSR to file: {:?}", args.csr_path);
-    let size = usize::from(csr.size);
-    match fs::write(args.csr_path, &csr.as_bytes()[..size]) {
-        Ok(_) => println!("success!"),
-        Err(e) => println!("Error: {:?}", e),
-    };
-
-    Ok(())
 }
