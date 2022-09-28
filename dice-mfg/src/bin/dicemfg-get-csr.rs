@@ -45,11 +45,23 @@ fn main() -> Result<()> {
     }
 
     let csr = dice_mfg::get_csr(&mut port)?;
+    let size = usize::from(csr.size);
+
+    // encode as PEM
+    let pem = pem::Pem {
+        tag: String::from("CERTIFICATE REQUEST"),
+        contents: csr.as_bytes()[..size].to_vec(),
+    };
+    let csr_pem = pem::encode_config(
+        &pem,
+        pem::EncodeConfig {
+            line_ending: pem::LineEnding::LF,
+        },
+    );
 
     // write to file
     println!("writing CSR to file: {:?}", args.csr_path);
-    let size = usize::from(csr.size);
-    match fs::write(args.csr_path, &csr.as_bytes()[..size]) {
+    match fs::write(args.csr_path, &csr_pem.as_bytes()) {
         Ok(_) => println!("success!"),
         Err(e) => println!("Error: {:?}", e),
     };
