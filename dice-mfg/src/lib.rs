@@ -134,7 +134,7 @@ pub fn set_sn(port: &mut Box<dyn SerialPort>, sn: [u8; 12]) -> Result<()> {
         msg: Msgs::SerialNumber(sn),
     };
 
-    send_msg(port, &msg);
+    send_msg(port, &msg)?;
     recv_ack(port)
 }
 
@@ -142,11 +142,17 @@ pub fn ping_pong_loop(
     port: &mut Box<dyn SerialPort>,
     count: u8,
 ) -> Result<bool> {
+    let msg = Msg {
+        id: 666,
+        msg: Msgs::Ping,
+    };
+
     for i in (Range {
         start: 0,
         end: count,
     }) {
-        match ping_pong(port) {
+        send_msg(port, &msg)?;
+        match recv_ack(port) {
             Ok(_) => return Ok(true),
             Err(e) => {
                 println!("ping {} failed: \"{}\"", i, e);
@@ -156,17 +162,6 @@ pub fn ping_pong_loop(
     }
 
     Ok(false)
-}
-
-pub fn ping_pong(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    println!("sending ping");
-    let msg = Msg {
-        id: 666,
-        msg: Msgs::Ping,
-    };
-
-    send_msg(port, &msg)?;
-    recv_ack(port)
 }
 
 pub fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {

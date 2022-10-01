@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use clap::Parser;
-use dice_mfg::Result;
+use dice_mfg::{Error, Result};
 use serialport::{DataBits, FlowControl, Parity, StopBits};
 use std::{fs, path::PathBuf, time::Duration};
 
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
 
     if !dice_mfg::ping_pong_loop(&mut port, args.ping_pong_count)? {
         println!("no pings ack'd: aborting");
-        return Ok(());
+        return Err(Box::new(Error::NoResponse));
     }
 
     let csr = dice_mfg::get_csr(&mut port)?;
