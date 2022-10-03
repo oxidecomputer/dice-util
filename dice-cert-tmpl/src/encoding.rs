@@ -9,7 +9,7 @@ pub const PEM_CERT_TAG: &str = "CERTIFICATE";
 pub const PEM_CSR_TAG: &str = "CERTIFICATE REQUEST";
 
 /// Enum to represent possible encodings.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Encoding {
     DER,
     PEM,

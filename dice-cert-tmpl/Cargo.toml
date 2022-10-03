@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4"
-clap = { version = "3", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 pem = "1"
 salty = "0.2"
 tempfile = "3"
