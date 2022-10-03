@@ -4,7 +4,7 @@
 
 use dice_mfg_msgs::{Msg, Msgs, SizedBlob};
 use serialport::SerialPort;
-use std::{fmt, ops::Range};
+use std::{fmt, io::Write, ops::Range};
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -100,6 +100,24 @@ pub fn get_csr(port: &mut Box<dyn SerialPort>) -> Result<SizedBlob> {
     }
 }
 
+pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
+    let size = usize::from(csr.size);
+
+    // encode as PEM
+    let pem = pem::Pem {
+        tag: String::from("CERTIFICATE REQUEST"),
+        contents: csr.as_bytes()[..size].to_vec(),
+    };
+    let csr_pem = pem::encode_config(
+        &pem,
+        pem::EncodeConfig {
+            line_ending: pem::LineEnding::LF,
+        },
+    );
+
+    Ok(w.write_all(&csr_pem.as_bytes())?)
+}
+
 pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
     print!("sending Break ... ");
     let msg = Msg {
@@ -127,7 +145,10 @@ pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
     }
 }
 
-pub fn set_sn(port: &mut Box<dyn SerialPort>, sn: [u8; 12]) -> Result<()> {
+pub fn set_serial_number(
+    port: &mut Box<dyn SerialPort>,
+    sn: [u8; 12],
+) -> Result<()> {
     println!("sending serial number: {:?}", &sn);
     let msg = Msg {
         id: 666,

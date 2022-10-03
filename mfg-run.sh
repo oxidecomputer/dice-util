@@ -1,12 +1,5 @@
 #!/bin/bash
 
-# params / config file?
-# - intermediate cert
-# - CA root
-# - serial dev
-# - baud
-# - serial number
-
 # this should be 11
 SN_LEN=12
 SN="$(cat /dev/urandom | tr -dc '[:alnum:]' | fold -w $SN_LEN | head -n 1)"
@@ -17,35 +10,32 @@ if [ ! -f $INTERMEDIATE_CERT ]; then
     exit 1
 fi
 
-echo "setting SN to: $SN"
+echo -n "setting SN to: $SN ... "
 # set random serial number
-cargo run --bin dicemfg-set-sn -- \
+cargo run --bin dice-mfg --  \
     --serial-dev /dev/ttyUSB0 \
     --baud 9600 \
-    --serial-number \
-    "$SN"
-
+    set-serial-number "$SN"
 if [ $? -ne 0 ]; then
-    # reset RoT
     >&2 echo "failed to set SN to: \"${SN}\""
     exit 1
 fi
+echo "success"
 
 # should be a temp file
 CSR_FILE=${SN}.csr.pem
 
-echo "getting CSR ..."
+echo -n "getting CSR ... "
 # get CSR for platform w/ provided serial number
-cargo run --bin dicemfg-get-csr -- \
+cargo run --bin dice-mfg -- \
     --serial-dev /dev/ttyUSB0 \
     --baud 9600 \
-    --csr-path $CSR_FILE
-
+    get-csr $CSR_FILE
 if [ $? -ne 0 ]; then
-    # reset RoT / humility reset
     >&2 echo "failed to get CSR"
     exit 1
 fi
+echo "success"
 
 CA_ROOT=./ca-script/
 CA_SECTION=ca_intermediate
@@ -54,7 +44,7 @@ CERT_FILE=${SN}.cert.pem
 V3_SECTION=v3_deviceid_eca
 OPENSSL_CNF=$CA_ROOT/openssl.cnf
 
-echo "generating X.509 ..."
+echo -n "generating X.509 Cert ... "
 cargo run --bin dicemfg-sign-csr -- \
     --ca-dir $CA_ROOT \
     --ca-section $CA_SECTION \
@@ -62,41 +52,41 @@ cargo run --bin dicemfg-sign-csr -- \
     --csr-in $CSR_FILE \
     --openssl-cnf $OPENSSL_CNF \
     --v3-section $V3_SECTION
-
 if [ $? -ne 0 ]; then
-    # reset RoT / humility reset
     >&2 echo "failed to generate cert"
     exit 1
 fi
+echo "success"
 
-cargo run --bin dicemfg-set-deviceid -- \
+echo -n "sending DeviceId Cert to RoT ... "
+cargo run --bin dice-mfg -- \
     --serial-dev /dev/ttyUSB0 \
     --baud 9600 \
-    --cert-path $CERT_FILE
-
+    set-device-id $CERT_FILE
 if [ $? -ne 0 ]; then
-    # reset RoT / humility reset
     >&2 echo "failed to set DeviceId cert"
     exit 1
 fi
+echo "success"
 
-cargo run --bin dicemfg-set-intermediate -- \
+echo -n "sending intermediate Cert to RoT ... "
+cargo run --bin dice-mfg -- \
     --serial-dev /dev/ttyUSB0 \
     --baud 9600 \
-    --cert-path $INTERMEDIATE_CERT
-
+    set-intermediate $INTERMEDIATE_CERT
 if [ $? -ne 0 ]; then
-    # reset RoT / humility reset
     >&2 echo "failed to set intermediate cert"
     exit 1
 fi
+echo "success"
 
-cargo run --bin dicemfg-break -- \
+echo -n "Manufacturing complete, sending break ... "
+cargo run --bin dice-mfg -- \
     --serial-dev /dev/ttyUSB0 \
-    --baud 9600
-
+    --baud 9600 \
+    "break"
 if [ $? -ne 0 ]; then
-    # reset RoT / humility reset
     >&2 echo "failed to finalize mfg"
     exit 1
 fi
+echo "success"
