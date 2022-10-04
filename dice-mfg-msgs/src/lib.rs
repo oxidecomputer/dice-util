@@ -70,7 +70,7 @@ impl SizedBlob {
 // large variants in enum is intentional: this is how we do serialization
 #[allow(clippy::large_enum_variant)]
 #[derive(Deserialize, Serialize, SerializedSize)]
-pub enum Msgs {
+pub enum MfgMessage {
     Ack,
     Break,
     Csr(SizedBlob),
@@ -83,13 +83,6 @@ pub enum Msgs {
     SerialNumber([u8; 12]),
 }
 
-// TODO: we don't use message ids, simplify this
-#[derive(Deserialize, Serialize, SerializedSize)]
-pub struct Msg {
-    pub id: u32,
-    pub msg: Msgs,
-}
-
 #[derive(Debug, PartialEq)]
 pub enum Error {
     Decode,
@@ -98,16 +91,16 @@ pub enum Error {
     SliceTooBig,
 }
 
-impl Msg {
+impl MfgMessage {
     pub const MAX_ENCODED_SIZE: usize =
-        corncobs::max_encoded_len(Msg::MAX_SIZE);
+        corncobs::max_encoded_len(Self::MAX_SIZE);
 
     pub fn decode(data: &[u8]) -> Result<Self, Error> {
-        let mut buf = [0u8; Msg::MAX_SIZE];
+        let mut buf = [0u8; Self::MAX_SIZE];
 
         let size =
             corncobs::decode_buf(data, &mut buf).map_err(|_| Error::Decode)?;
-        let (msg, _) = hubpack::deserialize::<Msg>(&buf[..size])
+        let (msg, _) = hubpack::deserialize::<Self>(&buf[..size])
             .map_err(|_| Error::Deserialize)?;
 
         Ok(msg)
@@ -115,9 +108,9 @@ impl Msg {
 
     pub fn encode(
         &self,
-        dst: &mut [u8; Msg::MAX_ENCODED_SIZE],
+        dst: &mut [u8; Self::MAX_ENCODED_SIZE],
     ) -> Result<usize, Error> {
-        let mut buf = [0xFFu8; Msg::MAX_ENCODED_SIZE];
+        let mut buf = [0xFFu8; Self::MAX_ENCODED_SIZE];
 
         let size =
             hubpack::serialize(&mut buf, self).map_err(|_| Error::Serialize)?;
