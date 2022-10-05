@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use dice_mfg_msgs::{MfgMessage, SizedBlob};
+use dice_mfg_msgs::{MfgMessage, SerialNumber, SizedBlob};
 use serialport::SerialPort;
 use std::{fmt, io::Write, ops::Range};
 
@@ -131,7 +131,7 @@ pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
 
 pub fn set_serial_number(
     port: &mut Box<dyn SerialPort>,
-    sn: [u8; 12],
+    sn: SerialNumber,
 ) -> Result<()> {
     println!("sending serial number: {:?}", &sn);
 

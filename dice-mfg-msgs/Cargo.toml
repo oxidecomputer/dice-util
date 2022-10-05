@@ -8,3 +8,4 @@ corncobs = "0.1"
 hubpack = "0.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
 serde-big-array = "0.4"
+zerocopy = "0.6"

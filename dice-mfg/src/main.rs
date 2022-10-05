@@ -4,7 +4,7 @@
 
 use clap::{Parser, Subcommand};
 use dice_mfg::Result;
-use dice_mfg_msgs::SizedBlob;
+use dice_mfg_msgs::{SerialNumber, SizedBlob};
 use serialport::{DataBits, FlowControl, Parity, StopBits};
 use std::{
     fs::{self, File},
@@ -57,7 +57,7 @@ enum Command {
     SetSerialNumber {
         /// Platform serial number
         #[clap(value_parser = validate_sn)]
-        serial_number: [u8; 12],
+        serial_number: SerialNumber,
     },
 }
 
@@ -114,8 +114,7 @@ pub fn sized_blob_from_pem_path(p: PathBuf) -> Result<SizedBlob> {
     Ok(SizedBlob::try_from(&cert.contents[..]).expect("cert too big"))
 }
 
-pub fn validate_sn(s: &str) -> result::Result<[u8; 12], String> {
-    let s = String::from(s);
+pub fn validate_sn(s: &str) -> result::Result<SerialNumber, String> {
     for c in s.chars() {
         if !c.is_ascii_alphanumeric() {
             return Err(String::from(format!(
@@ -125,7 +124,7 @@ pub fn validate_sn(s: &str) -> result::Result<[u8; 12], String> {
         }
     }
 
-    Ok(s.as_bytes().try_into().or_else(|_| {
+    Ok(s.try_into().or_else(|_| {
         Err(String::from(
             "serial number is the wrong length, should be 12 characters",
         ))
