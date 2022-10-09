@@ -166,11 +166,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 dice_cert_tmpl::write_range(&mut out, "ISSUER_SN", start, end)?;
                 cert.clear_range(start, end);
 
-                // TODO: not useful any longer, remove?
-                let (start, end) = cert.get_notbefore_offsets()?;
-                dice_cert_tmpl::write_range(&mut out, "NOTBEFORE", start, end)?;
-                cert.clear_range(start, end);
-
                 let (start, end) = cert.get_subject_sn_offsets()?;
                 dice_cert_tmpl::write_range(
                     &mut out,

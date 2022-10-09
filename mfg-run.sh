@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# this should be 11
-SN_LEN=12
+SN_LEN=11
 SN="$(cat /dev/urandom | tr -dc '[:alnum:]' | fold -w $SN_LEN | head -n 1)"
 INTERMEDIATE_CERT=./ca-script/intermediate-ca/certs/ca.cert.pem
 

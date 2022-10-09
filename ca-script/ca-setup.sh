@@ -37,6 +37,8 @@ KEY_OPTS_ED25519=
 KEY_ALG=$KEY_ALG_ED25519
 KEY_OPTS=$KEY_OPTS_ED25519
 
+SERIAL_NUMBER="00000000000"
+
 # private keys used in CA hierarchy
 KEY_DIR=keys
 
@@ -75,7 +77,7 @@ DEVICEID_CA_CERT_PEM=$DEVICEID_SELF_CA_DIR/certs/ca.cert.pem
 DEVICEID_CA_CERT_DER=$DEVICEID_SELF_CA_DIR/certs/ca.cert.der
 DEVICEID_CA_CERT_TXT=$DEVICEID_SELF_CA_DIR/certs/ca.cert.txt
 
-SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=device-id"
+SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=device-id"
 openssl req \
     -new \
     -config $OPENSSL_CNF \
@@ -243,7 +245,7 @@ DEVICEID_ECA_CSR_PEM=$INT_CA_DIR/csr/deviceid-eca.csr.pem
 DEVICEID_ECA_CSR_DER=$INT_CA_DIR/csr/deviceid-eca.csr.der
 DEVICEID_ECA_CSR_TXT=$INT_CA_DIR/csr/deviceid-eca.csr.txt
 
-DEVICEID_ECA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=device-id"
+DEVICEID_ECA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=device-id"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$DEVICEID_ECA_SUBJ" \
@@ -306,7 +308,7 @@ fi
 
 ALIAS_CSR_PEM="$DEVICEID_ECA_DIR/csr/alias.csr.pem"
 
-ALIAS_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=alias"
+ALIAS_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=alias"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$ALIAS_SUBJ" \
@@ -357,7 +359,7 @@ fi
 
 SP_MEASURE_CSR_PEM="$DEVICEID_ECA_DIR/csr/sp-measure.csr.pem"
 
-SP_MEASURE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=sp-measure"
+SP_MEASURE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=sp-measure"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$SP_MEASURE_SUBJ" \
@@ -408,7 +410,7 @@ fi
 
 TQDHE_CSR_PEM="$DEVICEID_ECA_DIR/csr/trust-quorum-dhe.csr.pem"
 
-TQDHE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=000000000000/CN=trust-quorum-dhe"
+TQDHE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=trust-quorum-dhe"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$TQDHE_SUBJ" \

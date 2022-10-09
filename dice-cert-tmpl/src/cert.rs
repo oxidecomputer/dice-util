@@ -59,9 +59,9 @@ impl<'a> Cert<'a> {
         Ok(sn[0])
     }
 
-    // ANS.1 TLVs & OID for commonName (x.520 DN component)
+    // ANS.1 TLVs & OID for serialNumber (x.520 DN component)
     const ISSUER_SN_PATTERN: [u8; 11] = [
-        0x31, 0x15, 0x30, 0x13, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0C,
+        0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0B,
     ];
 
     pub fn get_issuer_sn_offsets(&self) -> Result<(usize, usize)> {
@@ -85,9 +85,9 @@ impl<'a> Cert<'a> {
         Ok(self.get_bytes(self.get_issuer_sn_offsets()?))
     }
 
-    // ASN.1 TLVs & OID for commonName (x.520 DN component)
+    // ASN.1 TLVs & OID for serialNumber (x.520 DN component)
     const SUBJECT_SN_PATTERN: [u8; 11] = [
-        0x31, 0x15, 0x30, 0x13, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0C,
+        0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0B,
     ];
 
     // when issuer and subject SN are the same length their identifying

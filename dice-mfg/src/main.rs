@@ -126,7 +126,7 @@ pub fn validate_sn(s: &str) -> result::Result<SerialNumber, String> {
 
     Ok(s.try_into().or_else(|_| {
         Err(String::from(
-            "serial number is the wrong length, should be 12 characters",
+            "serial number is the wrong length, should be 11 characters",
         ))
     })?)
 }

@@ -70,8 +70,7 @@ impl SizedBlob {
 }
 
 // see RFD 219
-// should be 11, do this next
-const SN_LENGTH: usize = 12;
+const SN_LENGTH: usize = 11;
 
 #[repr(C)]
 #[derive(
@@ -123,7 +122,6 @@ pub enum MfgMessage {
     IntermediateCert(SizedBlob),
     Nak,
     Ping,
-    // this is an analog to the SerialNumber type in hubris/lib/dice
     SerialNumber(SerialNumber),
 }
 
