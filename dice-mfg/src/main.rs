@@ -19,11 +19,11 @@ use std::{
 /// Send commands to the RoT for DeviceId certification.
 struct Args {
     /// serial port device path
-    #[clap(long, default_value = "/dev/ttyACM0")]
+    #[clap(long, default_value = "/dev/ttyACM0", env)]
     serial_dev: String,
 
     /// baud rate
-    #[clap(long, default_value = "9600")]
+    #[clap(long, default_value = "9600", env)]
     baud: u32,
 
     /// send ping and wait for pong before sending command

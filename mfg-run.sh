@@ -9,12 +9,11 @@ if [ ! -f $INTERMEDIATE_CERT ]; then
     exit 1
 fi
 
+export SERIAL_DEV="/dev/ttyUSB0"
+
 echo -n "setting SN to: $SN ... "
 # set random serial number
-cargo run --bin dice-mfg --  \
-    --serial-dev /dev/ttyUSB0 \
-    --baud 9600 \
-    set-serial-number "$SN"
+cargo run --bin dice-mfg -- set-serial-number "$SN"
 if [ $? -ne 0 ]; then
     >&2 echo "failed to set SN to: \"${SN}\""
     exit 1
@@ -26,10 +25,7 @@ CSR_FILE=${SN}.csr.pem
 
 echo -n "getting CSR ... "
 # get CSR for platform w/ provided serial number
-cargo run --bin dice-mfg -- \
-    --serial-dev /dev/ttyUSB0 \
-    --baud 9600 \
-    get-csr $CSR_FILE
+cargo run --bin dice-mfg -- get-csr $CSR_FILE
 if [ $? -ne 0 ]; then
     >&2 echo "failed to get CSR"
     exit 1
@@ -58,10 +54,7 @@ fi
 echo "success"
 
 echo -n "sending DeviceId Cert to RoT ... "
-cargo run --bin dice-mfg -- \
-    --serial-dev /dev/ttyUSB0 \
-    --baud 9600 \
-    set-device-id $CERT_FILE
+cargo run --bin dice-mfg -- set-device-id $CERT_FILE
 if [ $? -ne 0 ]; then
     >&2 echo "failed to set DeviceId cert"
     exit 1
@@ -69,10 +62,7 @@ fi
 echo "success"
 
 echo -n "sending intermediate Cert to RoT ... "
-cargo run --bin dice-mfg -- \
-    --serial-dev /dev/ttyUSB0 \
-    --baud 9600 \
-    set-intermediate $INTERMEDIATE_CERT
+cargo run --bin dice-mfg -- set-intermediate $INTERMEDIATE_CERT
 if [ $? -ne 0 ]; then
     >&2 echo "failed to set intermediate cert"
     exit 1
@@ -80,10 +70,7 @@ fi
 echo "success"
 
 echo -n "Manufacturing complete, sending break ... "
-cargo run --bin dice-mfg -- \
-    --serial-dev /dev/ttyUSB0 \
-    --baud 9600 \
-    "break"
+cargo run --bin dice-mfg -- "break"
 if [ $? -ne 0 ]; then
     >&2 echo "failed to finalize mfg"
     exit 1
