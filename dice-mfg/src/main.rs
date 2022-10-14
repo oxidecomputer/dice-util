@@ -31,7 +31,7 @@ struct Args {
     skip_ping: bool,
 
     /// ping-pong count
-    #[clap(long, default_value = "5")]
+    #[clap(long, default_value = "10")]
     ping_pong_count: u8,
 
     /// command
