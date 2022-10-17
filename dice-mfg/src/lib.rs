@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use dice_mfg_msgs::{MfgMessage, SerialNumber, SizedBlob};
+use log::{error, info, warn};
+
 use serialport::SerialPort;
 use std::{fmt, io::Write, ops::Range};
 
@@ -63,14 +65,14 @@ pub fn set_deviceid(
     port: &mut Box<dyn SerialPort>,
     cert: SizedBlob,
 ) -> Result<()> {
-    println!("sending DeviceId cert ...");
+    info!("sending DeviceId cert ...");
 
     send_msg(port, &MfgMessage::DeviceIdCert(cert))?;
     recv_ack(port)
 }
 
 pub fn get_csr(port: &mut Box<dyn SerialPort>) -> Result<SizedBlob> {
-    println!("requesting CSR ...");
+    info!("requesting CSR ...");
 
     send_msg(port, &MfgMessage::CsrPlz)?;
 
@@ -82,7 +84,7 @@ pub fn get_csr(port: &mut Box<dyn SerialPort>) -> Result<SizedBlob> {
         // a serial number yet.
         MfgMessage::Nak => Err(Box::new(Error::NoSerialNumber)),
         _ => {
-            println!("got unexpected response, was expecting SerialNumberAck");
+            error!("got unexpected response, was expecting SerialNumberAck");
             Err(Box::new(Error::WrongMsg))
         }
     }
@@ -107,7 +109,7 @@ pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
 }
 
 pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    print!("sending Break ... ");
+    info!("sending Break ... ");
 
     send_msg(port, &MfgMessage::Break)?;
 
@@ -115,15 +117,15 @@ pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
 
     match resp {
         MfgMessage::Ack => {
-            println!("success");
+            info!("success");
             Ok(())
         }
         MfgMessage::Nak => {
-            println!("failure: command refused.");
+            error!("failure: command refused.");
             Err(Box::new(Error::ConfigIncomplete))
         }
         _ => {
-            println!("got unexpected response");
+            error!("got unexpected response");
             Err(Box::new(Error::WrongMsg))
         }
     }
@@ -133,7 +135,7 @@ pub fn set_serial_number(
     port: &mut Box<dyn SerialPort>,
     sn: SerialNumber,
 ) -> Result<()> {
-    println!("sending serial number: {:?}", &sn);
+    info!("sending serial number: {:?}", &sn);
 
     send_msg(port, &MfgMessage::SerialNumber(sn))?;
     recv_ack(port)
@@ -151,7 +153,7 @@ pub fn ping_pong_loop(
         match recv_ack(port) {
             Ok(_) => return Ok(true),
             Err(e) => {
-                println!("ping {} failed: \"{}\"", i, e);
+                warn!("ping {} failed: \"{}\"", i, e);
                 continue;
             }
         }
@@ -161,7 +163,7 @@ pub fn ping_pong_loop(
 }
 
 pub fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    print!("waiting for Ack ... ");
+    info!("waiting for Ack ... ");
     let resp = recv_msg(port).map_err(|_| Error::Recv)?;
 
     match resp {
@@ -170,7 +172,7 @@ pub fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {
             Ok(())
         }
         _ => {
-            println!("unexpected response");
+            warn!("unexpected response");
             Err(Box::new(Error::WrongMsg))
         }
     }
@@ -194,7 +196,7 @@ fn recv_msg(port: &mut Box<dyn SerialPort>) -> Result<MfgMessage> {
     match MfgMessage::decode(&encoded_buf[..size]) {
         Ok(msg) => Ok(msg),
         Err(e) => {
-            println!("{:?}", e);
+            error!("{:?}", e);
             Err(Box::new(Error::Decode))
         }
     }

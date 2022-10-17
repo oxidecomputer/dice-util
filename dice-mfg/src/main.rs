@@ -5,6 +5,8 @@
 use clap::{Parser, Subcommand};
 use dice_mfg::Result;
 use dice_mfg_msgs::{SerialNumber, SizedBlob};
+use env_logger::Builder;
+use log::{error, info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, StopBits};
 use std::{
     fs::{self, File},
@@ -37,6 +39,10 @@ struct Args {
     /// command
     #[command(subcommand)]
     command: Command,
+
+    /// verbosity
+    #[clap(long)]
+    verbose: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -64,7 +70,18 @@ enum Command {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    println!("device: {}, baud: {}", args.serial_dev, args.baud);
+    let mut builder = Builder::from_default_env();
+
+    let level = if args.verbose {
+        LevelFilter::Info
+    } else {
+        LevelFilter::Error
+    };
+    builder.filter(None, level).init();
+
+    if args.verbose {
+        info!("device: {}, baud: {}", args.serial_dev, args.baud);
+    }
     let mut port = serialport::new(args.serial_dev.clone(), args.baud)
         .timeout(Duration::from_secs(1))
         .data_bits(DataBits::Eight)
@@ -76,11 +93,10 @@ fn main() -> Result<()> {
     if !args.skip_ping
         && !dice_mfg::ping_pong_loop(&mut port, args.ping_pong_count)?
     {
-        println!("no pings ack'd: aborting");
+        error!("no pings ack'd: aborting");
         process::exit(1);
     }
 
-    println!("made it to matching");
     match args.command {
         Command::Break => dice_mfg::send_break(&mut port),
         Command::GetCsr { csr_path } => {
