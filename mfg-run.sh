@@ -107,7 +107,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # sign CSR, create Cert
-dice-ca-sign.sh \
+./dice-ca-sign.sh \
     $CA_SECTION \
     --cert-out $CERT_FILE \
     --csr-in $CSR_FILE \
