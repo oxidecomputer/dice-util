@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 # defaults from init-dice-intermediate-ca.sh
 DEFAULT_CFG=dice-intermediate-ca_openssl.cnf
 DEFAULT_SERIAL_DEV=/dev/ttyACM0
@@ -77,9 +75,7 @@ fi
 
 # validate SN
 SN_LEN=11
-if echo "$SERIAL_NUMBER" | grep "[[:alnum:]]\{$SN_LEN\}"; then
-    echo "good sn"
-else
+if ! echo "$SERIAL_NUMBER" | grep "[[:alnum:]]\{$SN_LEN\}" > /dev/null; then
     echo "malformed serial number"
     exit 1
 fi
@@ -87,7 +83,7 @@ fi
 #SERIAL_NUMBER="$(cat /dev/urandom | tr -dc '[:alnum:]' | fold -w $SN_LEN | head -n 1)"
 
 # send platform being manufactured its serial number
-cargo run --bin dice-mfg -- set-serial-number "$SERIAL_NUMBER"
+cargo run --quiet --bin dice-mfg -- set-serial-number "$SERIAL_NUMBER"
 if [ $? -ne 0 ]; then
     >&2 echo "failed to set SN to: \"${SERIAL_NUMBER}\""
     exit 1
@@ -100,26 +96,34 @@ CSR_FILE=$TMP_DIR/${SERIAL_NUMBER}.csr.pem
 CERT_FILE=$TMP_DIR/${SERIAL_NUMBER}.cert.pem
 
 # get CSR for platform w/ provided serial number
-cargo run --bin dice-mfg -- get-csr $CSR_FILE
+cargo run --quiet --bin dice-mfg -- get-csr $CSR_FILE
 if [ $? -ne 0 ]; then
     >&2 echo "failed to get CSR"
     exit 1
 fi
 
+OPENSSL_CA_LOG=$TMP_DIR/openssl-ca_${SERIAL_NUMBER}.log
+
+echo -n "Signing CSR ... "
 # sign CSR, create Cert
+# openssl ca is noisy and on success or failure it writes a bunch of stuff to
+#  stderr. Write output to a tmp file
 ./dice-ca-sign.sh \
     $CA_SECTION \
     --cert-out $CERT_FILE \
     --csr-in $CSR_FILE \
     --openssl-cnf $CFG \
-    $V3_SECTION
+    $V3_SECTION > $OPENSSL_CA_LOG 2>&1
 if [ $? -ne 0 ]; then
     >&2 echo "failed to generate cert"
+    cat $OPENSSL_CA_LOG
     exit 1
+else
+    echo "success!"
 fi
 
 # send platform it's DeviceId cert
-cargo run --bin dice-mfg -- set-device-id $CERT_FILE
+cargo run --quiet --bin dice-mfg -- set-device-id $CERT_FILE
 if [ $? -ne 0 ]; then
     >&2 echo "failed to set DeviceId cert"
     exit 1
@@ -127,7 +131,7 @@ fi
 
 # send platform the cert for the CA that signed the DeviceId
 # we assume this is an intermediate CA
-cargo run --bin dice-mfg -- set-intermediate $CA_CERT
+cargo run --quiet --bin dice-mfg -- set-intermediate $CA_CERT
 if [ $? -ne 0 ]; then
     >&2 echo "failed to set intermediate CA cert"
     exit 1
@@ -135,7 +139,7 @@ fi
 
 # platform has all of the data that makes up its identity
 # DeviceId manufacutring is complete, send break command to end mfg 
-cargo run --bin dice-mfg -- "break"
+cargo run --quiet --bin dice-mfg -- "break"
 if [ $? -ne 0 ]; then
     >&2 echo "failed to finalize mfg"
     exit 1
