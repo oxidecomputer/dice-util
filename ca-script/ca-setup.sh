@@ -23,7 +23,6 @@ set -e
 
 OPENSSL_CNF=openssl.cnf
 
-HASH=sha3-256
 KEY_ALG_RSA=RSA
 KEY_OPTS_RSA4K="-pkeyopt rsa_keygen_bits:4096"
 
@@ -37,7 +36,13 @@ KEY_OPTS_ED25519=
 KEY_ALG=$KEY_ALG_ED25519
 KEY_OPTS=$KEY_OPTS_ED25519
 
+# SN is 11 alphanumeric characters: see rfd 219
 SERIAL_NUMBER="00000000000"
+
+TMPL_DIR=tmpls
+if [ ! -d $TMPL_DIR ]; then
+    mkdir $TMPL_DIR
+fi
 
 # private keys used in CA hierarchy
 KEY_DIR=keys
@@ -72,38 +77,26 @@ echo 10 > serial
 echo 10 > crlnumber
 popd
 
-DEVICEID_CA_CSR_PEM=$DEVICEID_SELF_CA_DIR/csr/ca.cert.pem
-DEVICEID_CA_CERT_PEM=$DEVICEID_SELF_CA_DIR/certs/ca.cert.pem
-DEVICEID_CA_CERT_DER=$DEVICEID_SELF_CA_DIR/certs/ca.cert.der
-DEVICEID_CA_CERT_TXT=$DEVICEID_SELF_CA_DIR/certs/ca.cert.txt
-
-SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=device-id"
+DEVICEID_CA_CSR_PEM=$DEVICEID_SELF_CA_DIR/csr/ca.csr.pem
+SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=device-id/serialNumber=$SERIAL_NUMBER"
 openssl req \
     -new \
     -config $OPENSSL_CNF \
     -subj "$SUBJ" \
     -key $DEVICEID_ECA_SELF_KEY \
-    -$HASH \
     -out $DEVICEID_CA_CSR_PEM
+
+DEVICEID_CA_CERT_PEM=$DEVICEID_SELF_CA_DIR/certs/ca.cert.pem
 openssl ca \
     -config $OPENSSL_CNF \
     -batch \
     -selfsign \
-    -startdate "$(date -u +%Y%m%d%H%M%SZ)" \
-    -enddate '99991231235959Z' \
     -name ca_selfsigned_deviceid_embedded \
     -extensions v3_deviceid_eca \
     -in $DEVICEID_CA_CSR_PEM \
     -out $DEVICEID_CA_CERT_PEM
-openssl x509 \
-    -in $DEVICEID_CA_CERT_PEM \
-    -outform DER \
-    -out $DEVICEID_CA_CERT_DER
-openssl x509 \
-    -in $DEVICEID_CA_CERT_PEM \
-    -noout \
-    -text \
-    > $DEVICEID_CA_CERT_TXT
+
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen $DEVICEID_CA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
 
 #######
 # root CA
@@ -128,31 +121,17 @@ if [ ! -f $ROOT_CA_KEY ]; then
     chmod 400 $ROOT_CA_KEY
 fi
 
-
 ROOT_CA_CERT_PEM=$ROOT_CA_DIR/certs/ca.cert.pem
-ROOT_CA_CERT_DER=$ROOT_CA_DIR/certs/ca.cert.der
-ROOT_CA_CERT_TXT=$ROOT_CA_DIR/certs/ca.cert.txt
-
-# create CSR for root CA - self signed
 ROOT_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=root-ca"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$ROOT_CA_SUBJ" \
       -key $ROOT_CA_KEY \
-      -new -x509 \
-      -days 7300 \
-      -$HASH \
+      -new \
+      -x509 \
+      -days 3650 \
       -extensions v3_root_ca \
       -out $ROOT_CA_CERT_PEM
-openssl x509 \
-	-in $ROOT_CA_CERT_PEM \
-	-noout \
-	-text \
-	> $ROOT_CA_CERT_TXT
-openssl x509 \
-	-outform der \
-	-in $ROOT_CA_CERT_PEM \
-	-out $ROOT_CA_CERT_DER
 
 ######
 # intermediate CA
@@ -178,42 +157,23 @@ if [ ! -f $INT_CA_KEY ]; then
 fi
 
 INT_CA_CSR=$ROOT_CA_DIR/csr/intermediate-ca.csr.pem
-
 INT_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=intermediate-ca"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$INT_CA_SUBJ" \
       -new \
-      -$HASH \
       -key $INT_CA_KEY \
       -out $INT_CA_CSR
 
 INT_CA_CERT_PEM=$INT_CA_DIR/certs/ca.cert.pem
-INT_CA_CERT_DER=$INT_CA_DIR/certs/ca.cert.der
-INT_CA_CERT_TXT=$INT_CA_DIR/certs/ca.cert.txt
-
-# create and sign cert for intermediate key with root ca
-# NOTE the -name ca_root field, this causes `openssl ca` to get the signing
-# key for the CA from the config file section `ca_root`.
 openssl ca \
       -config $OPENSSL_CNF \
       -batch \
       -name ca_root \
       -extensions v3_intermediate_ca \
-      -days 3650 \
       -notext \
-      -md $HASH \
       -in $INT_CA_CSR \
       -out $INT_CA_CERT_PEM
-openssl x509 \
-	-in $INT_CA_CERT_PEM \
-	-noout \
-	-text \
-	> $INT_CA_CERT_TXT
-openssl x509 \
-	-outform der \
-	-in $INT_CA_CERT_PEM \
-	-out $INT_CA_CERT_DER
 
 ######
 # DeviceId ECA
@@ -238,61 +198,26 @@ if [ ! -f $DEVICEID_ECA_KEY ]; then
         -out $DEVICEID_ECA_KEY
 fi
 
-# create and sign cert for intermediate key with root ca
-# NOTE the -name ca_root field, this causes `openssl ca` to get the signing
-# key for the CA from the config file section `ca_root`.
 DEVICEID_ECA_CSR_PEM=$INT_CA_DIR/csr/deviceid-eca.csr.pem
-DEVICEID_ECA_CSR_DER=$INT_CA_DIR/csr/deviceid-eca.csr.der
-DEVICEID_ECA_CSR_TXT=$INT_CA_DIR/csr/deviceid-eca.csr.txt
-
-DEVICEID_ECA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=device-id"
+DEVICEID_ECA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=device-id/serialNumber=$SERIAL_NUMBER"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$DEVICEID_ECA_SUBJ" \
       -new \
-      -$HASH \
       -key $DEVICEID_ECA_KEY \
       -out $DEVICEID_ECA_CSR_PEM
-openssl req \
-	-outform der \
-	-in $DEVICEID_ECA_CSR_PEM \
-	-out $DEVICEID_ECA_CSR_DER
-openssl req \
-	-noout \
-	-text \
-	-in $DEVICEID_ECA_CSR_PEM \
-	> $DEVICEID_ECA_CSR_TXT
+
+cargo run --bin dice-cert-tmpl -- csr tmpl-gen $DEVICEID_ECA_CSR_PEM > $TMPL_DIR/deviceid_csr_tmpl.rs
 
 DEVICEID_ECA_CERT_PEM=$DEVICEID_ECA_DIR/certs/ca.cert.pem
-DEVICEID_ECA_CERT_DER=$DEVICEID_ECA_DIR/certs/ca.cert.der
-DEVICEID_ECA_CERT_TXT=$DEVICEID_ECA_DIR/certs/ca.cert.txt
-
-# Create and sign cert for mock DeviceId ECA.
-# Sign DeviceId ECA cert with intermediate CA.
 openssl ca \
       -config $OPENSSL_CNF \
       -batch \
       -name ca_intermediate \
       -extensions v3_deviceid_eca \
-      -enddate '99991231235959Z' \
       -notext \
-      -md $HASH \
       -in $DEVICEID_ECA_CSR_PEM \
       -out $DEVICEID_ECA_CERT_PEM
-
-openssl x509 \
-	-in $DEVICEID_ECA_CERT_PEM \
-	-noout \
-	-text \
-	> $DEVICEID_ECA_CERT_TXT
-openssl x509 \
-	-outform der \
-	-in $DEVICEID_ECA_CERT_PEM \
-	-out $DEVICEID_ECA_CERT_DER
-
-# create file with cert chain: intermediate & deviceid-eca
-DEVICEID_ECA_CERT_CHAIN_PEM=$DEVICEID_ECA_DIR/certs/deviceid-cert-chain.pem
-cat $INT_CA_CERT_PEM $DEVICEID_ECA_CERT_PEM > $DEVICEID_ECA_CERT_CHAIN_PEM
 
 ######
 # Alias
@@ -307,44 +232,25 @@ if [ ! -f $ALIAS_KEY ]; then
 fi
 
 ALIAS_CSR_PEM="$DEVICEID_ECA_DIR/csr/alias.csr.pem"
-
-ALIAS_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=alias"
+ALIAS_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=alias/serialNumber=$SERIAL_NUMBER"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$ALIAS_SUBJ" \
       -new \
-      -$HASH \
       -key $ALIAS_KEY \
       -out $ALIAS_CSR_PEM
 
 ALIAS_CERT_PEM="$DEVICEID_ECA_DIR/certs/alias.cert.pem"
-ALIAS_CERT_DER="$DEVICEID_ECA_DIR/certs/alias.cert.der"
-ALIAS_CERT_TXT="$DEVICEID_ECA_DIR/certs/alias.cert.txt"
-
 openssl ca \
       -config $OPENSSL_CNF \
       -batch \
       -name ca_deviceid_eca \
       -extensions v3_alias \
-      -enddate '99991231235959Z' \
       -notext \
-      -md $HASH \
       -in $ALIAS_CSR_PEM \
       -out $ALIAS_CERT_PEM
 
-openssl x509 \
-	-in $ALIAS_CERT_PEM \
-	-noout \
-	-text \
-	> $ALIAS_CERT_TXT
-openssl x509 \
-	-outform der \
-	-in $ALIAS_CERT_PEM \
-	-out $ALIAS_CERT_DER
-
-# create file with cert chain: intermediate & deviceid-eca
-ALIAS_CERT_CHAIN_PEM=$DEVICEID_ECA_DIR/certs/alias-cert-chain.pem
-cat $INT_CA_CERT_PEM $DEVICEID_ECA_CERT_PEM $ALIAS_CERT_PEM > $ALIAS_CERT_CHAIN_PEM
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --fwid $ALIAS_CERT_PEM > $TMPL_DIR/alias_cert_tmpl.rs
 
 ######
 # SP-MEASURE
@@ -358,44 +264,25 @@ if [ ! -f $SP_MEASURE_KEY ]; then
 fi
 
 SP_MEASURE_CSR_PEM="$DEVICEID_ECA_DIR/csr/sp-measure.csr.pem"
-
-SP_MEASURE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=sp-measure"
+SP_MEASURE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=sp-measure/serialNumber=$SERIAL_NUMBER"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$SP_MEASURE_SUBJ" \
       -new \
-      -$HASH \
       -key $SP_MEASURE_KEY \
       -out $SP_MEASURE_CSR_PEM
 
 SP_MEASURE_CERT_PEM="$DEVICEID_ECA_DIR/certs/sp-measure.cert.pem"
-SP_MEASURE_CERT_DER="$DEVICEID_ECA_DIR/certs/sp-measure.cert.der"
-SP_MEASURE_CERT_TXT="$DEVICEID_ECA_DIR/certs/sp-measure.cert.txt"
-
 openssl ca \
       -config $OPENSSL_CNF \
       -batch \
       -name ca_deviceid_eca \
       -extensions v3_spmeasure \
-      -enddate '99991231235959Z' \
       -notext \
-      -md $HASH \
       -in $SP_MEASURE_CSR_PEM \
       -out $SP_MEASURE_CERT_PEM
 
-openssl x509 \
-	-in $SP_MEASURE_CERT_PEM \
-	-noout \
-	-text \
-	> $SP_MEASURE_CERT_TXT
-openssl x509 \
-	-outform der \
-	-in $SP_MEASURE_CERT_PEM \
-	-out $SP_MEASURE_CERT_DER
-
-# create file with cert chain: intermediate & deviceid-eca
-SP_MEASURE_CERT_CHAIN_PEM=$DEVICEID_ECA_DIR/certs/sp-measure-cert-chain.pem
-cat $INT_CA_CERT_PEM $DEVICEID_ECA_CERT_PEM $SP_MEASURE_CERT_PEM > $SP_MEASURE_CERT_CHAIN_PEM
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --fwid $SP_MEASURE_CERT_PEM > $TMPL_DIR/spmeasure_cert_tmpl.rs
 
 ######
 # trust-quorum-dhe
@@ -409,41 +296,22 @@ if [ ! -f $TQDHE_KEY ]; then
 fi
 
 TQDHE_CSR_PEM="$DEVICEID_ECA_DIR/csr/trust-quorum-dhe.csr.pem"
-
-TQDHE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/serialNumber=$SERIAL_NUMBER/CN=trust-quorum-dhe"
+TQDHE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=trust-quorum-dhe/serialNumber=$SERIAL_NUMBER"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$TQDHE_SUBJ" \
       -new \
-      -$HASH \
       -key $TQDHE_KEY \
       -out $TQDHE_CSR_PEM
 
 TQDHE_CERT_PEM="$DEVICEID_ECA_DIR/certs/trust-quorum-dhe.cert.pem"
-TQDHE_CERT_DER="$DEVICEID_ECA_DIR/certs/trust-quorum-dhe.cert.der"
-TQDHE_CERT_TXT="$DEVICEID_ECA_DIR/certs/trust-quorum-dhe.cert.txt"
-
 openssl ca \
       -config $OPENSSL_CNF \
       -batch \
       -name ca_deviceid_eca \
       -extensions v3_trust_quorum_dhe \
-      -enddate '99991231235959Z' \
       -notext \
-      -md $HASH \
       -in $TQDHE_CSR_PEM \
       -out $TQDHE_CERT_PEM
 
-openssl x509 \
-	-in $TQDHE_CERT_PEM \
-	-noout \
-	-text \
-	> $TQDHE_CERT_TXT
-openssl x509 \
-	-outform der \
-	-in $TQDHE_CERT_PEM \
-	-out $TQDHE_CERT_DER
-
-# create file with cert chain: intermediate & deviceid-eca
-TQDHE_CERT_CHAIN_PEM=$DEVICEID_ECA_DIR/certs/trust-quorum-dhe-cert-chain.pem
-cat $INT_CA_CERT_PEM $DEVICEID_ECA_CERT_PEM $TQDHE_CERT_PEM > $TQDHE_CERT_CHAIN_PEM
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --fwid $TQDHE_CERT_PEM > $TMPL_DIR/trust_quorum_dhe_cert_tmpl.rs

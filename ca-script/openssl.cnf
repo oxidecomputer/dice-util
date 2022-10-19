@@ -27,17 +27,14 @@ crl               = $dir/crl/ca.crl.pem
 crl_extensions    = crl_ext
 default_crl_days  = 30
 
-# SHA-1 is deprecated, so use SHA-2 instead.
 default_md        = sha3-256
-
 name_opt          = ca_default
 cert_opt          = ca_default
-default_days      = 375
+default_days      = 3650
 preserve          = no
-policy            = policy_strict
+policy            = policy_without_sn
 
 [ ca_intermediate]
-# Directory and file locations.
 dir               = ./intermediate-ca
 certs             = $dir/certs
 crl_dir           = $dir/crl
@@ -56,14 +53,14 @@ crl               = $dir/crl/ca.crl.pem
 crl_extensions    = crl_ext
 default_crl_days  = 30
 
-# SHA-1 is deprecated
 default_md        = sha3-256
-
 name_opt          = ca_default
 cert_opt          = ca_default
-default_days      = 375
 preserve          = no
-policy            = policy_strict
+policy            = policy_with_sn
+# intermediate CA will be signing DeviceId ECA certs that don't expire
+default_enddate   = 99991231235959Z
+x509_extensions   = v3_deviceid_eca
 
 # Intermediate CA mocking the embedded CA in each platform represented by the
 # DeviceId key pair. We use certs signed by this CA as the basis for the
@@ -88,14 +85,14 @@ crl               = $dir/crl/ca.crl.pem
 crl_extensions    = crl_ext
 default_crl_days  = 30
 
-# SHA-1 is deprecated
 default_md        = sha3-256
-
 name_opt          = ca_default
 cert_opt          = ca_default
-default_days      = 375
 preserve          = no
-policy            = policy_strict
+policy            = policy_with_sn
+# DeviceId ECA signs other DICE certs that don't expire
+default_enddate   = 99991231235959Z
+# no default x509_extensions, we use this CA to issue certs w/ different sets
 
 [ ca_selfsigned_deviceid_embedded ]
 # Directory and file locations.
@@ -117,16 +114,14 @@ crl               = $dir/crl/ca.crl.pem
 crl_extensions    = crl_ext
 default_crl_days  = 30
 
-# SHA-1 is deprecated
 default_md        = sha3-256
-
 name_opt          = ca_default
 cert_opt          = ca_default
-default_days      = 375
 preserve          = no
-policy            = policy_strict
+policy            = policy_with_sn
+default_enddate   = 99991231235959Z
 
-[ policy_strict ]
+[ policy_without_sn ]
 # The root CA should only sign intermediate certificates that match.
 # See the POLICY FORMAT section of `man ca`.
 countryName             = match
@@ -135,19 +130,24 @@ localityName            = match
 organizationName        = match
 organizationalUnitName  = optional
 commonName              = supplied
-serialNumber            = optional
-emailAddress            = optional
+
+[ policy_with_sn ]
+# The root CA should only sign intermediate certificates that match.
+# See the POLICY FORMAT section of `man ca`.
+countryName             = match
+stateOrProvinceName     = match
+localityName            = match
+organizationName        = match
+organizationalUnitName  = optional
+commonName              = supplied
+serialNumber            = supplied
 
 [ req ]
 # Options for the `req` tool (`man req`).
 default_bits        = 2048
 distinguished_name  = req_distinguished_name
 string_mask         = utf8only
-
-# SHA-1 is deprecated, so use SHA-2 instead.
 default_md          = sha3-256
-
-# Extension to add when the -x509 option is used.
 x509_extensions     = v3_root_ca
 
 [ req_distinguished_name ]
@@ -166,39 +166,34 @@ countryName_default             = US
 stateOrProvinceName_default     = California
 localityName_default            = Emeryville
 0.organizationName_default      = Oxide Computer Company
-organizationalUnitName_default  = Manufacturing
-emailAddress_default            = security@oxidecomputer.com
 
 [ v3_root_ca ]
 # Extensions for a typical CA (`man x509v3_config`).
 basicConstraints = critical, CA:true # no pathlen, ignored for trusted root
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+keyUsage = critical, cRLSign, keyCertSign
 
 [ v3_intermediate_ca ]
 # Extensions for a typical intermediate CA (`man x509v3_config`).
-basicConstraints = critical, CA:true, pathlen:1
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+basicConstraints = critical, CA:true
+keyUsage = critical, cRLSign, keyCertSign
 
 [ v3_deviceid_eca ]
 # Extensions for the DeviceId embedded CA
-# NOTE: pathlen:0 prevents us from signing any additional intermediates.
-# This will prevent us from creating any intermediate embedded CAs.
-basicConstraints = critical, CA:true, pathlen:0
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+basicConstraints = critical, CA:true
+keyUsage = critical, keyCertSign
 certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
 
 [ v3_alias ]
 # Extensions for server certificates (`man x509v3_config`).
 basicConstraints = critical, CA:FALSE
-keyUsage = critical, digitalSignature, keyAgreement, keyEncipherment
-certificatePolicies = tcg-dice-kp-attestInit
+keyUsage = critical, digitalSignature
+certificatePolicies = critical, tcg-dice-kp-attestInit
 dice-tcb-info=critical, ASN1:SEQUENCE:dice_tcb_info
 
 [ v3_spmeasure ]
-# will need to adjust the pathlen for deviceid_eca to allow it to sign?
-basicConstraints = critical, CA:true, pathlen:0
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
-certificatePolicies = tcg-dice-kp-eca, tcg-dice-kp-attestInit
+basicConstraints = critical, CA:true
+keyUsage = critical, keyCertSign
+certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
 dice-tcb-info=critical, ASN1:SEQUENCE:dice_tcb_info
 
 [ v3_trust_quorum_dhe ]
