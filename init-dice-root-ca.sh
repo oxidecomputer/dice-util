@@ -44,7 +44,7 @@ fi
 KEY=$CA_DIR/private/ca.key.pem
 CERT=$CA_DIR/certs/ca.cert.pem
 
-mkdir $CA_DIR
+mkdir -p $CA_DIR
 pushd $CA_DIR > /dev/null
 # Using absolute path makes the openssl.cnf flexible / usable from somewhere
 # other than $CA_DIR. The down side: if you move CA_DIR you will need to

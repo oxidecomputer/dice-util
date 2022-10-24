@@ -48,7 +48,7 @@ fi
 
 KEY=$CA_DIR/private/ca.key.pem
 
-mkdir $CA_DIR
+mkdir -p $CA_DIR
 pushd $CA_DIR > /dev/null
 # Using absolute path makes the openssl.cnf flexible / usable from somewhere
 # other than $CA_DIR. The down side: if you move CA_DIR you will need to
@@ -119,8 +119,7 @@ default_bits        = 2048
 distinguished_name  = req_distinguished_name
 string_mask         = utf8only
 default_md          = sha3-256
-
-# Extension to add when the -x509 option is used.
+# default v3 extensions for CSRs
 x509_extensions     = v3_intermediate_ca
 
 [ req_distinguished_name ]
@@ -144,26 +143,16 @@ emailAddress_default            = security@oxidecomputer.com
 
 [ v3_intermediate_ca ]
 # Extensions for a typical intermediate CA (\`man x509v3_config\`).
-basicConstraints = critical, CA:true, pathlen:1
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+basicConstraints = critical, CA:true
+keyUsage = critical, cRLSign, keyCertSign
 
 [ v3_deviceid_eca ]
 # Extensions for the DeviceId embedded CA
 # NOTE: pathlen:0 prevents us from signing any additional intermediates.
 # This will prevent us from creating any intermediate embedded CAs.
 basicConstraints = critical, CA:true
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+keyUsage = critical, keyCertSign
 certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
-
-[dice_tcb_info]
-field1=IMPLICIT:6,SEQUENCE:fwids
-
-[fwids]
-field1=SEQUENCE:sha3_256_null
-
-[sha3_256_null]
-field1=OID:2.16.840.1.101.3.4.2.8
-field2=FORMAT:HEX,OCTETSTRING:0000000000000000000000000000000000000000000000000000000000000000
 
 [ crl_ext ]
 # Extension for CRLs (\`man x509v3_config\`).
@@ -177,10 +166,9 @@ authorityKeyIdentifier = keyid,issuer
 keyUsage = critical, digitalSignature
 extendedKeyUsage = critical, OCSPSigning
 
-[OIDs]
+[ OIDs ]
 tcg-dice-kp-attestInit = 2.23.133.5.4.100.8
 tcg-dice-kp-eca = 2.23.133.5.4.100.12
-dice-tcb-info = 2.23.133.5.4.1
 EOF
 
 # key for CA signing operations: path is used in openssl.cnf
