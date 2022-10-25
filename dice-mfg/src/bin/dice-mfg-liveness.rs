@@ -64,7 +64,7 @@ fn main() -> Result<()> {
     loop {
         match dice_mfg::send_ping(&mut port) {
             Err(e) => {
-                if !i < args.max_fail {
+                if !(i < args.max_fail - 1) {
                     return Err(e);
                 } else {
                     i += 1;
