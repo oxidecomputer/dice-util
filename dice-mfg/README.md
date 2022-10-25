@@ -7,11 +7,16 @@ The manufacturing commands should be invoked as follows:
 - dice-mfg set-serial-number <rfd219-SN>
 - dice-mfg get-csr <CSR-file>
 - dice-mfg-sign --openssl-cfg <openssl-cfg-file> --csr-in <CSR-file> --cert-out <cert-file>
+
 NOTE: The 'openssl-cfg-file' must be functional. See
 `init-dice-intermediate-ca.sh` for an example.
+
 - dice-mfg set-device-id <cert>
+
 NOTE: The 'cert' provided to the 'set-device-id' subcommand should be a DICE
 DeviceId cert with the required x509 constraits and v3 extensions.
+
 - dice-mfg set-intermediate <cert>
+
 NOTE: The 'cert' provided to the 'set-intermediate' subcommand should be the
 cert for the intermediate CA used to sign DeviceId certs.
