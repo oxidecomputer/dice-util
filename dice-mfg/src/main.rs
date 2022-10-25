@@ -6,13 +6,13 @@ use clap::{Parser, Subcommand};
 use dice_mfg::Result;
 use dice_mfg_msgs::{SerialNumber, SizedBlob};
 use env_logger::Builder;
-use log::{error, info, LevelFilter};
+use log::{info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, StopBits};
 use std::{
     fs::{self, File},
     io::{self, Write},
     path::PathBuf,
-    process, result,
+    result,
     time::Duration,
 };
 
@@ -27,14 +27,6 @@ struct Args {
     /// baud rate
     #[clap(long, default_value = "9600", env)]
     baud: u32,
-
-    /// send ping and wait for pong before sending command
-    #[arg(long)]
-    skip_ping: bool,
-
-    /// ping-pong count
-    #[clap(long, default_value = "10")]
-    ping_pong_count: u8,
 
     /// command
     #[command(subcommand)]
@@ -52,6 +44,7 @@ enum Command {
         /// Destination path for CSR, stdout if omitted
         csr_path: Option<PathBuf>,
     },
+    Ping,
     SetDeviceId {
         /// File to read DeviceId cert from
         cert_in: PathBuf,
@@ -75,7 +68,7 @@ fn main() -> Result<()> {
     let level = if args.verbose {
         LevelFilter::Info
     } else {
-        LevelFilter::Error
+        LevelFilter::Warn
     };
     builder.filter(None, level).init();
 
@@ -90,13 +83,6 @@ fn main() -> Result<()> {
         .stop_bits(StopBits::One)
         .open()?;
 
-    if !args.skip_ping
-        && !dice_mfg::ping_pong_loop(&mut port, args.ping_pong_count)?
-    {
-        error!("no pings ack'd: aborting");
-        process::exit(1);
-    }
-
     match args.command {
         Command::Break => dice_mfg::send_break(&mut port),
         Command::GetCsr { csr_path } => {
@@ -108,6 +94,7 @@ fn main() -> Result<()> {
             // io::Error is weird
             Ok(dice_mfg::save_csr(out, csr)?)
         }
+        Command::Ping => dice_mfg::send_ping(&mut port),
         Command::SetDeviceId { cert_in } => {
             let cert = sized_blob_from_pem_path(cert_in)?;
             dice_mfg::set_deviceid(&mut port, cert)

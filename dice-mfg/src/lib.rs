@@ -3,10 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use dice_mfg_msgs::{MfgMessage, SerialNumber, SizedBlob};
-use log::{error, info, warn};
+use log::{info, warn};
 
 use serialport::SerialPort;
-use std::{fmt, io::Write, ops::Range, str};
+use std::{fmt, io::Write, str};
 use zerocopy::AsBytes;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -56,7 +56,7 @@ pub fn set_intermediate(
     port: &mut Box<dyn SerialPort>,
     cert: SizedBlob,
 ) -> Result<()> {
-    print!("setting Intermediate cert ...");
+    print!("setting Intermediate cert ... ");
 
     send_msg(port, &MfgMessage::IntermediateCert(cert))?;
     recv_ack(port)
@@ -66,30 +66,38 @@ pub fn set_deviceid(
     port: &mut Box<dyn SerialPort>,
     cert: SizedBlob,
 ) -> Result<()> {
-    print!("setting DeviceId cert ...");
+    print!("setting DeviceId cert ... ");
 
     send_msg(port, &MfgMessage::DeviceIdCert(cert))?;
     recv_ack(port)
 }
 
 pub fn get_csr(port: &mut Box<dyn SerialPort>) -> Result<SizedBlob> {
-    print!("getting CSR ...");
+    print!("getting CSR ... ");
 
     send_msg(port, &MfgMessage::CsrPlz)?;
 
-    let resp = recv_msg(port).map_err(|_| Error::Recv)?;
+    let recv = recv_msg(port).map_err(|e| {
+        println!("failed");
 
-    match resp {
+        e
+    })?;
+
+    match recv {
         MfgMessage::Csr(csr) => {
             println!("success");
             Ok(csr)
         }
         // RoT will nak a request for the DeviceId CSR if it hasn't been given
         // a serial number yet.
-        MfgMessage::Nak => Err(Box::new(Error::NoSerialNumber)),
-        _ => {
+        MfgMessage::Nak => {
             println!("failed");
-            Err(Box::new(Error::WrongMsg))
+            Err(Error::NoSerialNumber.into())
+        }
+        _ => {
+            warn!("requested CSR, got unexpected message back: \"{:?}\"", recv);
+            println!("failed");
+            Err(Error::WrongMsg.into())
         }
     }
 }
@@ -117,7 +125,11 @@ pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
 
     send_msg(port, &MfgMessage::Break)?;
 
-    let resp = recv_msg(port).map_err(|_| Error::Recv)?;
+    let resp = recv_msg(port).map_err(|e| {
+        println!("failed");
+
+        e
+    })?;
 
     match resp {
         MfgMessage::Ack => {
@@ -126,11 +138,11 @@ pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
         }
         MfgMessage::Nak => {
             println!("failed");
-            Err(Box::new(Error::ConfigIncomplete))
+            Err(Error::ConfigIncomplete.into())
         }
         _ => {
             println!("failed");
-            Err(Box::new(Error::WrongMsg))
+            Err(Error::WrongMsg.into())
         }
     }
 }
@@ -144,37 +156,25 @@ pub fn set_serial_number(
         "setting serial number to: {} ... ",
         str::from_utf8(sn.as_bytes())?
     );
-
     send_msg(port, &MfgMessage::SerialNumber(sn))?;
+
     recv_ack(port)
 }
 
-pub fn ping_pong_loop(
-    port: &mut Box<dyn SerialPort>,
-    count: u8,
-) -> Result<bool> {
-    for i in (Range {
-        start: 0,
-        end: count,
-    }) {
-        print!("ping ... ");
-        send_msg(port, &MfgMessage::Ping)?;
-        match recv_ack(port) {
-            Ok(_) => return Ok(true),
-            Err(e) => {
-                println!("failed");
-                warn!("ping {} failed: \"{}\"", i, e);
-                continue;
-            }
-        }
-    }
+pub fn send_ping(port: &mut Box<dyn SerialPort>) -> Result<()> {
+    print!("sending ping ... ");
+    send_msg(port, &MfgMessage::Ping)?;
 
-    Ok(false)
+    recv_ack(port)
 }
 
-pub fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {
+fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {
     info!("waiting for Ack ... ");
-    let resp = recv_msg(port).map_err(|_| Error::Recv)?;
+    let resp = recv_msg(port).map_err(|e| {
+        println!("failed");
+
+        e
+    })?;
 
     match resp {
         MfgMessage::Ack => {
@@ -183,7 +183,8 @@ pub fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {
         }
         _ => {
             println!("failed");
-            Err(Box::new(Error::WrongMsg))
+            warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
+            Err(Error::WrongMsg.into())
         }
     }
 }
@@ -206,16 +207,13 @@ fn recv_msg(port: &mut Box<dyn SerialPort>) -> Result<MfgMessage> {
     match MfgMessage::decode(&encoded_buf[..size]) {
         Ok(msg) => Ok(msg),
         Err(e) => {
-            error!("{:?}", e);
-            Err(Box::new(Error::Decode))
+            warn!("{:?}", e);
+            Err(Error::Decode.into())
         }
     }
 }
 
-pub fn read_all(
-    port: &mut Box<dyn SerialPort>,
-    buf: &mut [u8],
-) -> Result<usize> {
+fn read_all(port: &mut Box<dyn SerialPort>, buf: &mut [u8]) -> Result<usize> {
     if buf.is_empty() {
         panic!("zero sized buffer, nothing to send");
     }
@@ -233,11 +231,14 @@ pub fn read_all(
                         // more buffer available, keep reading
                         false
                     } else {
-                        return Err(Box::new(Error::BufFull));
+                        return Err(Error::BufFull.into());
                     }
                 }
             }
-            Err(e) => return Err(Box::new(e)),
+            Err(e) => {
+                warn!("read_all failed with error: \"{}\"", e);
+                return Err(e.into());
+            }
         }
     }
 

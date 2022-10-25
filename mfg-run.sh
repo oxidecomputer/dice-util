@@ -82,10 +82,23 @@ fi
 # generate random SN
 #SERIAL_NUMBER="$(cat /dev/urandom | tr -dc '[:alnum:]' | fold -w $SN_LEN | head -n 1)"
 
+# ping RoT until we get a good response or we get $PING_MAX failures
+PING_MAX=10
+PING_COUNT=0
+while true; do
+    PING_COUNT=$((PING_COUNT+1))
+    cargo run --quiet --bin dice-mfg -- ping
+    if [ $? -eq 0 ]; then
+        break
+    elif [ ! $PING_COUNT -lt $((PING_MAX-1)) ]; then
+        >&2 echo "sent $PING_MAX pings w/o successful response"
+	exit 1
+    fi
+done
+
 # send platform being manufactured its serial number
 cargo run --quiet --bin dice-mfg -- set-serial-number "$SERIAL_NUMBER"
 if [ $? -ne 0 ]; then
-    >&2 echo "failed to set SN to: \"${SERIAL_NUMBER}\""
     exit 1
 fi
 
@@ -98,13 +111,12 @@ CERT_FILE=$TMP_DIR/${SERIAL_NUMBER}.cert.pem
 # get CSR for platform w/ provided serial number
 cargo run --quiet --bin dice-mfg -- get-csr $CSR_FILE
 if [ $? -ne 0 ]; then
-    >&2 echo "failed to get CSR"
     exit 1
 fi
 
 OPENSSL_CA_LOG=$TMP_DIR/openssl-ca_${SERIAL_NUMBER}.log
 
-echo -n "Signing CSR ... "
+echo -n "signing CSR ... "
 # sign CSR, create Cert
 # openssl ca is noisy and on success or failure it writes a bunch of stuff to
 #  stderr. Write output to a tmp file
@@ -119,13 +131,12 @@ if [ $? -ne 0 ]; then
     cat $OPENSSL_CA_LOG
     exit 1
 else
-    echo "success!"
+    echo "success"
 fi
 
 # send platform it's DeviceId cert
 cargo run --quiet --bin dice-mfg -- set-device-id $CERT_FILE
 if [ $? -ne 0 ]; then
-    >&2 echo "failed to set DeviceId cert"
     exit 1
 fi
 
@@ -133,7 +144,6 @@ fi
 # we assume this is an intermediate CA
 cargo run --quiet --bin dice-mfg -- set-intermediate $CA_CERT
 if [ $? -ne 0 ]; then
-    >&2 echo "failed to set intermediate CA cert"
     exit 1
 fi
 
@@ -141,6 +151,5 @@ fi
 # DeviceId manufacutring is complete, send break command to end mfg 
 cargo run --quiet --bin dice-mfg -- "break"
 if [ $? -ne 0 ]; then
-    >&2 echo "failed to finalize mfg"
     exit 1
 fi

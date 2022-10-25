@@ -12,7 +12,7 @@ use zerocopy::AsBytes;
 
 const BLOB_SIZE: usize = 768;
 
-#[derive(Clone, Deserialize, Serialize, SerializedSize)]
+#[derive(Clone, Debug, Deserialize, Serialize, SerializedSize)]
 pub struct Blob(#[serde(with = "BigArray")] [u8; BLOB_SIZE]);
 
 impl TryFrom<&[u8]> for Blob {
@@ -35,7 +35,7 @@ impl Default for Blob {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize, SerializedSize)]
+#[derive(Clone, Debug, Deserialize, Serialize, SerializedSize)]
 pub struct SizedBlob {
     pub size: u16,
     pub data: Blob,
@@ -112,7 +112,7 @@ impl SerialNumber {
 
 // large variants in enum is intentional: this is how we do serialization
 #[allow(clippy::large_enum_variant)]
-#[derive(Deserialize, Serialize, SerializedSize)]
+#[derive(Debug, Deserialize, Serialize, SerializedSize)]
 pub enum MfgMessage {
     Ack,
     Break,
