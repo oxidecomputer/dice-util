@@ -11,7 +11,7 @@ Usage: $0
     [ -c | --cfg - path to openssl cfg (DEFAULT: $DEFAULT_CFG) ]
     [ -p | --ca-dir - path where CSR is written (optional) ]
     [ -a | --ca-section - openssl config ca section (optional, uses default from config) ]
-    [ -i | --ca-cert - cert sent to manufactured systems ]
+    [ -i | --cert - cert sent to manufactured systems ]
     [ -d | --serial-dev - serial device (DEFAULT: $DEFAULT_SERIAL_DEV) ]
     [ -s | --v3-section - x509 v3 extension section (optional, uses default from config) ]
     [ -h | --help  ]
@@ -34,7 +34,7 @@ while test $# -gt 0; do
     -s|--v3-section) V3_SECTION=$2; shift;;
     -s=*|--v3-section=*) V3_SECTION="${1#*=}";;
      --) shift; break;;
-    -*) usage_error "invalid option: '$1'";;
+    -*) "invalid option: '$1'";;
      *) break;;
     esac
     shift
@@ -56,7 +56,7 @@ if [ ! -z ${V3_SECTION+x} ]; then
 fi
 
 if [ -z ${CA_CERT+x} ]; then
-    >&2 "missing required parameter: --ca-cert"
+    >&2 "missing required parameter: --cert"
     exit 1
 fi
 
