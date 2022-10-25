@@ -82,19 +82,11 @@ fi
 # generate random SN
 #SERIAL_NUMBER="$(cat /dev/urandom | tr -dc '[:alnum:]' | fold -w $SN_LEN | head -n 1)"
 
-# ping RoT until we get a good response or we get $PING_MAX failures
-PING_MAX=10
-PING_COUNT=0
-while true; do
-    PING_COUNT=$((PING_COUNT+1))
-    cargo run --quiet --bin dice-mfg -- ping
-    if [ $? -eq 0 ]; then
-        break
-    elif [ ! $PING_COUNT -lt $((PING_MAX-1)) ]; then
-        >&2 echo "sent $PING_MAX pings w/o successful response"
-	exit 1
-    fi
-done
+# ping RoT until we get an Ack or pass the default failure threshold
+cargo run --quiet --bin dice-mfg-liveness
+if [ $? -ne 0 ]; then
+    exit 1
+fi
 
 # send platform being manufactured its serial number
 cargo run --quiet --bin dice-mfg -- set-serial-number "$SERIAL_NUMBER"
