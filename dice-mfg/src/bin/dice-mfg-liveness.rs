@@ -7,7 +7,10 @@ use dice_mfg::Result;
 use env_logger::Builder;
 use log::{info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, StopBits};
-use std::time::Duration;
+use std::{
+    io::{self, Write},
+    time::Duration,
+};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -61,16 +64,22 @@ fn main() -> Result<()> {
 
     let mut i = 0;
 
+    print!("checking RoT for liveness ... ");
+    io::stdout().flush()?;
     loop {
         match dice_mfg::send_ping(&mut port) {
             Err(e) => {
                 if !(i < args.max_fail - 1) {
+                    println!("failed");
                     return Err(e);
                 } else {
                     i += 1;
                 }
             }
-            _ => return Ok(()),
+            _ => {
+                println!("success");
+                return Ok(());
+            }
         }
     }
 }

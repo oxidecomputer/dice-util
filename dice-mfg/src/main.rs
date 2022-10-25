@@ -12,9 +12,10 @@ use std::{
     fs::{self, File},
     io::{self, Write},
     path::PathBuf,
-    result,
+    result, str,
     time::Duration,
 };
+use zerocopy::AsBytes;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -84,9 +85,31 @@ fn main() -> Result<()> {
         .open()?;
 
     match args.command {
-        Command::Break => dice_mfg::send_break(&mut port),
+        Command::Break => {
+            print!("sending Break ... ");
+            match dice_mfg::send_break(&mut port) {
+                Ok(_) => {
+                    println!("success");
+                    Ok(())
+                }
+                Err(e) => {
+                    println!("failed");
+                    Err(e)
+                }
+            }
+        }
         Command::GetCsr { csr_path } => {
-            let csr = dice_mfg::get_csr(&mut port)?;
+            print!("getting CSR ... ");
+            let csr = match dice_mfg::get_csr(&mut port) {
+                Ok(csr) => {
+                    println!("success");
+                    csr
+                }
+                Err(e) => {
+                    println!("failed");
+                    return Err(e);
+                }
+            };
             let out: Box<dyn Write> = match csr_path {
                 Some(csr_path) => Box::new(File::create(csr_path)?),
                 None => Box::new(io::stdout()),
@@ -94,17 +117,65 @@ fn main() -> Result<()> {
             // io::Error is weird
             Ok(dice_mfg::save_csr(out, csr)?)
         }
-        Command::Ping => dice_mfg::send_ping(&mut port),
+        Command::Ping => {
+            print!("sending ping ... ");
+            match dice_mfg::send_ping(&mut port) {
+                Ok(_) => {
+                    println!("success");
+                    Ok(())
+                }
+                Err(e) => {
+                    println!("failed");
+                    Err(e)
+                }
+            }
+        }
         Command::SetDeviceId { cert_in } => {
             let cert = sized_blob_from_pem_path(cert_in)?;
-            dice_mfg::set_deviceid(&mut port, cert)
+
+            print!("setting DeviceId cert ... ");
+            match dice_mfg::set_deviceid(&mut port, cert) {
+                Ok(_) => {
+                    println!("success");
+                    Ok(())
+                }
+                Err(e) => {
+                    println!("failed");
+                    Err(e)
+                }
+            }
         }
         Command::SetIntermediate { cert_in } => {
             let cert = sized_blob_from_pem_path(cert_in)?;
-            dice_mfg::set_intermediate(&mut port, cert)
+
+            print!("setting Intermediate cert ... ");
+            match dice_mfg::set_intermediate(&mut port, cert) {
+                Ok(_) => {
+                    println!("success");
+                    Ok(())
+                }
+                Err(e) => {
+                    println!("failed");
+                    Err(e)
+                }
+            }
         }
         Command::SetSerialNumber { serial_number } => {
-            dice_mfg::set_serial_number(&mut port, serial_number)
+            // SerialNumber doesn't implement ToString, dice-mfg-msgs is no_std
+            print!(
+                "setting serial number to: {} ... ",
+                str::from_utf8(serial_number.as_bytes())?
+            );
+            match dice_mfg::set_serial_number(&mut port, serial_number) {
+                Ok(_) => {
+                    println!("success");
+                    Ok(())
+                }
+                Err(e) => {
+                    println!("failed");
+                    Err(e)
+                }
+            }
         }
     }
 }

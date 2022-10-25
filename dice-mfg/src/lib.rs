@@ -6,8 +6,7 @@ use dice_mfg_msgs::{MfgMessage, SerialNumber, SizedBlob};
 use log::{info, warn};
 
 use serialport::SerialPort;
-use std::{fmt, io::Write, str};
-use zerocopy::AsBytes;
+use std::{fmt, io::Write};
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -56,8 +55,6 @@ pub fn set_intermediate(
     port: &mut Box<dyn SerialPort>,
     cert: SizedBlob,
 ) -> Result<()> {
-    print!("setting Intermediate cert ... ");
-
     send_msg(port, &MfgMessage::IntermediateCert(cert))?;
     recv_ack(port)
 }
@@ -66,37 +63,22 @@ pub fn set_deviceid(
     port: &mut Box<dyn SerialPort>,
     cert: SizedBlob,
 ) -> Result<()> {
-    print!("setting DeviceId cert ... ");
-
     send_msg(port, &MfgMessage::DeviceIdCert(cert))?;
     recv_ack(port)
 }
 
 pub fn get_csr(port: &mut Box<dyn SerialPort>) -> Result<SizedBlob> {
-    print!("getting CSR ... ");
-
     send_msg(port, &MfgMessage::CsrPlz)?;
 
-    let recv = recv_msg(port).map_err(|e| {
-        println!("failed");
-
-        e
-    })?;
+    let recv = recv_msg(port)?;
 
     match recv {
-        MfgMessage::Csr(csr) => {
-            println!("success");
-            Ok(csr)
-        }
+        MfgMessage::Csr(csr) => Ok(csr),
         // RoT will nak a request for the DeviceId CSR if it hasn't been given
         // a serial number yet.
-        MfgMessage::Nak => {
-            println!("failed");
-            Err(Error::NoSerialNumber.into())
-        }
+        MfgMessage::Nak => Err(Error::NoSerialNumber.into()),
         _ => {
             warn!("requested CSR, got unexpected message back: \"{:?}\"", recv);
-            println!("failed");
             Err(Error::WrongMsg.into())
         }
     }
@@ -121,29 +103,14 @@ pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
 }
 
 pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    print!("sending Break ... ");
-
     send_msg(port, &MfgMessage::Break)?;
 
-    let resp = recv_msg(port).map_err(|e| {
-        println!("failed");
-
-        e
-    })?;
+    let resp = recv_msg(port)?;
 
     match resp {
-        MfgMessage::Ack => {
-            println!("success");
-            Ok(())
-        }
-        MfgMessage::Nak => {
-            println!("failed");
-            Err(Error::ConfigIncomplete.into())
-        }
-        _ => {
-            println!("failed");
-            Err(Error::WrongMsg.into())
-        }
+        MfgMessage::Ack => Ok(()),
+        MfgMessage::Nak => Err(Error::ConfigIncomplete.into()),
+        _ => Err(Error::WrongMsg.into()),
     }
 }
 
@@ -151,38 +118,25 @@ pub fn set_serial_number(
     port: &mut Box<dyn SerialPort>,
     sn: SerialNumber,
 ) -> Result<()> {
-    // SerialNumber doesn't implement ToString, dice-mfg-msgs is no_std
-    print!(
-        "setting serial number to: {} ... ",
-        str::from_utf8(sn.as_bytes())?
-    );
     send_msg(port, &MfgMessage::SerialNumber(sn))?;
-
     recv_ack(port)
 }
 
 pub fn send_ping(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    print!("sending ping ... ");
     send_msg(port, &MfgMessage::Ping)?;
-
     recv_ack(port)
 }
 
 fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {
     info!("waiting for Ack ... ");
-    let resp = recv_msg(port).map_err(|e| {
-        println!("failed");
-
-        e
-    })?;
+    let resp = recv_msg(port)?;
 
     match resp {
         MfgMessage::Ack => {
-            println!("success");
+            info!("success");
             Ok(())
         }
         _ => {
-            println!("failed");
             warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
             Err(Error::WrongMsg.into())
         }
