@@ -108,22 +108,16 @@ fi
 
 OPENSSL_CA_LOG=$TMP_DIR/openssl-ca_${SERIAL_NUMBER}.log
 
-echo -n "signing CSR ... "
 # sign CSR, create Cert
-# openssl ca is noisy and on success or failure it writes a bunch of stuff to
-#  stderr. Write output to a tmp file
-./dice-ca-sign.sh \
-    $CA_SECTION \
-    --cert-out $CERT_FILE \
-    --csr-in $CSR_FILE \
-    --openssl-cnf $CFG \
-    $V3_SECTION > $OPENSSL_CA_LOG 2>&1
+cargo run --quiet --bin dice-mfg-sign -- \
+	--csr-in $CSR_FILE \
+	--openssl-cnf $CFG \
+	--cert-out $CERT_FILE \
+	$CA_SECTION \
+	$V3_SECTION 2> $OPENSSL_CA_LOG
 if [ $? -ne 0 ]; then
-    >&2 echo "failed to generate cert"
     cat $OPENSSL_CA_LOG
     exit 1
-else
-    echo "success"
 fi
 
 # send platform it's DeviceId cert
