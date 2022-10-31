@@ -34,6 +34,9 @@ struct Args {
     #[clap(long)]
     v3_section: Option<String>,
 
+    #[clap(long, default_value_t = false)]
+    yubi: bool,
+
     /// Path to input CSR file.
     #[clap(long)]
     csr_in: PathBuf,
@@ -69,6 +72,16 @@ fn main() -> Result<()> {
     }
     if args.v3_section.is_some() {
         cmd.arg("-extensions").arg(args.v3_section.unwrap());
+    }
+
+    if args.yubi {
+        // -key $OPENSSL_KEY \
+        cmd.arg("-engine")
+            .arg("pkcs11")
+            .arg("-keyform")
+            .arg("engine")
+            .arg("-md")
+            .arg("sha384");
     }
 
     info!("cmd: {:?}", cmd);
