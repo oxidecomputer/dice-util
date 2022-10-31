@@ -98,15 +98,15 @@ OPENSSL_CERT=$CA_DIR/certs/ca.cert.pem
 if [ $YUBI = "false" ]; then
     # this causes the paths in the config to get weird
     # TODO: make relative in openssl.cnf
-    if [ -z ${OPENSSL_KEY+x} ]; then
-        OPENSSL_KEY=$CA_DIR/private/ca.key.pem
-    fi
+    OPENSSL_KEY="\$dir/private/ca.key.pem"
+    KEY=$CA_DIR/private/ca.key.pem
 else
     case $SLOT in
         9a) OPENSSL_KEY="slot_0-id_1";;
         9d) OPENSSL_KEY="slot_0-id_3";;
         *) usage_error "invalid slot";;
     esac
+    KEY=$OPENSSL_KEY
 fi
 
 set -e
@@ -170,7 +170,7 @@ database          = \$dir/index.txt
 serial            = \$dir/serial
 RANDFILE          = \$dir/private/.rand
 private_key       = $OPENSSL_KEY
-certificate       = $OPENSSL_CERT
+certificate       = \$dir/$OPENSSL_CERT
 
 name_opt          = ca_default
 cert_opt          = ca_default
@@ -235,10 +235,10 @@ LOG=$TMP_DIR/out.log
 do_keygen_false ()
 {
     # key for CA signing operations: path is used in openssl.cnf
-    echo -n "Generating ed25519 key in file \"$OPENSSL_KEY\" ... "
+    echo -n "Generating ed25519 key in file \"$KEY\" ... "
     openssl genpkey \
         -algorithm ED25519 \
-        -out $OPENSSL_KEY > $LOG 2>&1
+        -out $KEY > $LOG 2>&1
     if [ $? -eq 0 ]; then
         echo "success"
     else
@@ -273,13 +273,13 @@ do_keygen_$YUBI
 
 do_req_false ()
 {
-    echo -n "Generating CSR for key \"$OPENSSL_KEY\" w/ subject: \"$SUBJECT\" ... "
+    echo -n "Generating CSR for key \"$KEY\" w/ subject: \"$SUBJECT\" ... "
     openssl req \
         -config $CFG_OUT \
         -subj "$SUBJECT" \
         -new \
         -sha3-256 \
-        -key $OPENSSL_KEY \
+        -key $KEY \
         -out $CSR_OUT > $LOG 2>&1
     if [ $? -eq 0 ]; then
         echo "success"
@@ -298,7 +298,7 @@ do_req_true ()
         -new \
         -engine pkcs11 \
         -keyform engine \
-        -key $OPENSSL_KEY \
+        -key $KEY \
         -sha384 \
         -subj "$SUBJECT" \
         -out $CSR_OUT > $LOG 2>&1

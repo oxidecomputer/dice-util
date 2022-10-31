@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEFAULT_CA_DIR=dice-root-ca
+DEFAULT_CA_DIR=$(pwd)/dice-root-ca
 DEFAULT_CFG_OUT=dice-root-ca_openssl.cnf
 DEFAULT_YUBI="false"
 DEFAULT_PIN=123456
@@ -86,20 +86,22 @@ if [ -z ${SLOT+x} ]; then
     SLOT=$DEFAULT_SLOT
 fi
 
-OPENSSL_CERT=$CA_DIR/certs/ca.cert.pem
+OPENSSL_CERT=certs/ca.cert.pem
+CERT=$CA_DIR/$OPENSSL_CERT
+
 # multiple yubikeys / PIV devices would require identifying the slot too?
 if [ $YUBI = "false" ]; then
     # this causes the paths in the config to get weird
     # TODO: make relative in openssl.cnf
-    if [ -z ${OPENSSL_KEY+x} ]; then
-        OPENSSL_KEY=$CA_DIR/private/ca.key.pem
-    fi
+    OPENSSL_KEY="\$dir/private/ca.key.pem"
+    KEY=$CA_DIR/private/ca.key.pem
 else
     case $SLOT in
         9a) OPENSSL_KEY="slot_0-id_1";;
         9d) OPENSSL_KEY="slot_0-id_3";;
         *) usage_error "invalid slot";;
     esac
+    KEY=$OPENSSL_KEY
 fi
 if [ -z ${SUBJECT+x} ]; then
     SUBJECT=$DEFAULT_SUBJECT
@@ -162,7 +164,7 @@ database          = \$dir/index.txt
 serial            = \$dir/serial
 RANDFILE          = \$dir/private/.rand
 private_key       = $OPENSSL_KEY
-certificate       = $OPENSSL_CERT
+certificate       = \$dir/$OPENSSL_CERT
 
 name_opt          = ca_default
 cert_opt          = ca_default
@@ -215,10 +217,10 @@ LOG=$TMP_DIR/out.log
 do_keygen_false ()
 {
     # key for CA signing operations: path is used in openssl.cnf
-    echo -n "Generating ed25519 key in file \"$OPENSSL_KEY\" ... "
+    echo -n "Generating ed25519 key in file \"$KEY\" ... "
     openssl genpkey \
         -algorithm ED25519 \
-        -out $OPENSSL_KEY > $LOG 2>&1
+        -out $KEY > $LOG 2>&1
     if [ $? -eq 0 ]; then
         echo "success"
     else
@@ -258,12 +260,12 @@ do_selfsign_false ()
     openssl req \
         -config $CFG_OUT \
         -subj "$SUBJECT" \
-        -key $OPENSSL_KEY \
+        -key $KEY \
         -new \
         -x509 \
         -extensions v3_ca \
 	-sha3-256 \
-        -out $OPENSSL_CERT > $LOG 2>&1
+        -out $CERT > $LOG 2>&1
     if [ $? -eq 0 ]; then
         echo "success"
     else
@@ -284,9 +286,9 @@ do_selfsign_true ()
         -x509 \
         -engine pkcs11 \
         -keyform engine \
-        -key $OPENSSL_KEY \
+        -key $KEY \
         -sha384 \
-        -out $OPENSSL_CERT \
+        -out $CERT \
         -subj "$SUBJECT" > $LOG 2>&1
     if [ $? -eq 0 ]; then
         echo "success"
@@ -300,7 +302,7 @@ do_selfsign_true ()
     yubico-piv-tool \
         --action import-certificate \
         --slot $SLOT \
-        --input $OPENSSL_CERT > $LOG 2>&1
+        --input $CERT > $LOG 2>&1
     if [ $? -eq 0 ]; then
         echo "success"
     else
@@ -323,7 +325,7 @@ do_selfsign_true ()
     fi
     
     echo -n "Checking cert consistency ... "
-    if cmp $CERT_TMP $OPENSSL_CERT; then
+    if cmp $CERT_TMP $CERT; then
         echo "success"
     else
         echo "failure"
