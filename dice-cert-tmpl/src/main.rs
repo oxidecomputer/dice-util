@@ -17,6 +17,12 @@ const LICENSE_TEXT: &str = " \
     // License, v. 2.0. If a copy of the MPL was not distributed with this\n\
     // file, You can obtain one at https://mozilla.org/MPL/2.0/.\n";
 
+const ORIGIN_TEXT: &str = " \
+    // NOTE: This DER blob, offsets & lengths are generated code. This\n\
+    // is currently accomplished by an external tool:\n\
+    // https://github.com/oxidecomputer/dice-util\n\
+    // TODO: Generate cert templates in-tree.\n";
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -149,8 +155,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let mut cert = Cert::from_slice(&mut cert);
 
-                writeln!(out, "{}", LICENSE_TEXT)?;
+                writeln!(out, "{}\n", LICENSE_TEXT)?;
                 writeln!(out, "use core::ops::Range;\n")?;
+                writeln!(out, "{}\n", ORIGIN_TEXT)?;
                 writeln!(out, "pub const SIZE: usize = {};", cert.len())?;
 
                 let (start, end) = cert.get_serial_number_offsets()?;
