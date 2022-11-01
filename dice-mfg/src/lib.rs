@@ -82,9 +82,7 @@ pub fn sign_cert(
         cmd.arg("-engine")
             .arg("pkcs11")
             .arg("-keyform")
-            .arg("engine")
-            .arg("-md")
-            .arg("sha384");
+            .arg("engine");
     }
 
     info!("cmd: {:?}", cmd);
