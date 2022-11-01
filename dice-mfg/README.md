@@ -1,22 +1,96 @@
-# dice-mfg
+# DICE credential certification
 
 This crate hosts tools used by the manufacturing side of the DeviceId certification process.
-It uses the serial-rs crate to exchange messages from the dice-mfg-msgs crate with RoTs.
-The manufacturing commands should be invoked as follows:
-- dice-mfg-liveness
-- dice-mfg set-serial-number <rfd219-SN>
-- dice-mfg get-csr <CSR-file>
-- dice-mfg-sign --openssl-cfg <openssl-cfg-file> --csr-in <CSR-file> --cert-out <cert-file>
+The goal of the certification process is to create an x.509 certificate that binds a secret known only to the RoT (DeviceId<sub>priv</sub>) to the platform serial number.
+DeviceId<sub>priv</sub> is only available to the RoT and so certification requires a message exchange between the RoT and a system on the manufacturing line (the programming station).
+The remainder of this document describes the commands used to exchange these messages with the RoT and some additional tools used to simplify the process.
+In the message exchange the programming station is always the initiator and the RoT is always the responder.
 
-NOTE: The 'openssl-cfg-file' must be functional. See
-`init-dice-intermediate-ca.sh` for an example.
+## dice-mfg
+The `dice-mfg` executable provides a subcommand for each message exchanged with the RoT.
+The certification process requires additional tools to perform the functions of a certificate authority.
+These tools build on top of the `dice-mfg` to accomplish their tasks.
 
-- dice-mfg set-device-id <cert>
+The purpose of each subcommand in the `dice-mfg` tool are as follows:
 
-NOTE: The 'cert' provided to the 'set-device-id' subcommand should be a DICE
-DeviceId cert with the required x509 constraits and v3 extensions.
+### ping
+The UART on the LPC55 is not immediately reliable when power is first applied to the device.
+This causes the first several messages exchanged over the UART to be corrupted or lost.
+When the RoT receives a `ping` message it will respond with an `ack`.
+This message can be used to test the liveness of the communication link and the RoT.
 
-- dice-mfg set-intermediate <cert>
+Example:
+```sh
+$ cargo run --bin dice-mfg -- ping
+```
 
-NOTE: The 'cert' provided to the 'set-intermediate' subcommand should be the
-cert for the intermediate CA used to sign DeviceId certs.
+### set-serial-number
+Certificate issuance begins with a CSR.
+The DeviceId<sub>priv</sub> is only known to the RoT and so the RoT must create this CSR.
+In order for the cert to bind the assigned serial number with DeviceId<priv> it is added to the `serialNumber` field of the `subject`.
+The RoT does not however know the platform serial number until told by the programming station.
+The `set-serial-number` command sends the provided serial number to the RoT.
+
+Example:
+```sh
+$ cargo run --bin dice-mfg -- set-serial-number "XXXXXXXXXXX"
+```
+
+### get-csr
+Once the RoT knows its serial number it can create a CSR.
+This subcommand requests a CSR from the RoT.
+The CSR is received as a DER encoded PKCS#10 / CSR and converted to PEM before being written to the specified file.
+
+Example:
+```sh
+$ cargo run --bin dice-mfg -- get-csr /path/to/csr.pem
+```
+
+### set-device-id
+As part of the attestation process the RoT must present a certificate chain to the requester.
+This cert chain is used to establish trust in the credentials using PKI path validation that leads back to a trusted root.
+Once the programming station has received the CSR and created a cert from it the cert must be sent to the RoT where it is persisted.
+This command takes a path to a cert file and sends it to the RoT.
+No validation is done to test the validity of the cert.
+The programming station is trusted to faithfully perform the certificate authority operation or to proxy them to an appropriate external system.
+
+Example:
+```sh
+$ cargo run --bin dice-mfg -- set-device-id /path/to/deviceid.cert.pem
+```
+
+### set-intermediate
+Signing certs using a root cert is generally discouraged.
+PKI best practices recommend using at least one intermediate certificate in the PKI chain to simplify and minimize the impact of certificate revocation.
+The current implementation uses a single intermediate cert that is persisted on the platform along with the DeviceId cert.
+This intermediate cert is sent to the platform by the `set-intermediate` command.
+
+Example:
+```sh
+$ cargo run --bin dice-mfg -- set-device-id /path/to/intermediate.cert.pem
+```
+
+## dice-mfg-liveness
+`dice-mfg-liveness` is a tool designed to send a predetermined number of `Ping` messages to the RoT.
+Errors and timeouts are ignored and this command will continue to ping the RoT until it receives a successful `Ack`, or until it exceeds a configurable message threshold.
+By default `dice-mfg-liveness` will ignore 10 errors or unacknowledged `Ping` messages before returning an error.
+This value can be overridden with the `--max-fail` option.
+We recommend executing this command as the first step in the message exchange to ensure the serial connection is functional and the RoT is responsive.
+
+Example:
+```sh
+$ cargo run --bin dice-mfg-liveness
+```
+
+## dice-mfg-sign
+This command is a thin wrapper around the `openssl ca` command.
+Given a sufficiently complete openssl config file like the one generated by the `init-dice-intermediate-ca.sh` script in the parent directory, `dice-ca-sign` can be used to sign CSRs and create x509 certs.
+This command use the defaults from the provided openssl config.
+This can be overridden in part by supplying the script with different CA and x509 v3 config sections.
+Additionally the `--yubi` option causes the command to use an openssl engine compatible with yubikeys.
+
+Example:
+```sh
+$ cargo run --bin dice-mfg-sign -- --openssl-cfg /path/to/openssl.cnf
+--csr-in /path/to/csr.pem --cert-out /path/to/cert.pem
+```
