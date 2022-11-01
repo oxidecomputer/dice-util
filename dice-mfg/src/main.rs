@@ -45,6 +45,10 @@ enum Command {
         /// Destination path for CSR, stdout if omitted
         csr_path: Option<PathBuf>,
     },
+    Liveness {
+        #[clap(default_value = "10")]
+        max_fail: u8,
+    },
     Ping,
     SetDeviceId {
         /// File to read DeviceId cert from
@@ -116,6 +120,20 @@ fn main() -> Result<()> {
             };
             // io::Error is weird
             Ok(dice_mfg::save_csr(out, csr)?)
+        }
+        Command::Liveness { max_fail } => {
+            print!("checking RoT for liveness ... ");
+            io::stdout().flush()?;
+            match dice_mfg::check_liveness(&mut port, max_fail) {
+                Err(e) => {
+                    println!("failed");
+                    Err(e)
+                }
+                _ => {
+                    println!("success");
+                    Ok(())
+                }
+            }
         }
         Command::Ping => {
             print!("sending ping ... ");

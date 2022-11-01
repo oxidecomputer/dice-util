@@ -91,7 +91,7 @@ fi
 #SERIAL_NUMBER="$(cat /dev/urandom | tr -dc '[:alnum:]' | fold -w $SN_LEN | head -n 1)"
 
 # ping RoT until we get an Ack or pass the default failure threshold
-cargo run --quiet --bin dice-mfg-liveness
+cargo run --quiet --bin dice-mfg -- liveness
 if [ $? -ne 0 ]; then
     exit 1
 fi
