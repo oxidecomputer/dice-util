@@ -91,10 +91,10 @@ CERT=$CA_DIR/$OPENSSL_CERT
 
 # multiple yubikeys / PIV devices would require identifying the slot too?
 if [ $YUBI = "false" ]; then
-    # this causes the paths in the config to get weird
-    # TODO: make relative in openssl.cnf
     OPENSSL_KEY="\$dir/private/ca.key.pem"
     KEY=$CA_DIR/private/ca.key.pem
+    # assume ed25519
+    HASH=sha3-256
 else
     case $SLOT in
         9a) OPENSSL_KEY="slot_0-id_1";;
@@ -102,11 +102,12 @@ else
         *) usage_error "invalid slot";;
     esac
     KEY=$OPENSSL_KEY
+    # assume eccp384
+    HASH=sha384
 fi
 if [ -z ${SUBJECT+x} ]; then
     SUBJECT=$DEFAULT_SUBJECT
 fi
-# else sanity check SUBJECT, ensure required fields are present
 
 set -e
 
@@ -169,6 +170,7 @@ certificate       = \$dir/$OPENSSL_CERT
 name_opt          = ca_default
 cert_opt          = ca_default
 default_days      = 3650
+default_md        = $HASH
 preserve          = no
 policy            = policy_strict
 x509_extensions   = v3_ca
