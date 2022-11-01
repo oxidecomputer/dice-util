@@ -57,7 +57,7 @@ pub fn sign_cert(
     cert_out: PathBuf,
     ca_section: Option<String>,
     v3_section: Option<String>,
-    yubi: bool,
+    engine_section: Option<String>,
 ) -> Result<()> {
     let mut cmd = Command::new("openssl");
 
@@ -78,9 +78,9 @@ pub fn sign_cert(
         cmd.arg("-extensions").arg(v3_section.unwrap());
     }
 
-    if yubi {
+    if engine_section.is_some() {
         cmd.arg("-engine")
-            .arg("pkcs11")
+            .arg(engine_section.unwrap())
             .arg("-keyform")
             .arg("engine");
     }

@@ -82,8 +82,10 @@ enum Command {
         #[clap(long)]
         v3_section: Option<String>,
 
-        #[clap(long, default_value_t = false)]
-        yubi: bool,
+        /// engine section from openssl.cnf used for signing operation.
+        /// If omitted openssl will fall back to files.
+        #[clap(long)]
+        engine_section: Option<String>,
 
         /// Path to input CSR file.
         #[clap(long)]
@@ -226,7 +228,7 @@ fn main() -> Result<()> {
             openssl_cnf,
             ca_section,
             v3_section,
-            yubi,
+            engine_section,
             csr_in,
         } => {
             print!("signing CSR ... ");
@@ -236,7 +238,7 @@ fn main() -> Result<()> {
                 cert_out,
                 ca_section,
                 v3_section,
-                yubi,
+                engine_section,
             ) {
                 Ok(_) => {
                     println!("success");

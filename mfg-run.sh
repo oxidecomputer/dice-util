@@ -63,9 +63,9 @@ if [ -z ${CA_CERT+x} ]; then
 fi
 
 if [ -z ${YUBI+x} -o "$YUBI" == "$DEFAULT_YUBI" ]; then
-    YUBI=""
+    ENGINE_SECTION=""
 else
-    YUBI="--yubi"
+    ENGINE_SECTION="--engine-section pkcs11"
 fi
 
 # export for dice-mfg commands
@@ -122,8 +122,8 @@ cargo run --quiet --bin dice-mfg -- \
 	--csr-in $CSR_FILE \
 	--openssl-cnf $CFG \
 	--cert-out $CERT_FILE \
-	$YUBI \
 	$CA_SECTION \
+	$ENGINE_SECTION \
 	$V3_SECTION 2> $OPENSSL_CA_LOG
 if [ $? -ne 0 ]; then
     cat $OPENSSL_CA_LOG
