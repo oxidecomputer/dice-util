@@ -63,6 +63,32 @@ enum Command {
         #[clap(value_parser = validate_sn)]
         serial_number: SerialNumber,
     },
+    SignCert {
+        /// Path where Cert is written.
+        #[clap(long)]
+        cert_out: PathBuf,
+
+        /// Path to openssl.cnf file used for signing operation.
+        #[clap(long)]
+        openssl_cnf: PathBuf,
+
+        /// CA section from openssl.cnf used for signing operation.
+        /// If omitted default from openssl.cnf is used.
+        #[clap(long)]
+        ca_section: Option<String>,
+
+        /// x509 v3 extension section from openssl.cnf used for signing operation.
+        /// If omitted default from openssl.cnf is used.
+        #[clap(long)]
+        v3_section: Option<String>,
+
+        #[clap(long, default_value_t = false)]
+        yubi: bool,
+
+        /// Path to input CSR file.
+        #[clap(long)]
+        csr_in: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -185,6 +211,33 @@ fn main() -> Result<()> {
                 str::from_utf8(serial_number.as_bytes())?
             );
             match dice_mfg::set_serial_number(&mut port, serial_number) {
+                Ok(_) => {
+                    println!("success");
+                    Ok(())
+                }
+                Err(e) => {
+                    println!("failed");
+                    Err(e)
+                }
+            }
+        }
+        Command::SignCert {
+            cert_out,
+            openssl_cnf,
+            ca_section,
+            v3_section,
+            yubi,
+            csr_in,
+        } => {
+            print!("signing CSR ... ");
+            match dice_mfg::sign_cert(
+                openssl_cnf,
+                csr_in,
+                cert_out,
+                ca_section,
+                v3_section,
+                yubi,
+            ) {
                 Ok(_) => {
                     println!("success");
                     Ok(())

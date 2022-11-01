@@ -117,7 +117,8 @@ fi
 OPENSSL_CA_LOG=$TMP_DIR/openssl-ca_${SERIAL_NUMBER}.log
 
 # sign CSR, create Cert
-cargo run --quiet --bin dice-mfg-sign -- \
+cargo run --quiet --bin dice-mfg -- \
+	sign-cert \
 	--csr-in $CSR_FILE \
 	--openssl-cnf $CFG \
 	--cert-out $CERT_FILE \
