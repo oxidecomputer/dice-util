@@ -6,7 +6,7 @@ use dice_mfg_msgs::{MfgMessage, SerialNumber, SizedBlob};
 use log::{info, warn};
 
 use serialport::SerialPort;
-use std::{fmt, io::Write};
+use std::{fmt, io::Write, path::PathBuf, process::Command};
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -48,6 +48,55 @@ impl fmt::Display for Error {
                 write!(f, "No pings acknowledged: check connection to RoT")
             }
         }
+    }
+}
+
+pub fn sign_cert(
+    openssl_cnf: PathBuf,
+    csr_in: PathBuf,
+    cert_out: PathBuf,
+    ca_section: Option<String>,
+    v3_section: Option<String>,
+    yubi: bool,
+) -> Result<()> {
+    let mut cmd = Command::new("openssl");
+
+    cmd.arg("ca")
+        .arg("-batch")
+        .arg("-notext")
+        .arg("-config")
+        .arg(openssl_cnf)
+        .arg("-in")
+        .arg(csr_in)
+        .arg("-out")
+        .arg(cert_out);
+
+    if ca_section.is_some() {
+        cmd.arg("-name").arg(ca_section.unwrap());
+    }
+    if v3_section.is_some() {
+        cmd.arg("-extensions").arg(v3_section.unwrap());
+    }
+
+    if yubi {
+        cmd.arg("-engine")
+            .arg("pkcs11")
+            .arg("-keyform")
+            .arg("engine")
+            .arg("-md")
+            .arg("sha384");
+    }
+
+    info!("cmd: {:?}", cmd);
+
+    let output = cmd.output()?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        warn!("command failed with status: {}", output.status);
+        warn!("stderr: \"{}\"", String::from_utf8_lossy(&output.stderr));
+        Err(Box::new(Error::CertGenFail))
     }
 }
 
