@@ -3,17 +3,18 @@
 # defaults from init-dice-intermediate-ca.sh
 DEFAULT_CFG=dice-intermediate-ca_openssl.cnf
 DEFAULT_SERIAL_DEV=/dev/ttyACM0
+DEFAULT_YUBI="false"
 
 print_usage ()
 {
     cat <<END
 Usage: $0
     [ -c | --cfg - path to openssl cfg (DEFAULT: $DEFAULT_CFG) ]
-    [ -p | --ca-dir - path where CSR is written (optional) ]
     [ -a | --ca-section - openssl config ca section (optional, uses default from config) ]
     [ -i | --cert - cert sent to manufactured systems ]
     [ -d | --serial-dev - serial device (DEFAULT: $DEFAULT_SERIAL_DEV) ]
     [ -s | --v3-section - x509 v3 extension section (optional, uses default from config) ]
+    [ --yubi - do key operations on a yubikey (DEFAULT: false) ]
     [ -h | --help  ]
 END
 
@@ -33,6 +34,7 @@ while test $# -gt 0; do
     -d=*|--serial-dev=*) SERIAL_DEV="${1#*=}";;
     -s|--v3-section) V3_SECTION=$2; shift;;
     -s=*|--v3-section=*) V3_SECTION="${1#*=}";;
+    -y|--yubi) YUBI="true";;
      --) shift; break;;
     -*) "invalid option: '$1'";;
      *) break;;
@@ -58,6 +60,12 @@ fi
 if [ -z ${CA_CERT+x} ]; then
     >&2 "missing required parameter: --cert"
     exit 1
+fi
+
+if [ -z ${YUBI+x} -o "$YUBI" == "$DEFAULT_YUBI" ]; then
+    YUBI=""
+else
+    YUBI="--yubi"
 fi
 
 # export for dice-mfg commands
@@ -113,6 +121,7 @@ cargo run --quiet --bin dice-mfg-sign -- \
 	--csr-in $CSR_FILE \
 	--openssl-cnf $CFG \
 	--cert-out $CERT_FILE \
+	$YUBI \
 	$CA_SECTION \
 	$V3_SECTION 2> $OPENSSL_CA_LOG
 if [ $? -ne 0 ]; then
@@ -139,3 +148,5 @@ cargo run --quiet --bin dice-mfg -- "break"
 if [ $? -ne 0 ]; then
     exit 1
 fi
+
+rm -rf $TMP_DIR
