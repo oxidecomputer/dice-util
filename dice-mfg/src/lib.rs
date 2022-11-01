@@ -122,6 +122,26 @@ pub fn set_serial_number(
     recv_ack(port)
 }
 
+pub fn check_liveness(
+    port: &mut Box<dyn SerialPort>,
+    mut max_fail: u8,
+) -> Result<()> {
+    loop {
+        match send_ping(port) {
+            Err(e) => {
+                if !(max_fail - 1 > 0) {
+                    return Err(e);
+                } else {
+                    max_fail -= 1;
+                }
+            }
+            _ => {
+                return Ok(());
+            }
+        }
+    }
+}
+
 pub fn send_ping(port: &mut Box<dyn SerialPort>) -> Result<()> {
     send_msg(port, &MfgMessage::Ping)?;
     recv_ack(port)

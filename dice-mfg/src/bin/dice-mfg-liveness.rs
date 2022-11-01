@@ -62,24 +62,16 @@ fn main() -> Result<()> {
         .stop_bits(StopBits::One)
         .open()?;
 
-    let mut i = 0;
-
     print!("checking RoT for liveness ... ");
     io::stdout().flush()?;
-    loop {
-        match dice_mfg::send_ping(&mut port) {
-            Err(e) => {
-                if !(i < args.max_fail - 1) {
-                    println!("failed");
-                    return Err(e);
-                } else {
-                    i += 1;
-                }
-            }
-            _ => {
-                println!("success");
-                return Ok(());
-            }
+    match dice_mfg::check_liveness(&mut port, args.max_fail) {
+        Err(e) => {
+            println!("failed");
+            Err(e)
+        }
+        _ => {
+            println!("success");
+            Ok(())
         }
     }
 }
