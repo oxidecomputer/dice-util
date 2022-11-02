@@ -4,18 +4,11 @@
 
 use clap::{Parser, Subcommand};
 use dice_mfg::Result;
-use dice_mfg_msgs::{SerialNumber, SizedBlob};
+use dice_mfg_msgs::SerialNumber;
 use env_logger::Builder;
 use log::{info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, StopBits};
-use std::{
-    fs::{self, File},
-    io::{self, Write},
-    path::PathBuf,
-    result, str,
-    time::Duration,
-};
-use zerocopy::AsBytes;
+use std::{path::PathBuf, result, str, time::Duration};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -117,111 +110,22 @@ fn main() -> Result<()> {
         .open()?;
 
     match args.command {
-        Command::Break => {
-            print!("sending Break ... ");
-            match dice_mfg::send_break(&mut port) {
-                Ok(_) => {
-                    println!("success");
-                    Ok(())
-                }
-                Err(e) => {
-                    println!("failed");
-                    Err(e)
-                }
-            }
-        }
+        Command::Break => dice_mfg::do_break(&mut port),
         Command::GetCsr { csr_path } => {
-            print!("getting CSR ... ");
-            let csr = match dice_mfg::get_csr(&mut port) {
-                Ok(csr) => {
-                    println!("success");
-                    csr
-                }
-                Err(e) => {
-                    println!("failed");
-                    return Err(e);
-                }
-            };
-            let out: Box<dyn Write> = match csr_path {
-                Some(csr_path) => Box::new(File::create(csr_path)?),
-                None => Box::new(io::stdout()),
-            };
-            // io::Error is weird
-            Ok(dice_mfg::save_csr(out, csr)?)
+            dice_mfg::do_get_csr(&mut port, csr_path)
         }
         Command::Liveness { max_fail } => {
-            print!("checking RoT for liveness ... ");
-            io::stdout().flush()?;
-            match dice_mfg::check_liveness(&mut port, max_fail) {
-                Err(e) => {
-                    println!("failed");
-                    Err(e)
-                }
-                _ => {
-                    println!("success");
-                    Ok(())
-                }
-            }
+            dice_mfg::do_liveness(&mut port, max_fail)
         }
-        Command::Ping => {
-            print!("sending ping ... ");
-            match dice_mfg::send_ping(&mut port) {
-                Ok(_) => {
-                    println!("success");
-                    Ok(())
-                }
-                Err(e) => {
-                    println!("failed");
-                    Err(e)
-                }
-            }
-        }
+        Command::Ping => dice_mfg::do_ping(&mut port),
         Command::SetDeviceId { cert_in } => {
-            let cert = sized_blob_from_pem_path(cert_in)?;
-
-            print!("setting DeviceId cert ... ");
-            match dice_mfg::set_deviceid(&mut port, cert) {
-                Ok(_) => {
-                    println!("success");
-                    Ok(())
-                }
-                Err(e) => {
-                    println!("failed");
-                    Err(e)
-                }
-            }
+            dice_mfg::do_set_device_id(&mut port, cert_in)
         }
         Command::SetIntermediate { cert_in } => {
-            let cert = sized_blob_from_pem_path(cert_in)?;
-
-            print!("setting Intermediate cert ... ");
-            match dice_mfg::set_intermediate(&mut port, cert) {
-                Ok(_) => {
-                    println!("success");
-                    Ok(())
-                }
-                Err(e) => {
-                    println!("failed");
-                    Err(e)
-                }
-            }
+            dice_mfg::do_set_intermediate(&mut port, cert_in)
         }
         Command::SetSerialNumber { serial_number } => {
-            // SerialNumber doesn't implement ToString, dice-mfg-msgs is no_std
-            print!(
-                "setting serial number to: {} ... ",
-                str::from_utf8(serial_number.as_bytes())?
-            );
-            match dice_mfg::set_serial_number(&mut port, serial_number) {
-                Ok(_) => {
-                    println!("success");
-                    Ok(())
-                }
-                Err(e) => {
-                    println!("failed");
-                    Err(e)
-                }
-            }
+            dice_mfg::do_set_serial_number(&mut port, serial_number)
         }
         Command::SignCert {
             cert_out,
@@ -230,35 +134,15 @@ fn main() -> Result<()> {
             v3_section,
             engine_section,
             csr_in,
-        } => {
-            print!("signing CSR ... ");
-            match dice_mfg::sign_cert(
-                openssl_cnf,
-                csr_in,
-                cert_out,
-                ca_section,
-                v3_section,
-                engine_section,
-            ) {
-                Ok(_) => {
-                    println!("success");
-                    Ok(())
-                }
-                Err(e) => {
-                    println!("failed");
-                    Err(e)
-                }
-            }
-        }
+        } => dice_mfg::do_sign_cert(
+            cert_out,
+            openssl_cnf,
+            ca_section,
+            v3_section,
+            engine_section,
+            csr_in,
+        ),
     }
-}
-
-pub fn sized_blob_from_pem_path(p: PathBuf) -> Result<SizedBlob> {
-    let cert = fs::read_to_string(&p)?;
-    let cert = pem::parse(cert)?;
-
-    // Error type doesn't implement std Error
-    Ok(SizedBlob::try_from(&cert.contents[..]).expect("cert too big"))
 }
 
 pub fn validate_sn(s: &str) -> result::Result<SerialNumber, String> {
