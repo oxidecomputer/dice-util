@@ -39,8 +39,30 @@ enum Command {
         csr_path: Option<PathBuf>,
     },
     Liveness {
+        /// Maximum number of retries in liveness test.
         #[clap(default_value = "10")]
-        max_fail: u8,
+        max_retry: u8,
+    },
+    Manufacture {
+        /// Path to openssl.cnf file used for signing operation.
+        #[clap(long)]
+        openssl_cnf: PathBuf,
+
+        /// Maximum number of retries in liveness test.
+        #[clap(long, default_value = "10")]
+        max_retry: u8,
+
+        /// Use openssl config compatible with yubikey
+        #[clap(long)]
+        yubi: bool,
+
+        /// Path to intermediate cert sent to manufactured system.
+        #[clap(long)]
+        intermediate_cert: PathBuf,
+
+        /// Platform serial number
+        #[clap(value_parser = validate_sn)]
+        serial_number: SerialNumber,
     },
     Ping,
     SetDeviceId {
@@ -112,17 +134,31 @@ fn main() -> Result<()> {
     match args.command {
         Command::Break => dice_mfg::do_break(&mut port),
         Command::GetCsr { csr_path } => {
-            dice_mfg::do_get_csr(&mut port, csr_path)
+            dice_mfg::do_get_csr(&mut port, &csr_path)
         }
-        Command::Liveness { max_fail } => {
-            dice_mfg::do_liveness(&mut port, max_fail)
+        Command::Liveness { max_retry } => {
+            dice_mfg::do_liveness(&mut port, max_retry)
         }
+        Command::Manufacture {
+            openssl_cnf,
+            max_retry,
+            serial_number,
+            intermediate_cert,
+            yubi,
+        } => dice_mfg::do_manufacture(
+            &mut port,
+            openssl_cnf,
+            max_retry,
+            serial_number,
+            intermediate_cert,
+            yubi,
+        ),
         Command::Ping => dice_mfg::do_ping(&mut port),
         Command::SetDeviceId { cert_in } => {
-            dice_mfg::do_set_device_id(&mut port, cert_in)
+            dice_mfg::do_set_device_id(&mut port, &cert_in)
         }
         Command::SetIntermediate { cert_in } => {
-            dice_mfg::do_set_intermediate(&mut port, cert_in)
+            dice_mfg::do_set_intermediate(&mut port, &cert_in)
         }
         Command::SetSerialNumber { serial_number } => {
             dice_mfg::do_set_serial_number(&mut port, serial_number)
@@ -135,12 +171,12 @@ fn main() -> Result<()> {
             engine_section,
             csr_in,
         } => dice_mfg::do_sign_cert(
-            cert_out,
-            openssl_cnf,
+            &cert_out,
+            &openssl_cnf,
             ca_section,
             v3_section,
             engine_section,
-            csr_in,
+            &csr_in,
         ),
     }
 }

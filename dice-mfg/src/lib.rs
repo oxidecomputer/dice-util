@@ -59,6 +59,40 @@ impl fmt::Display for Error {
     }
 }
 
+pub fn do_manufacture(
+    port: &mut Box<dyn SerialPort>,
+    openssl_cnf: PathBuf,
+    ping_retry: u8,
+    serial_number: SerialNumber,
+    intermediate_cert: PathBuf,
+    yubi: bool,
+) -> Result<()> {
+    do_liveness(port, ping_retry)?;
+    do_set_serial_number(port, serial_number)?;
+
+    let temp_dir = tempfile::tempdir()?;
+    let csr = Some(temp_dir.path().join("csr.pem"));
+    do_get_csr(port, &csr)?;
+
+    let engine_section = if yubi {
+        Some(String::from("pkcs11"))
+    } else {
+        None
+    };
+
+    let cert = temp_dir.path().join("cert.pem");
+    do_sign_cert(
+        &cert,
+        &openssl_cnf,
+        None,
+        None,
+        engine_section,
+        &csr.unwrap(),
+    )?;
+    do_set_device_id(port, &cert)?;
+    do_set_intermediate(port, &intermediate_cert)?;
+    do_break(port)
+}
 pub fn do_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
     print!("sending Break ... ");
     match send_break(port) {
@@ -75,7 +109,7 @@ pub fn do_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
 
 pub fn do_get_csr(
     port: &mut Box<dyn SerialPort>,
-    csr_path: Option<PathBuf>,
+    csr_path: &Option<PathBuf>,
 ) -> Result<()> {
     print!("getting CSR ... ");
     let csr = match get_csr(port) {
@@ -127,7 +161,7 @@ pub fn do_ping(port: &mut Box<dyn SerialPort>) -> Result<()> {
 
 pub fn do_set_device_id(
     port: &mut Box<dyn SerialPort>,
-    cert_in: PathBuf,
+    cert_in: &PathBuf,
 ) -> Result<()> {
     let cert = sized_blob_from_pem_path(cert_in)?;
 
@@ -146,7 +180,7 @@ pub fn do_set_device_id(
 
 pub fn do_set_intermediate(
     port: &mut Box<dyn SerialPort>,
-    cert_in: PathBuf,
+    cert_in: &PathBuf,
 ) -> Result<()> {
     let cert = sized_blob_from_pem_path(cert_in)?;
 
@@ -185,12 +219,12 @@ pub fn do_set_serial_number(
 }
 
 pub fn do_sign_cert(
-    cert_out: PathBuf,
-    openssl_cnf: PathBuf,
+    cert_out: &PathBuf,
+    openssl_cnf: &PathBuf,
     ca_section: Option<String>,
     v3_section: Option<String>,
     engine_section: Option<String>,
-    csr_in: PathBuf,
+    csr_in: &PathBuf,
 ) -> Result<()> {
     print!("signing CSR ... ");
     match sign_cert(
@@ -212,8 +246,8 @@ pub fn do_sign_cert(
     }
 }
 
-fn sized_blob_from_pem_path(p: PathBuf) -> Result<SizedBlob> {
-    let cert = fs::read_to_string(&p)?;
+fn sized_blob_from_pem_path(p: &PathBuf) -> Result<SizedBlob> {
+    let cert = fs::read_to_string(p)?;
     let cert = pem::parse(cert)?;
 
     // Error type doesn't implement std Error
@@ -221,9 +255,9 @@ fn sized_blob_from_pem_path(p: PathBuf) -> Result<SizedBlob> {
 }
 
 pub fn sign_cert(
-    openssl_cnf: PathBuf,
-    csr_in: PathBuf,
-    cert_out: PathBuf,
+    openssl_cnf: &PathBuf,
+    csr_in: &PathBuf,
+    cert_out: &PathBuf,
     ca_section: Option<String>,
     v3_section: Option<String>,
     engine_section: Option<String>,
