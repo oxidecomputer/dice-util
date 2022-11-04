@@ -57,6 +57,8 @@ while test $# -gt 0; do
     -l=*|--slot=*) SLOT="${1#*=}";;
     -k|--pkcs11) PKCS=$2; shift;;
     -k=*|--pkcs11=*) PKCS="${1#*=}";;
+    -o|--archive-out) ARCHIVE_OUT=$2; shift;;
+    -o=*|--archive-out=*) ARCHIVE_OUT="${1#*=}";;
      --) shift; break;;
     -*) usage_error "invalid option: '$1'";;
      *) break;;
@@ -104,6 +106,10 @@ else
     KEY=$OPENSSL_KEY
     # assume eccp384
     HASH=sha384
+    if [ -z ${ARCHIVE_OUT+x} ]; then
+        >&2 echo "missing required argument: --out-archive"
+	exit 1
+    fi
 fi
 if [ -z ${SUBJECT+x} ]; then
     SUBJECT=$DEFAULT_SUBJECT
@@ -279,7 +285,10 @@ do_selfsign_false ()
 
 do_selfsign_true ()
 {
-    local CERT_TMP=$TMP_DIR/ca.cert.pem
+    # everything in this directory will be rolled up into $ARCHIVE_OUT
+    local ARCHIVE_NAME=init-dice-root-ca
+    local ARCHIVE_DIR=$TMP_DIR/$ARCHIVE_NAME
+    mkdir -p $ARCHIVE_DIR
 
     echo -n "Generating self signed cert w/ subject: \"$SUBJECT\" ... "
     OPENSSL_CONF=$CFG_OUT \
@@ -299,7 +308,7 @@ do_selfsign_true ()
         cat $LOG
         exit 1
     fi
-    
+
     echo -n "Importing cert from \"$OUT\" to slot \"$SLOT\" ... "
     yubico-piv-tool \
         --action import-certificate \
@@ -313,6 +322,8 @@ do_selfsign_true ()
         exit 1
     fi
     
+    local CERT_TMP=$ARCHIVE_DIR/ca.cert.pem
+
     echo -n "Reading cert back from slot \"$SLOT\" ... "
     yubico-piv-tool \
         --action read-certificate \
@@ -333,6 +344,80 @@ do_selfsign_true ()
         echo "failure"
         exit 1
     fi
+
+    local ATTEST_INT_CERT=$ARCHIVE_DIR/attest-intermediate.cert.pem
+    echo -n "Getting attestation intermediate cert from slot \"f9\" ... "
+    yubico-piv-tool \
+        --action read-certificate \
+	--slot f9 \
+	--output $ATTEST_INT_CERT > $LOG 2>&1
+    if [ $? -eq 0 ]; then
+        echo "success"
+    else
+        echo "failure"
+        cat $LOG
+        exit 1
+    fi
+
+    local ATTEST_CERT=$ARCHIVE_DIR/attest-leaf.cert.pem
+    echo -n "Generating attestation for key in slot \"$SLOT\" ... "
+    yubico-piv-tool \
+        --action attest \
+        --slot $SLOT \
+	--output $ATTEST_CERT > $LOG 2>&1
+    if [ $? -eq 0 ]; then
+        echo "success"
+    else
+        echo "failure"
+        cat $LOG
+        exit 1
+    fi
+
+    local ATTEST_ROOT_URL="https://developers.yubico.com/PIV/Introduction/piv-attestation-ca.pem"
+    local ATTEST_ROOT_CERT=$TMP_DIR/attest-root.cert.pem
+    echo -n "Getting attestation root cert from yuboco.com ... "
+    wget --output-document $ATTEST_ROOT_CERT $ATTEST_ROOT_URL > $LOG 2>&1
+    if [ $? -eq 0 ]; then
+        echo "success"
+    else
+        echo "failure"
+        cat $LOG
+        exit 1
+    fi
+
+    local AWK_CMD="BEGIN { out=0 } /ASN1 OID:/ { out=0 } // { if (out == 1) print \$0 } /pub:/ { out=1 }"
+    echo -n "Ensuring public key in attestation is correct ... "
+    PUB_CERT=$(openssl x509 \
+        -in $CERT \
+        -noout \
+        -text 2> /dev/null \
+    | awk "$AWK_CMD" \
+    | tr -d " \t\n\r:")
+    PUB_ATTEST=$(openssl x509 \
+        -in $ATTEST_CERT \
+        -noout \
+        -text 2> /dev/null \
+    | awk "$AWK_CMD" \
+    | tr -d " \t\n\r:")
+    if [ "$PUB_CERT" = "$PUB_ATTEST" ]; then
+        echo "success"
+    else
+        echo "failure"
+        cat $LOG
+        exit 1
+    fi
+
+    echo -n "Verifying attestation signature ... "
+    openssl verify -CAfile $ATTEST_ROOT_CERT -untrusted $ATTEST_INT_CERT $ATTEST_CERT > $LOG 2>&1
+    if [ $? -eq 0 ]; then
+        echo "success"
+    else
+        echo "failure"
+        cat $LOG
+        exit 1
+    fi
+
+    tar -C $TMP_DIR -czvf $ARCHIVE_OUT $ARCHIVE_NAME
 }
 
 do_selfsign_$YUBI
