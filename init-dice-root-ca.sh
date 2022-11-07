@@ -24,6 +24,7 @@ Usage: $0
     [ --pkcs11 - path to shared library implementing PKCS#11 (DEFAULT: $DEFAULT_PKCS) ]
     [ --slot - PIV slot for key, allowed values: (9a | 9d) (DEFAULT: $DEFAULT_SLOT) ]
     [ --pin - PIN required for key generation (DEFAULT: $DEFAULT_PIN) ]
+    [ --archive-prefix - file name prefix for archive of artifacts, \'.tar.xz\' is appended]
     [ -h | --help  ]
 END
 
@@ -112,9 +113,6 @@ else
     else
         ARCHIVE_FILE=${ARCHIVE_PREFIX}.tar.xz
     fi
-fi
-if [ -z ${SUBJECT+x} ]; then
-    SUBJECT=$DEFAULT_SUBJECT
 fi
 
 set -e
