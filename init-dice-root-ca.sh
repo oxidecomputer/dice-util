@@ -57,8 +57,8 @@ while test $# -gt 0; do
     -l=*|--slot=*) SLOT="${1#*=}";;
     -k|--pkcs11) PKCS=$2; shift;;
     -k=*|--pkcs11=*) PKCS="${1#*=}";;
-    -o|--archive-out) ARCHIVE_OUT=$2; shift;;
-    -o=*|--archive-out=*) ARCHIVE_OUT="${1#*=}";;
+    -o|--archive-prefix) ARCHIVE_PREFIX=$2; shift;;
+    -o=*|--archive-prefix=*) ARCHIVE_PREFIX="${1#*=}";;
      --) shift; break;;
     -*) usage_error "invalid option: '$1'";;
      *) break;;
@@ -106,9 +106,11 @@ else
     KEY=$OPENSSL_KEY
     # assume eccp384
     HASH=sha384
-    if [ -z ${ARCHIVE_OUT+x} ]; then
-        >&2 echo "missing required argument: --out-archive"
+    if [ -z ${ARCHIVE_PREFIX+x} ]; then
+        >&2 echo "missing required argument: --archive-prefix"
 	exit 1
+    else
+        ARCHIVE_FILE=${ARCHIVE_PREFIX}.tar.xz
     fi
 fi
 if [ -z ${SUBJECT+x} ]; then
@@ -285,9 +287,8 @@ do_selfsign_false ()
 
 do_selfsign_true ()
 {
-    # everything in this directory will be rolled up into $ARCHIVE_OUT
-    local ARCHIVE_NAME=init-dice-root-ca
-    local ARCHIVE_DIR=$TMP_DIR/$ARCHIVE_NAME
+    # everything in this directory will be rolled up into $ARCHIVE_FILE
+    local ARCHIVE_DIR=$TMP_DIR/$ARCHIVE_PREFIX
     mkdir -p $ARCHIVE_DIR
 
     echo -n "Generating self signed cert w/ subject: \"$SUBJECT\" ... "
@@ -309,7 +310,7 @@ do_selfsign_true ()
         exit 1
     fi
 
-    echo -n "Importing cert from \"$OUT\" to slot \"$SLOT\" ... "
+    echo -n "Importing cert from \"$CERT\" to slot \"$SLOT\" ... "
     yubico-piv-tool \
         --action import-certificate \
         --slot $SLOT \
@@ -373,51 +374,128 @@ do_selfsign_true ()
         exit 1
     fi
 
-    local ATTEST_ROOT_URL="https://developers.yubico.com/PIV/Introduction/piv-attestation-ca.pem"
-    local ATTEST_ROOT_CERT=$TMP_DIR/attest-root.cert.pem
-    echo -n "Getting attestation root cert from yuboco.com ... "
-    wget --output-document $ATTEST_ROOT_CERT $ATTEST_ROOT_URL > $LOG 2>&1
-    if [ $? -eq 0 ]; then
-        echo "success"
-    else
+    # generate script to evaluate attestation
+    local VERIFY_SH=$ARCHIVE_DIR/verify-attestation.sh
+    cat << EOF > $VERIFY_SH
+#!/bin/sh
+
+NAME=\${0##*/}
+TMP_DIR=\$(mktemp -d -t \${0##*/}-XXXXXXXX)
+LOG=\$TMP_DIR/\$NAME
+ATTEST_ROOT_CERT=\$TMP_DIR/attest-root.cert.pem
+ATTEST_ROOT_URL="https://developers.yubico.com/PIV/Introduction/piv-attestation-ca.pem"
+
+echo -n "Getting attestation root cert from yuboco.com ... "
+wget --output-document \$ATTEST_ROOT_CERT \$ATTEST_ROOT_URL > \$LOG 2>&1
+if [ \$? -eq 0 ]; then
+    echo "success"
+else
+    echo "failure"
+    cat \$LOG
+    exit 1
+fi
+
+ATTEST_CERT=$(basename $ATTEST_CERT)
+ATTEST_INT_CERT=$(basename $ATTEST_INT_CERT)
+AWK_CMD="BEGIN { out=0 } /ASN1 OID:/ { out=0 } // { if (out == 1) print \\\$0 } /pub:/ { out=1 }"
+
+echo -n "Verifying attestation signature ... "
+openssl verify -CAfile \$ATTEST_ROOT_CERT -untrusted \$ATTEST_INT_CERT \$ATTEST_CERT > \$LOG 2>&1
+if [ \$? -eq 0 ]; then
+    echo "success"
+else
+    echo "failure"
+    cat \$LOG
+    exit 1
+fi
+
+CA_CERT=$(basename $CERT)
+
+echo -n "Ensuring public key in attestation matches the CA cert ... "
+PUB_CERT=\$(openssl x509 \
+    -in \$CA_CERT \
+    -noout \
+    -text 2> /dev/null \
+| awk "\$AWK_CMD" \
+| tr -d " \t\n\r:")
+PUB_ATTEST=\$(openssl x509 \
+    -in \$ATTEST_CERT \
+    -noout \
+    -text 2> /dev/null \
+| awk "\$AWK_CMD" \
+| tr -d " \t\n\r:")
+if [ "\$PUB_CERT" = "\$PUB_ATTEST" ]; then
+    echo "success"
+else
+    echo "failure"
+    cat \$LOG
+    exit 1
+fi
+
+EOF
+    chmod 755 $VERIFY_SH
+
+    local ATTEST_README=$ARCHIVE_DIR/README.md
+    cat << EOF > $ATTEST_README
+# yubikey attestation data
+
+This archive contains data sufficient to verify the Yubikey attestation for
+the key associated with $CA_CERT. Each file is discussed below. The relevant
+yubico docs can be found here:
+https://developers.yubico.com/PIV/Introduction/PIV_attestation.html
+https://developers.yubico.com/yubico-piv-tool/Attestation.html
+
+## $(basename $VERIFY_SH)
+This script is an example of how a PIV attestation from a yubikey may be
+verified. It obtains the root CA cert from yubico and then verifies the
+signature on the leaf attestation cert through the intermediate CA (the CA
+on the yubikey). Additionally this script extracts the public key from the
+leaf attestation cert and checks to be sure the cert for our key is the same.
+
+Additional checks and data may be useful or necessary depending on use-case.
+For additional fields and data that may be used see:
+https://developers.yubico.com/PIV/Introduction/PIV_attestation.html
+
+## $(basename $CERT)
+This file is the self-signed certificate for the encryption key generated on
+our yubikey. Whether or not you trust this root CA cert depends on the results
+of the attestation verification.
+
+## $(basename $ATTEST_CERT)
+This file holds the attestation (a leaf cert) for the key generated on our
+yubikey. This cert is created by the yubikey and signed by the yubikey's
+intermediate attestation cert.
+
+## $(basename $ATTEST_INT_CERT)
+This is the certificate for the intermediate attestation key on the yubikey.
+This key is provisioned by yubico and it's cert is signed by the yubico
+attestation root.
+
+EOF
+
+    tar --directory $TMP_DIR \
+        --auto-compress \
+        --create \
+        --file $ARCHIVE_FILE \
+        $ARCHIVE_PREFIX
+
+    # extract archive we've created and run the verification script
+    # local VERIFICATION_DIR=$TMP_DIR/verify
+    # mkdir $VERIFICATION_DIR
+    tar --directory $TMP_DIR \
+        --auto-compress \
+        --extract \
+        --file $ARCHIVE_FILE
+    pushd $TMP_DIR/$ARCHIVE_PREFIX > /dev/null
+    ./$(basename $VERIFY_SH)
+    if [ $? -ne 0 ]; then
         echo "failure"
         cat $LOG
         exit 1
     fi
-
-    local AWK_CMD="BEGIN { out=0 } /ASN1 OID:/ { out=0 } // { if (out == 1) print \$0 } /pub:/ { out=1 }"
-    echo -n "Ensuring public key in attestation is correct ... "
-    PUB_CERT=$(openssl x509 \
-        -in $CERT \
-        -noout \
-        -text 2> /dev/null \
-    | awk "$AWK_CMD" \
-    | tr -d " \t\n\r:")
-    PUB_ATTEST=$(openssl x509 \
-        -in $ATTEST_CERT \
-        -noout \
-        -text 2> /dev/null \
-    | awk "$AWK_CMD" \
-    | tr -d " \t\n\r:")
-    if [ "$PUB_CERT" = "$PUB_ATTEST" ]; then
-        echo "success"
-    else
-        echo "failure"
-        cat $LOG
-        exit 1
-    fi
-
-    echo -n "Verifying attestation signature ... "
-    openssl verify -CAfile $ATTEST_ROOT_CERT -untrusted $ATTEST_INT_CERT $ATTEST_CERT > $LOG 2>&1
-    if [ $? -eq 0 ]; then
-        echo "success"
-    else
-        echo "failure"
-        cat $LOG
-        exit 1
-    fi
-
-    tar -C $TMP_DIR -czvf $ARCHIVE_OUT $ARCHIVE_NAME
+    popd > /dev/null
 }
 
 do_selfsign_$YUBI
+
+rm -rf $TMP_DIR
