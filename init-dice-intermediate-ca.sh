@@ -4,7 +4,6 @@ DEFAULT_CA_DIR=dice-intermediate-ca
 DEFAULT_CFG_OUT=dice-intermediate-ca_openssl.cnf
 DEFAULT_YUBI="false"
 DEFAULT_PIN=123456
-DEFAULT_PKCS=/usr/lib/libykcs11.so
 # NOTE: We do not support using slot 9c. This slot, per the spec, is supposed
 # to require pin entry on each use. Openssl takes this pretty seriously and
 # will ignore the pin provided in the config file. There doesn't seem to be
@@ -12,6 +11,18 @@ DEFAULT_PKCS=/usr/lib/libykcs11.so
 # https://bugzilla.redhat.com/show_bug.cgi?id=1728016
 # https://stackoverflow.com/questions/57729106/how-to-pass-yubikey-pin-to-openssl-command-in-shell-script
 DEFAULT_SLOT=9d
+
+# finding the ykcs11 library takes some doing
+PKG_CONFIG=$(which pkg-config 2> /dev/null)
+if [ $? -ne 0 ]; then
+    >&2 echo "Missing required command: pkg-config"
+    exit 1
+fi
+DEFAULT_PKCS=$($PKG_CONFIG --variable=libdir ykcs11)/libykcs11.so
+if [ ! -f $DEFAULT_PKCS ]; then
+    >&2 echo "Missing ykcs11 library, is it installed?"
+    exit 1
+fi
 
 print_usage ()
 {
