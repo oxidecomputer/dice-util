@@ -5,7 +5,7 @@
 use dice_mfg_msgs::{MfgMessage, SerialNumber, SizedBlob};
 use log::{info, warn};
 
-use serialport::SerialPort;
+use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::{
     fmt,
     fs::{self, File},
@@ -13,6 +13,7 @@ use std::{
     path::PathBuf,
     process::Command,
     str,
+    time::Duration,
 };
 use zerocopy::AsBytes;
 
@@ -473,4 +474,17 @@ fn read_all(port: &mut Box<dyn SerialPort>, buf: &mut [u8]) -> Result<usize> {
     }
 
     Ok(pos)
+}
+
+pub fn open_serial(
+    serial_dev: &String,
+    baud: u32
+) -> Result<Box<dyn SerialPort>> {
+    Ok(serialport::new(serial_dev.clone(), baud)
+            .timeout(Duration::from_secs(1))
+            .data_bits(DataBits::Eight)
+            .flow_control(FlowControl::None)
+            .parity(Parity::None)
+            .stop_bits(StopBits::One)
+            .open()?)
 }

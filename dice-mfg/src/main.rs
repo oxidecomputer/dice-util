@@ -7,8 +7,7 @@ use dice_mfg::Result;
 use dice_mfg_msgs::SerialNumber;
 use env_logger::Builder;
 use log::{info, LevelFilter};
-use serialport::{DataBits, FlowControl, Parity, StopBits};
-use std::{path::PathBuf, result, str, time::Duration};
+use std::{path::PathBuf, result, str};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -142,20 +141,17 @@ fn main() -> Result<()> {
     if args.verbose {
         info!("device: {}, baud: {}", args.serial_dev, args.baud);
     }
-    let mut port = serialport::new(args.serial_dev.clone(), args.baud)
-        .timeout(Duration::from_secs(1))
-        .data_bits(DataBits::Eight)
-        .flow_control(FlowControl::None)
-        .parity(Parity::None)
-        .stop_bits(StopBits::One)
-        .open()?;
-
     match args.command {
-        Command::Break => dice_mfg::do_break(&mut port),
+        Command::Break => {
+            let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
+            dice_mfg::do_break(&mut port)
+        }
         Command::GetCsr { csr_path } => {
+            let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
             dice_mfg::do_get_csr(&mut port, &csr_path)
         }
         Command::Liveness { max_retry } => {
+            let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
             dice_mfg::do_liveness(&mut port, max_retry)
         }
         Command::Manufacture {
@@ -167,25 +163,34 @@ fn main() -> Result<()> {
             serial_number,
             intermediate_cert,
             no_yubi,
-        } => dice_mfg::do_manufacture(
-            &mut port,
-            openssl_cnf,
-            ca_section,
-            v3_section,
-            engine_section,
-            max_retry,
-            serial_number,
-            intermediate_cert,
-            no_yubi,
-        ),
-        Command::Ping => dice_mfg::do_ping(&mut port),
+        } => {
+            let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
+            dice_mfg::do_manufacture(
+                &mut port,
+                openssl_cnf,
+                ca_section,
+                v3_section,
+                engine_section,
+                max_retry,
+                serial_number,
+                intermediate_cert,
+                no_yubi,
+            )
+        }
+        Command::Ping => {
+            let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
+            dice_mfg::do_ping(&mut port)
+        }
         Command::SetDeviceId { cert_in } => {
+            let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
             dice_mfg::do_set_device_id(&mut port, &cert_in)
         }
         Command::SetIntermediate { cert_in } => {
+            let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
             dice_mfg::do_set_intermediate(&mut port, &cert_in)
         }
         Command::SetSerialNumber { serial_number } => {
+            let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
             dice_mfg::do_set_serial_number(&mut port, serial_number)
         }
         Command::SignCert {
