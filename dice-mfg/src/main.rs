@@ -48,13 +48,24 @@ enum Command {
         #[clap(long)]
         openssl_cnf: PathBuf,
 
+        /// CA section from openssl.cnf used for signing operation.
+        /// If omitted default from openssl.cnf is used.
+        #[clap(long)]
+        ca_section: Option<String>,
+
+        /// x509 v3 extension section from openssl.cnf used for signing operation.
+        /// If omitted default from openssl.cnf is used.
+        #[clap(long)]
+        v3_section: Option<String>,
+
+        /// engine section from openssl.cnf used for signing operation.
+        /// If omitted openssl will fall back to files.
+        #[clap(long)]
+        engine_section: Option<String>,
+
         /// Maximum number of retries in liveness test.
         #[clap(long, default_value = "10")]
         max_retry: u8,
-
-        /// Use openssl config compatible with yubikey
-        #[clap(long)]
-        yubi: bool,
 
         /// Path to intermediate cert sent to manufactured system.
         #[clap(long)]
@@ -63,6 +74,10 @@ enum Command {
         /// Platform serial number
         #[clap(value_parser = validate_sn)]
         serial_number: SerialNumber,
+
+        /// Don't use yubikey for private key operations.
+        #[clap(long)]
+        no_yubi: bool,
     },
     Ping,
     SetDeviceId {
@@ -141,17 +156,23 @@ fn main() -> Result<()> {
         }
         Command::Manufacture {
             openssl_cnf,
+            ca_section,
+            v3_section,
+            engine_section,
             max_retry,
             serial_number,
             intermediate_cert,
-            yubi,
+            no_yubi,
         } => dice_mfg::do_manufacture(
             &mut port,
             openssl_cnf,
+            ca_section,
+            v3_section,
+            engine_section,
             max_retry,
             serial_number,
             intermediate_cert,
-            yubi,
+            no_yubi,
         ),
         Command::Ping => dice_mfg::do_ping(&mut port),
         Command::SetDeviceId { cert_in } => {

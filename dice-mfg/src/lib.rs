@@ -62,11 +62,21 @@ impl fmt::Display for Error {
 pub fn do_manufacture(
     port: &mut Box<dyn SerialPort>,
     openssl_cnf: PathBuf,
+    ca_section: Option<String>,
+    v3_section: Option<String>,
+    engine_section: Option<String>,
     ping_retry: u8,
     serial_number: SerialNumber,
     intermediate_cert: PathBuf,
-    yubi: bool,
+    no_yubi: bool,
 ) -> Result<()> {
+    // this is kinda ugly. Remove the 'no-yubi' trap door?
+    let engine_section = if !no_yubi && engine_section.is_none() {
+        Some(String::from("pkcs11"))
+    } else {
+        engine_section
+    };
+
     do_liveness(port, ping_retry)?;
     do_set_serial_number(port, serial_number)?;
 
@@ -74,18 +84,12 @@ pub fn do_manufacture(
     let csr = Some(temp_dir.path().join("csr.pem"));
     do_get_csr(port, &csr)?;
 
-    let engine_section = if yubi {
-        Some(String::from("pkcs11"))
-    } else {
-        None
-    };
-
     let cert = temp_dir.path().join("cert.pem");
     do_sign_cert(
         &cert,
         &openssl_cnf,
-        None,
-        None,
+        ca_section,
+        v3_section,
         engine_section,
         &csr.unwrap(),
     )?;

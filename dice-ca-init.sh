@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DEFAULT_CA_DIR=$(pwd)/ca
-DEFAULT_YUBI="false"
+DEFAULT_YUBI="true"
 DEFAULT_SELFSIGNED="false"
 DEFAULT_PIN=123456
 # NOTE: We do not support using slot 9c. This slot, per the spec, is supposed
@@ -30,7 +30,7 @@ print_usage ()
 Usage: $0
     [ --dir - root directory for CA files & openssl.cnf (DEFAULT: $DEFAULT_CA_DIR) ]
     [ --self-signed - create self signed cert instead of CSR ]
-    [ --yubi - do key operations on a yubikey (DEFAULT: false) ]
+    [ --no-yubi - don't use a yubikey, keep keys in files on disk (DEFAULT: false) ]
     NOTE: the following options only apply when \'--yubikey\' is provided
     [ --pkcs11 - path to shared library implementing PKCS#11 (DEFAULT: $DEFAULT_PKCS) ]
     [ --slot - PIV slot for key, allowed values: (9a | 9d) (DEFAULT: $DEFAULT_SLOT) ]
@@ -60,7 +60,7 @@ while test $# -gt 0; do
     -h|--help) print_help; exit $?;;
     -d|--dir) CA_DIR=$2; shift;;
     -d=*|--dir=*) CA_DIR="${1#*=}";;
-    -y|--yubi) YUBI="true";;
+    -n|--no-yubi) YUBI="false";;
     -p|--pin) PIN=$2; shift;;
     -p=*|--pin=*) PIN="${1#*=}";;
     -l|--slot) SLOT=$2; shift;;
@@ -107,12 +107,7 @@ if [ -z ${SLOT+x} ]; then
 fi
 
 # multiple yubikeys / PIV devices would require identifying the slot too?
-if [ $YUBI = "false" ]; then
-    OPENSSL_KEY="\$dir/private/ca.key.pem"
-    KEY=$CA_DIR/private/ca.key.pem
-    # assume ed25519
-    HASH=sha3-256
-else
+if [ $YUBI = "true" ]; then
     case $SLOT in
         9a) OPENSSL_KEY="slot_0-id_1";;
         9d) OPENSSL_KEY="slot_0-id_3";;
@@ -127,6 +122,11 @@ else
     else
         ARCHIVE_FILE=${ARCHIVE_PREFIX}.tar.xz
     fi
+else
+    OPENSSL_KEY="\$dir/private/ca.key.pem"
+    KEY=$CA_DIR/private/ca.key.pem
+    # assume ed25519
+    HASH=sha3-256
 fi
 
 set -e
