@@ -120,6 +120,10 @@ enum Command {
         /// Path to input CSR file.
         #[clap(long)]
         csr_in: PathBuf,
+
+        /// Don't use yubikey for private key operations.
+        #[clap(long)]
+        no_yubi: bool,
     },
 }
 
@@ -191,6 +195,7 @@ fn main() -> Result<()> {
             v3_section,
             engine_section,
             csr_in,
+            no_yubi,
         } => dice_mfg::do_sign_cert(
             &cert_out,
             &openssl_cnf,
@@ -198,6 +203,7 @@ fn main() -> Result<()> {
             v3_section,
             engine_section,
             &csr_in,
+            no_yubi,
         ),
     }
 }

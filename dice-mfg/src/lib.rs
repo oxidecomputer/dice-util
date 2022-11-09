@@ -70,13 +70,6 @@ pub fn do_manufacture(
     intermediate_cert: PathBuf,
     no_yubi: bool,
 ) -> Result<()> {
-    // this is kinda ugly. Remove the 'no-yubi' trap door?
-    let engine_section = if !no_yubi && engine_section.is_none() {
-        Some(String::from("pkcs11"))
-    } else {
-        engine_section
-    };
-
     do_liveness(port, ping_retry)?;
     do_set_serial_number(port, serial_number)?;
 
@@ -92,6 +85,7 @@ pub fn do_manufacture(
         v3_section,
         engine_section,
         &csr.unwrap(),
+        no_yubi,
     )?;
     do_set_device_id(port, &cert)?;
     do_set_intermediate(port, &intermediate_cert)?;
@@ -229,7 +223,15 @@ pub fn do_sign_cert(
     v3_section: Option<String>,
     engine_section: Option<String>,
     csr_in: &PathBuf,
+    no_yubi: bool,
 ) -> Result<()> {
+    // this is kinda ugly. Remove the 'no-yubi' trap door?
+    let engine_section = if !no_yubi && engine_section.is_none() {
+        Some(String::from("pkcs11"))
+    } else {
+        engine_section
+    };
+
     print!("signing CSR ... ");
     match sign_cert(
         openssl_cnf,
