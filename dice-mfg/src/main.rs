@@ -26,7 +26,7 @@ struct Args {
     command: Command,
 
     /// verbosity
-    #[clap(long)]
+    #[clap(long, env)]
     verbose: bool,
 }
 
@@ -44,22 +44,22 @@ enum Command {
     },
     Manufacture {
         /// Path to openssl.cnf file used for signing operation.
-        #[clap(long)]
+        #[clap(long, env)]
         openssl_cnf: PathBuf,
 
         /// CA section from openssl.cnf used for signing operation.
         /// If omitted default from openssl.cnf is used.
-        #[clap(long)]
+        #[clap(long, env)]
         ca_section: Option<String>,
 
         /// x509 v3 extension section from openssl.cnf used for signing operation.
         /// If omitted default from openssl.cnf is used.
-        #[clap(long)]
+        #[clap(long, env)]
         v3_section: Option<String>,
 
         /// engine section from openssl.cnf used for signing operation.
         /// If omitted openssl will fall back to files.
-        #[clap(long)]
+        #[clap(long, env)]
         engine_section: Option<String>,
 
         /// Maximum number of retries in liveness test.
@@ -67,15 +67,15 @@ enum Command {
         max_retry: u8,
 
         /// Path to intermediate cert sent to manufactured system.
-        #[clap(long)]
+        #[clap(long, env)]
         intermediate_cert: PathBuf,
 
         /// Platform serial number
-        #[clap(value_parser = validate_sn)]
+        #[clap(value_parser = validate_sn, env)]
         serial_number: SerialNumber,
 
         /// Don't use yubikey for private key operations.
-        #[clap(long)]
+        #[clap(long, env)]
         no_yubi: bool,
     },
     Ping,
@@ -98,22 +98,22 @@ enum Command {
         cert_out: PathBuf,
 
         /// Path to openssl.cnf file used for signing operation.
-        #[clap(long)]
+        #[clap(long, env)]
         openssl_cnf: PathBuf,
 
         /// CA section from openssl.cnf used for signing operation.
         /// If omitted default from openssl.cnf is used.
-        #[clap(long)]
+        #[clap(long, env)]
         ca_section: Option<String>,
 
         /// x509 v3 extension section from openssl.cnf used for signing operation.
         /// If omitted default from openssl.cnf is used.
-        #[clap(long)]
+        #[clap(long, env)]
         v3_section: Option<String>,
 
         /// engine section from openssl.cnf used for signing operation.
         /// If omitted openssl will fall back to files.
-        #[clap(long)]
+        #[clap(long, env)]
         engine_section: Option<String>,
 
         /// Path to input CSR file.
@@ -121,7 +121,7 @@ enum Command {
         csr_in: PathBuf,
 
         /// Don't use yubikey for private key operations.
-        #[clap(long)]
+        #[clap(long, env)]
         no_yubi: bool,
     },
 }
