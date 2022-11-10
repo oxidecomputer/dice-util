@@ -32,41 +32,49 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Send the 'Break' message to attempt to end the manufacturing process.
+    /// If the system being manufactured has not yet received all required
+    /// data this message will be rejected.
     Break,
+    /// Send the 'GetCsr' message to request a CSR from the system being
+    /// manufactured. If the system being manufactured has not yet received
+    /// the platform serial number (required to generate a CSR) this message
+    /// will be rejected.
     GetCsr {
         /// Destination path for CSR, stdout if omitted
         csr_path: Option<PathBuf>,
     },
+    /// Send 'Ping' messages to the system being manufactured until we
+    /// successfully receive an 'Ack' or 'max_retry' attempts fail.
     Liveness {
-        /// Maximum number of retries in liveness test.
+        /// Maximum number of retries for failed pings.
         #[clap(default_value = "10")]
         max_retry: u8,
     },
+    /// Perform device identity provisioning by exchanging the required
+    /// messages with the device being manufactured.
     Manufacture {
         /// Path to openssl.cnf file used for signing operation.
         #[clap(long, env)]
         openssl_cnf: PathBuf,
 
         /// CA section from openssl.cnf used for signing operation.
-        /// If omitted default from openssl.cnf is used.
         #[clap(long, env)]
         ca_section: Option<String>,
 
         /// x509 v3 extension section from openssl.cnf used for signing operation.
-        /// If omitted default from openssl.cnf is used.
         #[clap(long, env)]
         v3_section: Option<String>,
 
-        /// engine section from openssl.cnf used for signing operation.
-        /// If omitted openssl will fall back to files.
+        /// Engine config section from openssl.cnf used for signing operation.
         #[clap(long, env)]
         engine_section: Option<String>,
 
-        /// Maximum number of retries in liveness test.
-        #[clap(long, default_value = "10")]
+        /// Maximum number of retries for failed pings.
+        #[clap(long, default_value = "10", env)]
         max_retry: u8,
 
-        /// Path to intermediate cert sent to manufactured system.
+        /// Path to intermediate cert to send.
         #[clap(long, env)]
         intermediate_cert: PathBuf,
 
@@ -78,46 +86,53 @@ enum Command {
         #[clap(long, env)]
         no_yubi: bool,
     },
+    /// Send a 'Ping' message to the system being manufactured.
     Ping,
+    /// Send the device being manufactured its identity certificate in a 
+    /// 'DeviceIdCert' message.
     SetDeviceId {
-        /// File to read DeviceId cert from
+        /// Path to DeviceId cert to send.
         cert_in: PathBuf,
     },
+    /// Send the device being manufactured the certificate for the certifying
+    /// CA.
     SetIntermediate {
-        /// File to read intermediate cert from
+        /// Path to intermediate cert to send.
         cert_in: PathBuf,
     },
+    /// Send the device being manufactured its assigned serial number in a
+    /// 'SerialNumber' message.
     SetSerialNumber {
-        /// Platform serial number
+        /// Platform serial number.
         #[clap(value_parser = validate_sn)]
         serial_number: SerialNumber,
     },
+    /// Turn a CSR into a cert. This is a thin wrapper around the `openssl ca`
+    /// command and behavior will depend on the openssl.cnf provided by the
+    /// caller.
     SignCert {
-        /// Path where Cert is written.
-        #[clap(long)]
+        /// Destination path for Cert.
+        #[clap(long, env)]
         cert_out: PathBuf,
 
         /// Path to openssl.cnf file used for signing operation.
         #[clap(long, env)]
         openssl_cnf: PathBuf,
 
-        /// CA section from openssl.cnf used for signing operation.
-        /// If omitted default from openssl.cnf is used.
+        /// CA section from openssl.cnf.
         #[clap(long, env)]
         ca_section: Option<String>,
 
-        /// x509 v3 extension section from openssl.cnf used for signing operation.
-        /// If omitted default from openssl.cnf is used.
+        /// x509 v3 extension section from openssl.cnf.
         #[clap(long, env)]
         v3_section: Option<String>,
 
-        /// engine section from openssl.cnf used for signing operation.
-        /// If omitted openssl will fall back to files.
+        /// Engine section from openssl.cnf.
         #[clap(long, env)]
         engine_section: Option<String>,
 
         /// Path to input CSR file.
-        #[clap(long)]
+        #[clap(long, env)]
         csr_in: PathBuf,
 
         /// Don't use yubikey for private key operations.

@@ -2,6 +2,7 @@
 name = "dice-mfg"
 version = "0.1.0"
 edition = "2021"
+description = "A command line tool for creating and programming device identities for Oxide RoTs."
 
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
