@@ -49,7 +49,7 @@ script has two main functions:
 1. creating an intermediate CA
     ```sh
     $ ./dice-ca-init.sh \
-        --archive-prefix dice-intermediate-ca
+        --archive-prefix dice-intermediate-ca \
         --dir dice-intermediate-ca \
         --slot 9d
     ```

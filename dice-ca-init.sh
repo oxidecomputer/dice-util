@@ -270,6 +270,7 @@ serialNumber = optional
 distinguished_name = req_distinguished_name
 string_mask = utf8only
 x509_extensions = v3_intermediate_ca
+default_md = sha384
 
 [ req_distinguished_name ]
 countryName = Country Name (2 letter code)
@@ -563,20 +564,38 @@ do_cred_true_true ()
 {
     local ARCHIVE_DIR=$TMP_DIR/$ARCHIVE_PREFIX
     mkdir -p $ARCHIVE_DIR
+    local CSR=$CA_DIR/csr/ca.csr.pem
     local CERT=$ARCHIVE_DIR/ca.cert.pem
 
     # ROOT
-    echo -n "Generating self signed cert w/ subject: \"$SUBJECT\" ... "
-    OPENSSL_CONF=$CFG_OUT \
+    echo -n "Generating CSR w/ subject: \"$SUBJECT\" ... "
     openssl req \
+        -config $CFG_OUT \
         -new \
-        -x509 \
         -engine pkcs11 \
         -keyform engine \
         -key $KEY \
-        -sha384 \
-        -out $CERT \
+        -out $CSR \
         -subj "$SUBJECT" > $LOG 2>&1
+    if [ $? -eq 0 ]; then
+        echo "success"
+    else
+        echo "failure"
+        cat $LOG
+        exit 1
+    fi
+
+    echo -n "Generating self-signed cert from CSR ... "
+    openssl ca \
+        -selfsign \
+        -batch \
+        -config $CFG_OUT \
+        -engine pkcs11 \
+        -keyform engine \
+        -key $KEY \
+        -enddate 99991231235959Z \
+        -in $CSR \
+        -out $CERT > $LOG 2>&1
     if [ $? -eq 0 ]; then
         echo "success"
     else
