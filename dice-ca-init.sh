@@ -34,7 +34,7 @@ Usage: $0
     [ --dir - root directory for CA files & openssl.cnf (DEFAULT: $DEFAULT_CA_DIR) ]
     [ --self-signed - create self signed cert instead of CSR ]
     [ --no-yubi - don't use a yubikey, keep keys in files on disk (DEFAULT: false) ]
-    NOTE: the following options only apply when \'--yubikey\' is provided
+    NOTE: the following options only apply when \'--no-yubi\' is *NOT* provided
     [ --pkcs11 - path to shared library implementing PKCS#11 (DEFAULT: $DEFAULT_PKCS) ]
     [ --slot - PIV slot for key, allowed values: (9a | 9d | 82) (DEFAULT: $DEFAULT_SLOT) ]
     [ --pin - PIN required for key generation (DEFAULT: $DEFAULT_PIN) ]
