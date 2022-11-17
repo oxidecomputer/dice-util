@@ -36,7 +36,7 @@ Usage: $0
     [ --no-yubi - don't use a yubikey, keep keys in files on disk (DEFAULT: false) ]
     NOTE: the following options only apply when \'--yubikey\' is provided
     [ --pkcs11 - path to shared library implementing PKCS#11 (DEFAULT: $DEFAULT_PKCS) ]
-    [ --slot - PIV slot for key, allowed values: (9a | 9d) (DEFAULT: $DEFAULT_SLOT) ]
+    [ --slot - PIV slot for key, allowed values: (9a | 9d | 82) (DEFAULT: $DEFAULT_SLOT) ]
     [ --pin - PIN required for key generation (DEFAULT: $DEFAULT_PIN) ]
     [ --archive-prefix - file name prefix for archive of artifacts, \'.tar.xz\' is appended]
     [ -h | --help  ]
@@ -109,13 +109,22 @@ if [ -z ${SLOT+x} ]; then
     SLOT=$DEFAULT_SLOT
 fi
 
+piv_slot_to_pkcs11_id() {
+    local slot=$1
+    case $slot in
+        9a) echo "slot_0-id_1";;
+        9d) echo "slot_0-id_3";;
+        82) echo "slot_0-id_5";;
+        *) return 1;;
+    esac
+}
+
 # multiple yubikeys / PIV devices would require identifying the slot too?
 if [ $YUBI = "true" ]; then
-    case $SLOT in
-        9a) OPENSSL_KEY="slot_0-id_1";;
-        9d) OPENSSL_KEY="slot_0-id_3";;
-        *) usage_error "invalid slot";;
-    esac
+    OPENSSL_KEY=$(piv_slot_to_pkcs11_id $SLOT)
+    if [ $? -ne 0 ]; then
+        usage_error "invalid slot"
+    fi
     KEY=$OPENSSL_KEY
     # assume eccp384
     HASH=sha384
