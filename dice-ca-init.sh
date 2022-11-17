@@ -14,6 +14,8 @@ DEFAULT_PIN=123456
 # https://bugzilla.redhat.com/show_bug.cgi?id=1728016
 # https://stackoverflow.com/questions/57729106/how-to-pass-yubikey-pin-to-openssl-command-in-shell-script
 DEFAULT_SLOT=9a
+DEFAULT_SUBJECT_SELFSIGNED="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=root-ca"
+DEFAULT_SUBJECT_INTERMEDIATE="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=intermediate-ca"
 
 # finding the ykcs11 library takes some doing
 PKG_CONFIG=$(which pkg-config 2> /dev/null)
@@ -33,6 +35,7 @@ print_usage ()
 Usage: $0
     [ --dir - root directory for CA files & openssl.cnf (DEFAULT: $DEFAULT_CA_DIR) ]
     [ --self-signed - create self signed cert instead of CSR ]
+    [ --subject - an optional subject string for the CSR / cert ]
     [ --no-yubi - don't use a yubikey, keep keys in files on disk (DEFAULT: false) ]
     NOTE: the following options only apply when \'--no-yubi\' is *NOT* provided
     [ --pkcs11 - path to shared library implementing PKCS#11 (DEFAULT: $DEFAULT_PKCS) ]
@@ -73,6 +76,8 @@ while test $# -gt 0; do
     -o|--archive-prefix) ARCHIVE_PREFIX=$2; shift;;
     -o=*|--archive-prefix=*) ARCHIVE_PREFIX="${1#*=}";;
     -s|--self-signed) SELFSIGNED=true;;
+    -u|--subject) SUBJECT=$2; shift;;
+    -u=*|--subject=*) SUBJECT="${1#*=}";;
      --) shift; break;;
     -*) usage_error "invalid option: '$1'";;
      *) break;;
@@ -92,11 +97,13 @@ fi
 if [ -z ${SELFSIGNED+x} ]; then
     SELFSIGNED=$DEFAULT_SELFSIGNED
 fi
-# take subject (or at least OU & CN?) as option
-if [ $SELFSIGNED = "true" ]; then
-    SUBJECT="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=root-ca"
-else
-    SUBJECT="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=intermediate-ca"
+# take subject (or at least CN, maybe OU?) as option
+if [ -z ${SUBJECT+x} ]; then
+    if [ $SELFSIGNED = "true" ]; then
+        SUBJECT=$DEFAULT_SUBJECT_SELFSIGNED
+    else
+        SUBJECT=$DEFAULT_SUBJECT_INTERMEDIATE
+    fi
 fi
 
 if [ -z ${PIN+x} ]; then
