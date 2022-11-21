@@ -41,12 +41,19 @@ tar --extract --auto-compress --directory $TMP --file $INT0_PREFIX.tar.xz
 pushd $TMP/$INT0_PREFIX
 ./verify-attestation.sh
 popd
-# acting as the root CA, sign cert & send to first intermediate
+# acting as the root CA, sign cert
 cargo run --bin dice-mfg -- \
     sign-cert \
     --openssl-cnf $ROOT_DIR/openssl.cnf \
     --csr-in $TMP/$INT0_PREFIX/ca.csr.pem \
     --cert-out $INT0_DIR/certs/ca.cert.pem
+# send freshly minted cert back to first intermediate
+# install cert into yubikey & copy into CA dir
+# $ yubico-piv-tool \
+#       --action import-certificate \
+#       --slot $SLOT \
+#       --input $CERT
+# $ cp $CERT $ROOT_DIR/certs/ca.cert.pem
 
 # second intermediate CA
 ./dice-ca-init.sh \
@@ -65,3 +72,5 @@ cargo run --bin dice-mfg -- \
     --ca-section ca_intermediate \
     --csr-in $TMP/$INT1_PREFIX/ca.csr.pem \
     --cert-out $INT1_DIR/certs/ca.cert.pem
+# send freshly minted cert back to second intermediate
+# install cert into yubikey & copy into CA dir
