@@ -3,6 +3,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+TAR=gtar
+
 DEFAULT_CA_DIR=$(pwd)/ca
 DEFAULT_YUBI="true"
 DEFAULT_SELFSIGNED="false"
@@ -13,7 +15,7 @@ DEFAULT_PIN=123456
 # consensus as to whether this is a bug or a feature.
 # https://bugzilla.redhat.com/show_bug.cgi?id=1728016
 # https://stackoverflow.com/questions/57729106/how-to-pass-yubikey-pin-to-openssl-command-in-shell-script
-DEFAULT_SLOT=9a
+DEFAULT_SLOT=83
 DEFAULT_SUBJECT_SELFSIGNED="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=root-ca"
 DEFAULT_SUBJECT_INTERMEDIATE="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=intermediate-ca"
 
@@ -122,6 +124,7 @@ piv_slot_to_pkcs11_id() {
         9a) echo "slot_0-id_1";;
         9d) echo "slot_0-id_3";;
         82) echo "slot_0-id_5";;
+        83) echo "slot_0-id_6";;
         *) return 1;;
     esac
 }
@@ -156,7 +159,7 @@ pushd $CA_DIR > /dev/null
 # other than $CA_DIR. The down side: if you move CA_DIR you will need to
 # update 'dir' in openssl.cnf.
 CA_DIR=$(pwd)
-mkdir certs crl csr newcerts private
+mkdir -p certs crl csr newcerts private
 chmod 700 private
 touch index.txt
 echo 1000 > serial
@@ -228,10 +231,10 @@ policy = policy_strict
 x509_extensions = v3_intermediate_ca
 
 [ v3_intermediate_ca ]
-authorityKeyIdentifier = none
+authorityKeyIdentifier = keyid,issuer
 basicConstraints = critical, CA:true
 keyUsage = critical, keyCertSign
-subjectKeyIdentifier = none
+subjectKeyIdentifier = hash
 EOF
 
     # intermediate CAs get the config section for the DeviceId CA
@@ -257,11 +260,11 @@ policy = policy_strict
 x509_extensions = v3_deviceid_eca
 
 [ v3_deviceid_eca ]
-authorityKeyIdentifier = none
+authorityKeyIdentifier = keyid,issuer
 basicConstraints = critical, CA:true
 keyUsage = critical, keyCertSign
 certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
-subjectKeyIdentifier = none
+subjectKeyIdentifier = hash
 
 [ OIDs ]
 tcg-dice-kp-attestInit = 2.23.133.5.4.100.8
@@ -318,7 +321,7 @@ mkdir -p $ARCHIVE_DIR
 do_keygen_false ()
 {
     # key for CA signing operations: path is used in openssl.cnf
-    echo -n "Generating ed25519 key in file \"$KEY\" ... "
+    echo "Generating ed25519 key in file \"$KEY\" ... "
     openssl genpkey \
         -algorithm ED25519 \
         -out $KEY > $LOG 2>&1
@@ -336,21 +339,18 @@ do_keygen_true ()
 {
     local PUB=$TMP_DIR/pub.pem
 
-    echo -n "Generating ECCP384 key in slot \"$SLOT\" with provided pin ... "
-    yubico-piv-tool \
-        --action verify-pin \
-        --pin $PIN \
-        --action generate \
-        --slot $SLOT \
-        --algorithm ECCP384 \
-        --output $PUB > $LOG 2>&1
-    if [ $? -eq 0 ]; then
-        echo "success"
-    else
+    echo "Generating ECCP384 key in slot \"$SLOT\" with provided pin ... "
+    if ! pivy-tool -P "$PIN" -a eccp384 generate "$SLOT" >"$LOG" 2>&1; then
         echo "failure"
-        cat $LOG
+        cat "$LOG"
         exit 1
     fi
+    if ! pivy-tool cert "$SLOT" > "$PUB" 2>"$LOG"; then
+        echo "failure"
+        cat "$LOG"
+        exit 1
+    fi
+    echo ok
 }
 
 do_keygen_$YUBI
@@ -360,7 +360,7 @@ do_cred_false_false ()
 {
     local CSR=$CA_DIR/csr/ca.csr.pem
 
-    echo -n "Generating CSR for key \"$KEY\" w/ subject: \"$SUBJECT\" ... "
+    echo "Generating CSR for key \"$KEY\" w/ subject: \"$SUBJECT\" ... "
     openssl req \
         -config $CFG_OUT \
         -subj "$SUBJECT" \
@@ -382,7 +382,7 @@ do_cred_false_true ()
 {
     local CSR=$ARCHIVE_DIR/ca.csr.pem
 
-    echo -n "Generating CSR w/ subject: '$SUBJECT' ... "
+    echo "Generating CSR w/ subject: '$SUBJECT' ... "
     OPENSSL_CONF=$CFG_OUT \
     openssl req \
         -new \
@@ -401,32 +401,14 @@ do_cred_false_true ()
     fi
 
     local ATTEST_INT_CERT=$ARCHIVE_DIR/attest-intermediate.cert.pem
-    echo -n "Getting attestation intermediate cert from slot 'f9' ... "
-    yubico-piv-tool \
-        --action read-certificate \
-        --slot f9 \
-        --output $ATTEST_INT_CERT > $LOG 2>&1
-    if [ $? -eq 0 ]; then
-        echo "success"
-    else
-        echo "failure"
-        cat $LOG
-        exit 1
-    fi
+    echo "Getting attestation intermediate cert from slot \"f9\" ... "
+    pivy-tool attest "$SLOT" | awk -v w=2 '/BEGIN/ { q++ } q == w { print }
+	q == w && /END/ { exit 0 }' >"$ATTEST_INT_CERT"
 
     local ATTEST_CERT=$ARCHIVE_DIR/attest-leaf.cert.pem
-    echo -n "Generating attestation for key in slot '$SLOT' ... "
-    yubico-piv-tool \
-        --action attest \
-        --slot $SLOT \
-        --output $ATTEST_CERT > $LOG 2>&1
-    if [ $? -eq 0 ]; then
-        echo "success"
-    else
-        echo "failure"
-        cat $LOG
-        exit 1
-    fi
+    echo "Generating attestation for key in slot \"$SLOT\" ... "
+    pivy-tool attest "$SLOT" | awk -v w=1 '/BEGIN/ { q++ } q == w { print }
+	q == w && /END/ { exit 0 }' >"$ATTEST_CERT"
 
     local VERIFY_SH=$ARCHIVE_DIR/verify-attestation.sh
     cat << EOF > $VERIFY_SH
@@ -439,7 +421,7 @@ LOG=\$TMP_DIR/\$NAME
 ATTEST_ROOT_CERT=\$TMP_DIR/attest-root.cert.pem
 ATTEST_ROOT_URL="https://developers.yubico.com/PIV/Introduction/piv-attestation-ca.pem"
 
-echo -n "Getting attestation root cert from yuboco.com ... "
+echo "Getting attestation root cert from yuboco.com ... "
 wget --output-document \$ATTEST_ROOT_CERT \$ATTEST_ROOT_URL > \$LOG 2>&1
 if [ $? -eq 0 ]; then
     echo "success"
@@ -453,7 +435,7 @@ ATTEST_CERT=$(basename $ATTEST_CERT)
 ATTEST_INT_CERT=$(basename $ATTEST_INT_CERT)
 AWK_CMD="BEGIN { out=0 } /ASN1 OID:/ { out=0 } // { if (out == 1) print \\\$0 } /pub:/ { out=1 }"
 
-echo -n "Verifying attestation signature ... "
+echo "Verifying attestation signature ... "
 openssl verify -CAfile \$ATTEST_ROOT_CERT -untrusted \$ATTEST_INT_CERT \$ATTEST_CERT > \$LOG 2>&1
 if [ \$? -eq 0 ]; then
     echo "success"
@@ -465,7 +447,7 @@ fi
 
 CSR=$(basename $CSR)
 
-echo -n "Ensuring public key in attestation matches the CA cert ... "
+echo "Ensuring public key in attestation matches the CA cert ... "
 PUB_CSR=\$(openssl req \
     -in \$CSR \
     -noout \
@@ -527,14 +509,14 @@ attestation root.
 
 EOF
 
-    tar --directory $TMP_DIR \
+    "$TAR" --directory $TMP_DIR \
         --auto-compress \
         --create \
         --file $ARCHIVE_FILE \
         $ARCHIVE_PREFIX
 
     # extract archive we've created and run the verification script
-    tar --directory $TMP_DIR \
+    "$TAR" --directory $TMP_DIR \
         --auto-compress \
         --extract \
         --file $ARCHIVE_FILE
@@ -556,7 +538,7 @@ do_cred_true_false ()
 {
     local CERT=$CA_DIR/ca.cert.pem
 
-    echo -n "Generating self signed cert using $HASH & subject: \"$SUBJECT\" ... "
+    echo "Generating self signed cert using $HASH & subject: \"$SUBJECT\" ... "
     openssl req \
         -config $CFG_OUT \
         -subj "$SUBJECT" \
@@ -584,7 +566,7 @@ do_cred_true_true ()
     local CERT=$ARCHIVE_DIR/ca.cert.pem
 
     # ROOT
-    echo -n "Generating CSR w/ subject: \"$SUBJECT\" ... "
+    echo "Generating CSR w/ subject: \"$SUBJECT\" ... "
     openssl req \
         -config $CFG_OUT \
         -new \
@@ -601,7 +583,7 @@ do_cred_true_true ()
         exit 1
     fi
 
-    echo -n "Generating self-signed cert from CSR ... "
+    echo "Generating self-signed cert from CSR ... "
     openssl ca \
         -selfsign \
         -batch \
@@ -621,37 +603,29 @@ do_cred_true_true ()
     fi
 
     # ROOT
-    echo -n "Importing cert from \"$CERT\" to slot \"$SLOT\" ... "
-    yubico-piv-tool \
-        --action import-certificate \
-        --slot $SLOT \
-        --input $CERT > $LOG 2>&1
-    if [ $? -eq 0 ]; then
+    echo "Importing cert from \"$CERT\" to slot \"$SLOT\" ... "
+    if pivy-tool write-cert "$SLOT" <"$CERT" >"$LOG" 2>&1; then
         echo "success"
     else
         echo "failure"
-        cat $LOG
+        cat "$LOG"
         exit 1
     fi
     
     local CERT_TMP=$ARCHIVE_DIR/ca.cert.pem
 
     # ROOT
-    echo -n "Reading cert back from slot \"$SLOT\" ... "
-    yubico-piv-tool \
-        --action read-certificate \
-        --slot $SLOT \
-        --output $CERT_TMP > $LOG 2>&1
-    if [ $? -eq 0 ]; then
+    echo "Reading cert back from slot \"$SLOT\" ... "
+    if pivy-tool cert "$SLOT" >"$CERT_TMP" >"$LOG" 2>&1; then
         echo "success"
     else
         echo "failure"
-        cat $LOG
+        cat "$LOG"
         exit 1
     fi
 
     # ROOT
-    echo -n "Checking cert consistency ... "
+    echo "Checking cert consistency ... "
     if cmp $CERT_TMP $CERT; then
         echo "success"
     else
@@ -660,32 +634,14 @@ do_cred_true_true ()
     fi
 
     local ATTEST_INT_CERT=$ARCHIVE_DIR/attest-intermediate.cert.pem
-    echo -n "Getting attestation intermediate cert from slot \"f9\" ... "
-    yubico-piv-tool \
-        --action read-certificate \
-	--slot f9 \
-	--output $ATTEST_INT_CERT > $LOG 2>&1
-    if [ $? -eq 0 ]; then
-        echo "success"
-    else
-        echo "failure"
-        cat $LOG
-        exit 1
-    fi
+    echo "Getting attestation intermediate cert from slot \"f9\" ... "
+    pivy-tool attest "$SLOT" | awk -v w=2 '/BEGIN/ { q++ } q == w { print }
+	q == w && /END/ { exit 0 }' >"$ATTEST_INT_CERT"
 
     local ATTEST_CERT=$ARCHIVE_DIR/attest-leaf.cert.pem
-    echo -n "Generating attestation for key in slot \"$SLOT\" ... "
-    yubico-piv-tool \
-        --action attest \
-        --slot $SLOT \
-	--output $ATTEST_CERT > $LOG 2>&1
-    if [ $? -eq 0 ]; then
-        echo "success"
-    else
-        echo "failure"
-        cat $LOG
-        exit 1
-    fi
+    echo "Generating attestation for key in slot \"$SLOT\" ... "
+    pivy-tool attest "$SLOT" | awk -v w=1 '/BEGIN/ { q++ } q == w { print }
+	q == w && /END/ { exit 0 }' >"$ATTEST_CERT"
 
     # ROOT - can make this generic to either selfsigned cert or CSR?
     # generate script to evaluate attestation
@@ -699,7 +655,7 @@ LOG=\$TMP_DIR/\$NAME
 ATTEST_ROOT_CERT=\$TMP_DIR/attest-root.cert.pem
 ATTEST_ROOT_URL="https://developers.yubico.com/PIV/Introduction/piv-attestation-ca.pem"
 
-echo -n "Getting attestation root cert from yuboco.com ... "
+echo "Getting attestation root cert from yuboco.com ... "
 wget --output-document \$ATTEST_ROOT_CERT \$ATTEST_ROOT_URL > \$LOG 2>&1
 if [ \$? -eq 0 ]; then
     echo "success"
@@ -713,7 +669,7 @@ ATTEST_CERT=$(basename $ATTEST_CERT)
 ATTEST_INT_CERT=$(basename $ATTEST_INT_CERT)
 AWK_CMD="BEGIN { out=0 } /ASN1 OID:/ { out=0 } // { if (out == 1) print \\\$0 } /pub:/ { out=1 }"
 
-echo -n "Verifying attestation signature ... "
+echo "Verifying attestation signature ... "
 openssl verify -CAfile \$ATTEST_ROOT_CERT -untrusted \$ATTEST_INT_CERT \$ATTEST_CERT > \$LOG 2>&1
 if [ \$? -eq 0 ]; then
     echo "success"
@@ -725,7 +681,7 @@ fi
 
 CA_CERT=$(basename $CERT)
 
-echo -n "Ensuring public key in attestation matches the CA cert ... "
+echo "Ensuring public key in attestation matches the CA cert ... "
 PUB_CERT=\$(openssl x509 \
     -in \$CA_CERT \
     -noout \
@@ -788,7 +744,7 @@ attestation root.
 
 EOF
 
-    tar --directory $TMP_DIR \
+    "$TAR" --directory $TMP_DIR \
         --auto-compress \
         --create \
         --file $ARCHIVE_FILE \
@@ -797,7 +753,7 @@ EOF
     # extract archive we've created and run the verification script
     # local VERIFICATION_DIR=$TMP_DIR/verify
     # mkdir $VERIFICATION_DIR
-    tar --directory $TMP_DIR \
+    "$TAR" --directory $TMP_DIR \
         --auto-compress \
         --extract \
         --file $ARCHIVE_FILE
