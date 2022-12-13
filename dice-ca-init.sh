@@ -14,8 +14,8 @@ DEFAULT_PIN=123456
 # https://bugzilla.redhat.com/show_bug.cgi?id=1728016
 # https://stackoverflow.com/questions/57729106/how-to-pass-yubikey-pin-to-openssl-command-in-shell-script
 DEFAULT_SLOT=9a
-DEFAULT_SUBJECT_SELFSIGNED="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=root-ca"
-DEFAULT_SUBJECT_INTERMEDIATE="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=intermediate-ca"
+DEFAULT_SUBJECT_SELFSIGNED="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=dvt/CN=root-ca"
+DEFAULT_SUBJECT_INTERMEDIATE="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=dvt/CN=intermediate-ca"
 
 # finding the ykcs11 library takes some doing
 PKG_CONFIG=$(which pkg-config 2> /dev/null)
