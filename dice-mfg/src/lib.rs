@@ -320,7 +320,7 @@ pub fn set_deviceid(
     port: &mut Box<dyn SerialPort>,
     cert: SizedBlob,
 ) -> Result<()> {
-    send_msg(port, &MfgMessage::DeviceIdCert(cert))?;
+    send_msg(port, &MfgMessage::IdentityCert(cert))?;
     recv_ack(port)
 }
 

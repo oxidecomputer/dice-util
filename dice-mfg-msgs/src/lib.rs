@@ -118,7 +118,7 @@ pub enum MfgMessage {
     Break,
     Csr(SizedBlob),
     CsrPlz,
-    DeviceIdCert(SizedBlob),
+    IdentityCert(SizedBlob),
     IntermediateCert(SizedBlob),
     Nak,
     Ping,
