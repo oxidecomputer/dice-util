@@ -32,10 +32,10 @@ name_opt          = ca_default
 cert_opt          = ca_default
 default_days      = 3650
 preserve          = no
-policy            = policy_without_sn
+policy            = policy_with_sn
 
-[ ca_intermediate]
-dir               = ./intermediate-ca
+[ ca_intermediate ]
+dir               = ./persistentid-ca
 certs             = $dir/certs
 crl_dir           = $dir/crl
 new_certs_dir     = $dir/newcerts
@@ -44,7 +44,7 @@ serial            = $dir/serial
 RANDFILE          = $dir/private/.rand
 
 # The root key and root certificate.
-private_key       = ./keys/int-ca.key.pem
+private_key       = ./keys/persistentid-ca.key.pem
 certificate       = $dir/certs/ca.cert.pem
 
 # For certificate revocation lists.
@@ -60,7 +60,7 @@ preserve          = no
 policy            = policy_with_sn
 # intermediate CA will be signing DeviceId ECA certs that don't expire
 default_enddate   = 99991231235959Z
-x509_extensions   = v3_deviceid_eca
+x509_extensions   = v3_intermediate_eca
 
 # Intermediate CA mocking the embedded CA in each platform represented by the
 # DeviceId key pair. We use certs signed by this CA as the basis for the
@@ -94,9 +94,9 @@ policy            = policy_with_sn
 default_enddate   = 99991231235959Z
 # no default x509_extensions, we use this CA to issue certs w/ different sets
 
-[ ca_selfsigned_deviceid_embedded ]
+[ ca_selfsigned_persistentid ]
 # Directory and file locations.
-dir               = ./deviceid-eca-self
+dir               = ./persistentid-self-ca
 certs             = $dir/certs
 crl_dir           = $dir/crl
 new_certs_dir     = $dir/newcerts
@@ -105,7 +105,7 @@ serial            = $dir/serial
 RANDFILE          = $dir/private/.rand
 
 # The root key and root certificate.
-private_key       = ./keys/deviceid-eca.key.pem
+private_key       = ./keys/persistentid-ca.key.pem
 certificate       = $dir/certs/ca.cert.pem
 
 # For certificate revocation lists.
@@ -171,17 +171,23 @@ localityName_default            = Emeryville
 # Extensions for a typical CA (`man x509v3_config`).
 basicConstraints = critical, CA:true # no pathlen, ignored for trusted root
 keyUsage = critical, cRLSign, keyCertSign
+authorityKeyIdentifier = none
+subjectKeyIdentifier = none
 
 [ v3_intermediate_ca ]
 # Extensions for a typical intermediate CA (`man x509v3_config`).
 basicConstraints = critical, CA:true
-keyUsage = critical, cRLSign, keyCertSign
+keyUsage = critical, keyCertSign
+authorityKeyIdentifier = none
+subjectKeyIdentifier = none
 
 [ v3_deviceid_eca ]
 # Extensions for the DeviceId embedded CA
 basicConstraints = critical, CA:true
 keyUsage = critical, keyCertSign
 certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
+authorityKeyIdentifier = none
+subjectKeyIdentifier = none
 
 [ v3_alias ]
 # Extensions for server certificates (`man x509v3_config`).
@@ -189,17 +195,23 @@ basicConstraints = critical, CA:FALSE
 keyUsage = critical, digitalSignature
 certificatePolicies = critical, tcg-dice-kp-attestInit
 dice-tcb-info=critical, ASN1:SEQUENCE:dice_tcb_info
+authorityKeyIdentifier = none
+subjectKeyIdentifier = none
 
 [ v3_spmeasure ]
 basicConstraints = critical, CA:true
 keyUsage = critical, keyCertSign
 certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
 dice-tcb-info=critical, ASN1:SEQUENCE:dice_tcb_info
+authorityKeyIdentifier = none
+subjectKeyIdentifier = none
 
 [ v3_trust_quorum_dhe ]
 basicConstraints = critical, CA:FALSE
 keyUsage = critical, digitalSignature, keyAgreement, keyEncipherment
 dice-tcb-info=critical, ASN1:SEQUENCE:dice_tcb_info
+authorityKeyIdentifier = none
+subjectKeyIdentifier = none
 
 [dice_tcb_info]
 field1=IMPLICIT:6,SEQUENCE:fwids

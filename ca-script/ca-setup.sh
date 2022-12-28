@@ -56,21 +56,21 @@ if [ ! -d $KEY_DIR ]; then
 fi
 
 #######
-# self-signed DeviceId root
+# self-signed persistent identity CA root
 #######
 
 # create key for root CA if not already done
-DEVICEID_ECA_SELF_KEY=$KEY_DIR/deviceid-eca.key.pem
-if [ ! -f $DEVICEID_ECA_SELF_KEY ]; then
+PERSISTENT_ID_SELF_CA_KEY=$KEY_DIR/persistentid-ca.key.pem
+if [ ! -f $PERSISTENT_ID_SELF_CA_KEY ]; then
     openssl genpkey \
         -algorithm $KEY_ALG $KEY_OPTS \
-        -out $DEVICEID_ECA_SELF_KEY
-    chmod 400 $DEVICEID_ECA_SELF_KEY
+        -out $PERSISTENT_ID_SELF_CA_KEY
+    chmod 400 $PERSISTENT_ID_SELF_CA_KEY
 fi
 
-DEVICEID_SELF_CA_DIR=./deviceid-eca-self
-mkdir $DEVICEID_SELF_CA_DIR
-pushd $DEVICEID_SELF_CA_DIR
+PERSISTENT_ID_SELF_CA_DIR=./persistentid-self-ca
+mkdir $PERSISTENT_ID_SELF_CA_DIR
+pushd $PERSISTENT_ID_SELF_CA_DIR
 mkdir certs crl csr newcerts private
 chmod 700 private
 touch index.txt
@@ -80,26 +80,26 @@ echo 10 > serial
 echo 10 > crlnumber
 popd
 
-DEVICEID_CA_CSR_PEM=$DEVICEID_SELF_CA_DIR/csr/ca.csr.pem
-SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=device-id/serialNumber=$SERIAL_NUMBER"
+PERSISTENT_ID_CA_CSR_PEM=$PERSISTENT_ID_SELF_CA_DIR/csr/ca.csr.pem
+SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=identity/serialNumber=$SERIAL_NUMBER"
 openssl req \
     -new \
     -config $OPENSSL_CNF \
     -subj "$SUBJ" \
-    -key $DEVICEID_ECA_SELF_KEY \
-    -out $DEVICEID_CA_CSR_PEM
+    -key $PERSISTENT_ID_SELF_CA_KEY \
+    -out $PERSISTENT_ID_CA_CSR_PEM
 
-DEVICEID_CA_CERT_PEM=$DEVICEID_SELF_CA_DIR/certs/ca.cert.pem
+PERSISTENT_ID_SELF_CA_CERT_PEM=$PERSISTENT_ID_SELF_CA_DIR/certs/ca.cert.pem
 openssl ca \
     -config $OPENSSL_CNF \
     -batch \
     -selfsign \
-    -name ca_selfsigned_deviceid_embedded \
-    -extensions v3_deviceid_eca \
-    -in $DEVICEID_CA_CSR_PEM \
-    -out $DEVICEID_CA_CERT_PEM
+    -name ca_selfsigned_persistentid \
+    -extensions v3_intermediate_ca \
+    -in $PERSISTENT_ID_CA_CSR_PEM \
+    -out $PERSISTENT_ID_SELF_CA_CERT_PEM
 
-cargo run --bin dice-cert-tmpl -- cert tmpl-gen $DEVICEID_CA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen $PERSISTENT_ID_SELF_CA_CERT_PEM > $TMPL_DIR/persistentid_cert_tmpl.rs
 
 #######
 # root CA
@@ -125,7 +125,7 @@ if [ ! -f $ROOT_CA_KEY ]; then
 fi
 
 ROOT_CA_CERT_PEM=$ROOT_CA_DIR/certs/ca.cert.pem
-ROOT_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=root-ca"
+ROOT_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=faux-mfg/CN=root-ca"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$ROOT_CA_SUBJ" \
@@ -137,53 +137,56 @@ openssl req \
       -out $ROOT_CA_CERT_PEM
 
 ######
-# intermediate CA
+# Identity CA
 ######
-# this is the CA that signs device-id certs on the mfg line
-INT_CA_DIR=./intermediate-ca
-mkdir $INT_CA_DIR
-pushd $INT_CA_DIR
+# The Identity ECA is certified during the manufacturing process. This CA
+# is an embedded CA in that it's embedded in the RoT. It is not however an
+# ECA per the DICE definition.  It will certify the DeviceId key that will in
+# turn certify keys derived from CDI~L1~.
+# We use this CA to create template that the RoT uses to create CSRs for
+# DeviceId certs signed by the intermediate CA.
+PERSISTENT_ID_CA_DIR=./persistentid-ca
+mkdir $PERSISTENT_ID_CA_DIR
+pushd $PERSISTENT_ID_CA_DIR
 mkdir certs crl csr newcerts private
 chmod 700 private
 touch index.txt
-echo 1000 > serial
-echo 1000 > crlnumber
+echo 10 > serial
+echo 10 > crlnumber
 popd
 
-# create intermediate CA key
-INT_CA_KEY=$KEY_DIR/int-ca.key.pem
-if [ ! -f $INT_CA_KEY ]; then
+PERSISTENT_ID_CA_KEY=$KEY_DIR/persistentid-ca.key.pem
+if [ ! -f $PERSISTENT_ID_CA_KEY ]; then
     openssl genpkey \
         -algorithm $KEY_ALG $KEY_OPTS \
-        -out $INT_CA_KEY
-    chmod 400 $INT_CA_KEY
+        -out $PERSISTENT_ID_CA_KEY
 fi
 
-INT_CA_CSR=$ROOT_CA_DIR/csr/intermediate-ca.csr.pem
-INT_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=Manufacturing/CN=intermediate-ca"
+PERSISTENT_ID_CA_CSR_PEM=$PERSISTENT_ID_CA_DIR/csr/persistentid-ca.csr.pem
+PERSISTENT_ID_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=identity/serialNumber=$SERIAL_NUMBER"
 openssl req \
       -config $OPENSSL_CNF \
-      -subj "$INT_CA_SUBJ" \
+      -subj "$PERSISTENT_ID_CA_SUBJ" \
       -new \
-      -key $INT_CA_KEY \
-      -out $INT_CA_CSR
+      -key $PERSISTENT_ID_CA_KEY \
+      -out $PERSISTENT_ID_CA_CSR_PEM
 
-INT_CA_CERT_PEM=$INT_CA_DIR/certs/ca.cert.pem
+cargo run --bin dice-cert-tmpl -- csr tmpl-gen $PERSISTENT_ID_CA_CSR_PEM > $TMPL_DIR/persistentid_csr_tmpl.rs
+
+PERSISTENT_ID_CA_CERT_PEM=$PERSISTENT_ID_CA_DIR/certs/ca.cert.pem
 openssl ca \
       -config $OPENSSL_CNF \
       -batch \
       -name ca_root \
       -extensions v3_intermediate_ca \
       -notext \
-      -in $INT_CA_CSR \
-      -out $INT_CA_CERT_PEM
+      -in $PERSISTENT_ID_CA_CSR_PEM \
+      -out $PERSISTENT_ID_CA_CERT_PEM
 
 ######
 # DeviceId ECA
 ######
-# This CA is an embedded CA (ECA) according to DICE.
-# We use this to create template that the RoT uses to create CSRs for DeviceId
-# certs signed by the intermediate CA.
+# certs signed by the identity ECA.
 DEVICEID_ECA_DIR=./deviceid-eca
 mkdir $DEVICEID_ECA_DIR
 pushd $DEVICEID_ECA_DIR
@@ -194,6 +197,7 @@ echo 10 > serial
 echo 10 > crlnumber
 popd
 
+# deviceid ca_intermediate
 DEVICEID_ECA_KEY=$KEY_DIR/deviceid-eca.key.pem
 if [ ! -f $DEVICEID_ECA_KEY ]; then
     openssl genpkey \
@@ -201,7 +205,7 @@ if [ ! -f $DEVICEID_ECA_KEY ]; then
         -out $DEVICEID_ECA_KEY
 fi
 
-DEVICEID_ECA_CSR_PEM=$INT_CA_DIR/csr/deviceid-eca.csr.pem
+DEVICEID_ECA_CSR_PEM="$PERSISTENT_ID_CA_DIR/csr/deviceid.csr.pem"
 DEVICEID_ECA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=device-id/serialNumber=$SERIAL_NUMBER"
 openssl req \
       -config $OPENSSL_CNF \
@@ -210,9 +214,7 @@ openssl req \
       -key $DEVICEID_ECA_KEY \
       -out $DEVICEID_ECA_CSR_PEM
 
-cargo run --bin dice-cert-tmpl -- csr tmpl-gen $DEVICEID_ECA_CSR_PEM > $TMPL_DIR/deviceid_csr_tmpl.rs
-
-DEVICEID_ECA_CERT_PEM=$DEVICEID_ECA_DIR/certs/ca.cert.pem
+DEVICEID_ECA_CERT_PEM="$DEVICEID_ECA_DIR/certs/ca.cert.pem"
 openssl ca \
       -config $OPENSSL_CNF \
       -batch \
@@ -221,6 +223,8 @@ openssl ca \
       -notext \
       -in $DEVICEID_ECA_CSR_PEM \
       -out $DEVICEID_ECA_CERT_PEM
+
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
 
 ######
 # Alias
