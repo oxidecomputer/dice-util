@@ -3,6 +3,7 @@ name = "dice-mfg"
 version = "0.1.0"
 edition = "2021"
 description = "A command line tool for creating and programming device identities for Oxide RoTs."
+license = "MPL-2.0"
 
 [dependencies]
 clap = { version = "4", features = ["derive", "env"] }
