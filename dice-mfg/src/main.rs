@@ -88,7 +88,7 @@ enum Command {
     },
     /// Send a 'Ping' message to the system being manufactured.
     Ping,
-    /// Send the device being manufactured its identity certificate in a 
+    /// Send the device being manufactured its identity certificate in a
     /// 'DeviceIdCert' message.
     SetDeviceId {
         /// Path to DeviceId cert to send.
