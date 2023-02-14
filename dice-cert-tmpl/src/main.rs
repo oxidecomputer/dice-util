@@ -140,14 +140,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let cert = Cert::from_slice(&mut cert);
                 let pubkey = cert.get_pub()?;
 
-                Ok(io::stdout().write_all(&pubkey)?)
+                Ok(io::stdout().write_all(pubkey)?)
             }
             CertSubCommand::DumpSig { path } => {
                 let mut cert = encoding::decode_cert(&path, &args.encoding)?;
                 let cert = Cert::from_slice(&mut cert);
                 let sig = cert.get_sig()?;
 
-                Ok(io::stdout().write_all(&sig)?)
+                Ok(io::stdout().write_all(sig)?)
             }
             CertSubCommand::TmplGen { fwid, path } => {
                 let mut cert = encoding::decode_cert(&path, &args.encoding)?;
@@ -251,14 +251,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let csr = Csr::from_slice(&mut csr);
                 let pubkey = csr.get_pub()?;
 
-                Ok(io::stdout().write_all(&pubkey)?)
+                Ok(io::stdout().write_all(pubkey)?)
             }
             CsrSubCommand::DumpSig { path } => {
                 let mut csr = encoding::decode_csr(&path, &args.encoding)?;
                 let csr = Csr::from_slice(&mut csr);
                 let sig = csr.get_sig()?;
 
-                Ok(io::stdout().write_all(&sig)?)
+                Ok(io::stdout().write_all(sig)?)
             }
             CsrSubCommand::TmplGen { path } => {
                 let mut csr = encoding::decode_csr(&path, &args.encoding)?;

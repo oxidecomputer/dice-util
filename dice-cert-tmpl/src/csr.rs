@@ -36,6 +36,10 @@ impl<'a> Csr<'a> {
         self.as_bytes().len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.as_bytes().len() == 0
+    }
+
     #[rustfmt::skip]
     const PUB_PATTERN: [u8; 12] = [
         0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65,

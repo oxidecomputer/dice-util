@@ -60,6 +60,8 @@ impl fmt::Display for Error {
     }
 }
 
+// https://github.com/oxidecomputer/dice-util/issues/16
+#[allow(clippy::too_many_arguments)]
 pub fn do_manufacture(
     port: &mut Box<dyn SerialPort>,
     openssl_cnf: PathBuf,
@@ -126,7 +128,7 @@ pub fn do_get_csr(
         None => Box::new(io::stdout()),
     };
 
-    Ok(save_csr(out, csr)?)
+    save_csr(out, csr)
 }
 
 pub fn do_liveness(port: &mut Box<dyn SerialPort>, max_fail: u8) -> Result<()> {
@@ -281,16 +283,16 @@ pub fn sign_cert(
         .arg("-out")
         .arg(cert_out);
 
-    if ca_section.is_some() {
-        cmd.arg("-name").arg(ca_section.unwrap());
+    if let Some(section) = ca_section {
+        cmd.arg("-name").arg(section);
     }
-    if v3_section.is_some() {
-        cmd.arg("-extensions").arg(v3_section.unwrap());
+    if let Some(section) = v3_section {
+        cmd.arg("-extensions").arg(section);
     }
 
-    if engine_section.is_some() {
+    if let Some(section) = engine_section {
         cmd.arg("-engine")
-            .arg(engine_section.unwrap())
+            .arg(section)
             .arg("-keyform")
             .arg("engine");
     }
@@ -356,7 +358,7 @@ pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
         },
     );
 
-    Ok(w.write_all(&csr_pem.as_bytes())?)
+    Ok(w.write_all(csr_pem.as_bytes())?)
 }
 
 pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
@@ -386,10 +388,10 @@ pub fn check_liveness(
     loop {
         match send_ping(port) {
             Err(e) => {
-                if !(max_fail - 1 > 0) {
-                    return Err(e);
-                } else {
+                if max_fail > 0 {
                     max_fail -= 1;
+                } else {
+                    return Err(e);
                 }
             }
             _ => {
@@ -457,13 +459,11 @@ fn read_all(port: &mut Box<dyn SerialPort>, buf: &mut [u8]) -> Result<usize> {
                 if buf[pos - 1] == 0 {
                     // zero byte ends read
                     true
-                } else {
-                    if pos < buf.len() {
+                } else if pos < buf.len() {
                         // more buffer available, keep reading
                         false
-                    } else {
-                        return Err(Error::BufFull.into());
-                    }
+                } else {
+                    return Err(Error::BufFull.into());
                 }
             }
             Err(e) => {
@@ -477,10 +477,10 @@ fn read_all(port: &mut Box<dyn SerialPort>, buf: &mut [u8]) -> Result<usize> {
 }
 
 pub fn open_serial(
-    serial_dev: &String,
+    serial_dev: &str,
     baud: u32
 ) -> Result<Box<dyn SerialPort>> {
-    Ok(serialport::new(serial_dev.clone(), baud)
+    Ok(serialport::new(serial_dev, baud)
             .timeout(Duration::from_secs(1))
             .data_bits(DataBits::Eight)
             .flow_control(FlowControl::None)
