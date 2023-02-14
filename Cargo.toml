@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "dice-cert-check",
     "dice-cert-tmpl",
     "dice-mfg",
     "dice-mfg-msgs",
