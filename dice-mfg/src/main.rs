@@ -231,16 +231,16 @@ fn main() -> Result<()> {
 pub fn validate_sn(s: &str) -> result::Result<SerialNumber, String> {
     for c in s.chars() {
         if !c.is_ascii_alphanumeric() {
-            return Err(String::from(format!(
+            return Err(format!(
                 "invalid character in serial number: \'{}\'",
                 c
-            )));
+            ));
         }
     }
 
-    Ok(s.try_into().or_else(|_| {
-        Err(String::from(
+    s.try_into().map_err(|_| {
+        String::from(
             "serial number is the wrong length, should be 11 characters",
-        ))
-    })?)
+        )
+    })
 }

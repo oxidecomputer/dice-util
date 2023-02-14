@@ -35,7 +35,7 @@ impl Default for Blob {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, SerializedSize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, SerializedSize)]
 pub struct SizedBlob {
     pub size: u16,
     pub data: Blob,
@@ -51,15 +51,6 @@ impl TryFrom<&[u8]> for SizedBlob {
             size: s.len() as u16,
             data: Blob::try_from(s)?,
         })
-    }
-}
-
-impl Default for SizedBlob {
-    fn default() -> Self {
-        Self {
-            size: 0,
-            data: Blob::default(),
-        }
     }
 }
 

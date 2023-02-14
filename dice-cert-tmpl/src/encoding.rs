@@ -132,12 +132,14 @@ pub fn buf_out_fmt<F: Write>(
         if i % 8 == 0 {
             write!(out, "    {:#04x}, ", elm)?;
         } else if i % 8 == 7 {
+            #[allow(clippy::write_with_newline)]
             write!(out, "{:#04x},\n", elm)?;
         } else {
             write!(out, "{:#04x}, ", elm)?;
         }
     }
     if slice.len() % 8 != 0 {
+        #[allow(clippy::write_with_newline)]
         write!(out, "\n")?;
     }
     writeln!(out, "];")?;
@@ -146,7 +148,7 @@ pub fn buf_out_fmt<F: Write>(
 
 pub fn write_csr<T: Write>(
     mut f: T,
-    csr: &Vec<u8>,
+    csr: &[u8],
     encoding: Encoding,
 ) -> Result<(), Box<dyn Error>> {
     match encoding {
@@ -164,7 +166,7 @@ pub fn write_csr<T: Write>(
             f.write_all(csr_pem.as_bytes())?;
         }
         Encoding::DER => {
-            f.write_all(&csr)?;
+            f.write_all(csr)?;
         }
         _ => return Err(Box::new(EncodingError::InvalidEncoding)),
     };
