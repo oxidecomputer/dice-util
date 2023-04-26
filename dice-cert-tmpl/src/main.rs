@@ -76,6 +76,22 @@ enum CertSubCommand {
         /// Cert has FWID field
         #[clap(long)]
         fwid: bool,
+
+        /// Cert has issuer with CN
+        #[clap(long)]
+        issuer_cn: bool,
+
+        /// Cert has issuer with SN
+        #[clap(long)]
+        issuer_sn: bool,
+
+        /// Cert has subject with CN
+        #[clap(long)]
+        subject_cn: bool,
+
+        /// Cert has subject with SN
+        #[clap(long)]
+        subject_sn: bool,
     },
 }
 
@@ -149,7 +165,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 Ok(io::stdout().write_all(sig)?)
             }
-            CertSubCommand::TmplGen { fwid, path } => {
+            CertSubCommand::TmplGen {
+                fwid,
+                path,
+                issuer_cn,
+                issuer_sn,
+                subject_cn,
+                subject_sn,
+            } => {
                 let mut cert = encoding::decode_cert(&path, &args.encoding)?;
                 let mut out = NamedTempFile::new()?;
 
@@ -169,18 +192,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )?;
                 cert.clear_range(start, end);
 
-                let (start, end) = cert.get_issuer_sn_offsets()?;
-                dice_cert_tmpl::write_range(&mut out, "ISSUER_SN", start, end)?;
-                cert.clear_range(start, end);
+                if issuer_cn {
+                    let (start, end) = cert.get_issuer_cn_offsets()?;
+                    dice_cert_tmpl::write_range(
+                        &mut out,
+                        "ISSUER_CN",
+                        start,
+                        end,
+                    )?;
+                    cert.clear_range(start, end);
+                }
 
-                let (start, end) = cert.get_subject_sn_offsets()?;
-                dice_cert_tmpl::write_range(
-                    &mut out,
-                    "SUBJECT_SN",
-                    start,
-                    end,
-                )?;
-                cert.clear_range(start, end);
+                if issuer_sn {
+                    let (start, end) = cert.get_issuer_sn_offsets()?;
+                    dice_cert_tmpl::write_range(
+                        &mut out,
+                        "ISSUER_SN",
+                        start,
+                        end,
+                    )?;
+                    cert.clear_range(start, end);
+                }
+
+                if subject_cn {
+                    let (start, end) = cert.get_subject_cn_offsets()?;
+                    dice_cert_tmpl::write_range(
+                        &mut out,
+                        "SUBJECT_CN",
+                        start,
+                        end,
+                    )?;
+                    cert.clear_range(start, end);
+                }
+
+                if subject_sn {
+                    let (start, end) = cert.get_subject_sn_offsets()?;
+                    dice_cert_tmpl::write_range(
+                        &mut out,
+                        "SUBJECT_SN",
+                        start,
+                        end,
+                    )?;
+                    cert.clear_range(start, end);
+                }
 
                 let (start, end) = cert.get_pub_offsets()?;
                 dice_cert_tmpl::write_range(&mut out, "PUB", start, end)?;
@@ -272,6 +326,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let (start, end) = csr.get_pub_offsets()?;
                 dice_cert_tmpl::write_range(&mut out, "PUB", start, end)?;
+                csr.clear_range(start, end);
+
+                let (start, end) = csr.get_subject_cn_offsets()?;
+                dice_cert_tmpl::write_range(
+                    &mut out,
+                    "SUBJECT_CN",
+                    start,
+                    end,
+                )?;
                 csr.clear_range(start, end);
 
                 let (start, end) = csr.get_subject_sn_offsets()?;
