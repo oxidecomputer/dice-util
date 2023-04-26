@@ -106,6 +106,7 @@ openssl ca \
     -out $PERSISTENT_ID_SELF_CA_CERT_PEM
 
 cargo run --bin dice-cert-tmpl -- cert tmpl-gen --subject-sn --issuer-sn $PERSISTENT_ID_SELF_CA_CERT_PEM > $TMPL_DIR/persistentid_cert_tmpl.rs
+cp $PERSISTENT_ID_SELF_CA_CERT_PEM $TMPL_DIR/persistentid.cert.pem
 
 #######
 # root CA
@@ -178,6 +179,7 @@ openssl req \
       -out $PERSISTENT_ID_CA_CSR_PEM
 
 cargo run --bin dice-cert-tmpl -- csr tmpl-gen $PERSISTENT_ID_CA_CSR_PEM > $TMPL_DIR/persistentid_csr_tmpl.rs
+cp $PERSISTENT_ID_CA_CSR_PEM $TMPL_DIR/persistentid.csr.pem
 
 PERSISTENT_ID_CA_CERT_PEM=$PERSISTENT_ID_CA_DIR/certs/ca.cert.pem
 openssl ca \
@@ -231,6 +233,7 @@ openssl ca \
       -out $DEVICEID_ECA_CERT_PEM
 
 cargo run --bin dice-cert-tmpl -- cert tmpl-gen --issuer-cn --issuer-sn $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
+cp $DEVICEID_ECA_CERT_PEM $TMPL_DIR/deviceid.cert.pem
 
 ######
 # Alias
@@ -264,6 +267,7 @@ openssl ca \
       -out $ALIAS_CERT_PEM
 
 cargo run --bin dice-cert-tmpl -- cert tmpl-gen --fwid $ALIAS_CERT_PEM > $TMPL_DIR/alias_cert_tmpl.rs
+cp $ALIAS_CERT_PEM $TMPL_DIR
 
 ######
 # SP-MEASURE
@@ -296,6 +300,7 @@ openssl ca \
       -out $SP_MEASURE_CERT_PEM
 
 cargo run --bin dice-cert-tmpl -- cert tmpl-gen --fwid $SP_MEASURE_CERT_PEM > $TMPL_DIR/spmeasure_cert_tmpl.rs
+cp $SP_MEASURE_CERT_PEM $TMPL_DIR/spmeasure.cert.pem
 
 ######
 # trust-quorum-dhe
@@ -328,3 +333,4 @@ openssl ca \
       -out $TQDHE_CERT_PEM
 
 cargo run --bin dice-cert-tmpl -- cert tmpl-gen --fwid $TQDHE_CERT_PEM > $TMPL_DIR/trust_quorum_dhe_cert_tmpl.rs
+cp $TQDHE_CERT_PEM $TMPL_DIR
