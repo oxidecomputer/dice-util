@@ -4,7 +4,8 @@
 
 use crate::{
     MissingFieldError, FWID_LEN, ISSUER_SN_LEN, NOTBEFORE_LEN, PUBLIC_KEY_LEN,
-    SERIAL_NUMBER_LEN, SIGNATURE_LEN, SIGNDATA_BEGIN, SUBJECT_SN_LEN,
+    SERIAL_NUMBER_LEN, SIGNATURE_LEN, SIGNDATA_BEGIN, SUBJECT_CN_LEN,
+    SUBJECT_SN_LEN,
 };
 use std::{fmt, result};
 
@@ -59,6 +60,18 @@ impl<'a> Cert<'a> {
         Ok(sn[0])
     }
 
+    // SET, SEQUENCE, OID (2.5.4.3 / commonName)
+    const ISSUER_CN_PATTERN: [u8; 11] = [
+        0x31, 0x18, 0x30, 0x16, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0C, 0x0F,
+    ];
+    // when issuer and subject SN are the same length their identifying
+    // patterns are the same. This function searches backward for the pattern
+    // since issuer comes before subject in the structure
+    pub fn get_issuer_cn_offsets(&self) -> Result<(usize, usize)> {
+        crate::get_roffsets(self.0, &Self::ISSUER_CN_PATTERN, SUBJECT_CN_LEN)
+            .ok_or(MissingFieldError::SubjectCn)
+    }
+
     // ANS.1 TLVs & OID for serialNumber (x.520 DN component)
     const ISSUER_SN_PATTERN: [u8; 11] = [
         0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0B,
@@ -83,6 +96,18 @@ impl<'a> Cert<'a> {
 
     pub fn get_notbefore(&self) -> Result<&[u8]> {
         Ok(self.get_bytes(self.get_issuer_sn_offsets()?))
+    }
+
+    // SET, SEQUENCE, OID (2.5.4.3 / commonName)
+    const SUBJECT_CN_PATTERN: [u8; 11] = [
+        0x31, 0x18, 0x30, 0x16, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0C, 0x0F,
+    ];
+    // when issuer and subject SN are the same length their identifying
+    // patterns are the same. This function searches backward for the pattern
+    // since issuer comes before subject in the structure
+    pub fn get_subject_cn_offsets(&self) -> Result<(usize, usize)> {
+        crate::get_roffsets(self.0, &Self::SUBJECT_CN_PATTERN, SUBJECT_CN_LEN)
+            .ok_or(MissingFieldError::SubjectCn)
     }
 
     // ASN.1 TLVs & OID for serialNumber (x.520 DN component)

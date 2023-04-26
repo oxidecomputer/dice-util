@@ -4,7 +4,7 @@
 
 use crate::{
     MissingFieldError, PUBLIC_KEY_LEN, SIGNATURE_LEN, SIGNDATA_BEGIN,
-    SUBJECT_SN_LEN,
+    SUBJECT_CN_LEN, SUBJECT_SN_LEN,
 };
 use std::{fmt, result};
 
@@ -53,6 +53,18 @@ impl<'a> Csr<'a> {
     pub fn get_pub(&self) -> Result<&[u8]> {
         let (start, end) = self.get_pub_offsets()?;
         Ok(&self.0[start..end])
+    }
+
+    // SET, SEQUENCE, OID (2.5.4.3 / commonName)
+    const SUBJECT_CN_PATTERN: [u8; 11] = [
+        0x31, 0x18, 0x30, 0x16, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0C, 0x0F,
+    ];
+    // when issuer and subject SN are the same length their identifying
+    // patterns are the same. This function searches backward for the pattern
+    // since issuer comes before subject in the structure
+    pub fn get_subject_cn_offsets(&self) -> Result<(usize, usize)> {
+        crate::get_roffsets(self.0, &Self::SUBJECT_CN_PATTERN, SUBJECT_CN_LEN)
+            .ok_or(MissingFieldError::SubjectCn)
     }
 
     // ASN.1 TLVs & OID for serialNumber (x.520 DN component)

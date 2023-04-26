@@ -26,6 +26,7 @@ const SERIAL_NUMBER_LEN: usize = 1;
 const SIGNATURE_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
 // TODO: This is brittle. Size of the ASN.1 structure will effect this offset.
 const SIGNDATA_BEGIN: usize = 0x4;
+const SUBJECT_CN_LEN: usize = 15;
 const SUBJECT_SN_LEN: usize = ISSUER_SN_LEN;
 
 #[derive(Debug, PartialEq)]
@@ -39,6 +40,7 @@ pub enum MissingFieldError {
     Signature,
     SignData,
     SubjectSn,
+    SubjectCn,
 }
 
 impl error::Error for MissingFieldError {}
@@ -59,6 +61,7 @@ impl fmt::Display for MissingFieldError {
             MissingFieldError::Signature => write!(f, "Signature not found."),
             MissingFieldError::SignData => write!(f, "Signdata not found."),
             MissingFieldError::SubjectSn => write!(f, "Subject SN found."),
+            MissingFieldError::SubjectCn => write!(f, "Subject CN found."),
         }
     }
 }
