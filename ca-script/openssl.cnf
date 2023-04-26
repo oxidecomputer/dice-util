@@ -57,7 +57,7 @@ default_md        = sha3-256
 name_opt          = ca_default
 cert_opt          = ca_default
 preserve          = no
-policy            = policy_with_sn
+policy            = policy_without_sn
 # intermediate CA will be signing DeviceId ECA certs that don't expire
 default_enddate   = 99991231235959Z
 x509_extensions   = v3_intermediate_eca
@@ -89,7 +89,7 @@ default_md        = sha3-256
 name_opt          = ca_default
 cert_opt          = ca_default
 preserve          = no
-policy            = policy_with_sn
+policy            = policy_without_sn
 # DeviceId ECA signs other DICE certs that don't expire
 default_enddate   = 99991231235959Z
 # no default x509_extensions, we use this CA to issue certs w/ different sets
@@ -125,20 +125,14 @@ default_enddate   = 99991231235959Z
 # The root CA should only sign intermediate certificates that match.
 # See the POLICY FORMAT section of `man ca`.
 countryName             = match
-stateOrProvinceName     = match
-localityName            = match
 organizationName        = match
-organizationalUnitName  = optional
 commonName              = supplied
 
 [ policy_with_sn ]
 # The root CA should only sign intermediate certificates that match.
 # See the POLICY FORMAT section of `man ca`.
 countryName             = match
-stateOrProvinceName     = match
-localityName            = match
 organizationName        = match
-organizationalUnitName  = optional
 commonName              = supplied
 serialNumber            = supplied
 
@@ -181,11 +175,19 @@ keyUsage = critical, keyCertSign
 authorityKeyIdentifier = none
 subjectKeyIdentifier = none
 
+[ v3_persistentid_ca ]
+# Extensions for the persistent ID embedded CA
+basicConstraints = critical, CA:true
+keyUsage = critical, keyCertSign
+certificatePolicies = critical, tcg-dice-kp-identityInit, tcg-dice-kp-attestInit, tcg-dice-kp-eca
+authorityKeyIdentifier = none
+subjectKeyIdentifier = none
+
 [ v3_deviceid_eca ]
 # Extensions for the DeviceId embedded CA
 basicConstraints = critical, CA:true
 keyUsage = critical, keyCertSign
-certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
+certificatePolicies = critical, tcg-dice-kp-attestInit, tcg-dice-kp-eca
 authorityKeyIdentifier = none
 subjectKeyIdentifier = none
 
@@ -201,7 +203,7 @@ subjectKeyIdentifier = none
 [ v3_spmeasure ]
 basicConstraints = critical, CA:true
 keyUsage = critical, keyCertSign
-certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
+certificatePolicies = critical, tcg-dice-kp-attestInit, tcg-dice-kp-eca
 dice-tcb-info=critical, ASN1:SEQUENCE:dice_tcb_info
 authorityKeyIdentifier = none
 subjectKeyIdentifier = none
@@ -237,6 +239,7 @@ keyUsage = critical, digitalSignature
 extendedKeyUsage = critical, OCSPSigning
 
 [OIDs]
+tcg-dice-kp-identityInit = 2.23.133.5.4.100.6
 tcg-dice-kp-attestInit = 2.23.133.5.4.100.8
 tcg-dice-kp-eca = 2.23.133.5.4.100.12
 dice-tcb-info = 2.23.133.5.4.1

@@ -39,8 +39,14 @@ KEY_OPTS_ED25519=
 KEY_ALG=$KEY_ALG_ED25519
 KEY_OPTS=$KEY_OPTS_ED25519
 
-# SN is 11 alphanumeric characters: see rfd 219
+# ref rfd 219 & 308
+# SN is 11 characters from the code 39 alphabet
 SERIAL_NUMBER="00000000000"
+# part number (PN) is 10 characters from the code 39 alphabet with a hyphen
+# as the 4th character
+# revision number (RN) is 3 code 39 characters, we concatinate the RN to
+# the PN joining the two with a ':'
+PART_REVISION_NUMBER="000-0000000:000"
 
 TMPL_DIR=tmpls
 if [ ! -d $TMPL_DIR ]; then
@@ -81,7 +87,7 @@ echo 10 > crlnumber
 popd
 
 PERSISTENT_ID_CA_CSR_PEM=$PERSISTENT_ID_SELF_CA_DIR/csr/ca.csr.pem
-SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=identity/serialNumber=$SERIAL_NUMBER"
+SUBJ="/C=US/O=Oxide Computer Company/CN=$PART_REVISION_NUMBER/serialNumber=$SERIAL_NUMBER"
 openssl req \
     -new \
     -config $OPENSSL_CNF \
@@ -95,11 +101,11 @@ openssl ca \
     -batch \
     -selfsign \
     -name ca_selfsigned_persistentid \
-    -extensions v3_intermediate_ca \
+    -extensions v3_persistentid_ca \
     -in $PERSISTENT_ID_CA_CSR_PEM \
     -out $PERSISTENT_ID_SELF_CA_CERT_PEM
 
-cargo run --bin dice-cert-tmpl -- cert tmpl-gen $PERSISTENT_ID_SELF_CA_CERT_PEM > $TMPL_DIR/persistentid_cert_tmpl.rs
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --subject-sn --issuer-sn $PERSISTENT_ID_SELF_CA_CERT_PEM > $TMPL_DIR/persistentid_cert_tmpl.rs
 
 #######
 # root CA
@@ -125,7 +131,7 @@ if [ ! -f $ROOT_CA_KEY ]; then
 fi
 
 ROOT_CA_CERT_PEM=$ROOT_CA_DIR/certs/ca.cert.pem
-ROOT_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/OU=faux-mfg/CN=root-ca"
+ROOT_CA_SUBJ="/C=US/O=Oxide Computer Company/OU=faux-mfg/CN=root-ca"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$ROOT_CA_SUBJ" \
@@ -163,7 +169,7 @@ if [ ! -f $PERSISTENT_ID_CA_KEY ]; then
 fi
 
 PERSISTENT_ID_CA_CSR_PEM=$PERSISTENT_ID_CA_DIR/csr/persistentid-ca.csr.pem
-PERSISTENT_ID_CA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=identity/serialNumber=$SERIAL_NUMBER"
+PERSISTENT_ID_CA_SUBJ="/C=US/O=Oxide Computer Company/CN=$PART_REVISION_NUMBER/serialNumber=$SERIAL_NUMBER"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$PERSISTENT_ID_CA_SUBJ" \
@@ -178,7 +184,7 @@ openssl ca \
       -config $OPENSSL_CNF \
       -batch \
       -name ca_root \
-      -extensions v3_intermediate_ca \
+      -extensions v3_persistentid_ca \
       -notext \
       -in $PERSISTENT_ID_CA_CSR_PEM \
       -out $PERSISTENT_ID_CA_CERT_PEM
@@ -206,7 +212,7 @@ if [ ! -f $DEVICEID_ECA_KEY ]; then
 fi
 
 DEVICEID_ECA_CSR_PEM="$PERSISTENT_ID_CA_DIR/csr/deviceid.csr.pem"
-DEVICEID_ECA_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=device-id/serialNumber=$SERIAL_NUMBER"
+DEVICEID_ECA_SUBJ="/C=US/O=Oxide Computer Company/CN=device-id"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$DEVICEID_ECA_SUBJ" \
@@ -224,7 +230,7 @@ openssl ca \
       -in $DEVICEID_ECA_CSR_PEM \
       -out $DEVICEID_ECA_CERT_PEM
 
-cargo run --bin dice-cert-tmpl -- cert tmpl-gen $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --issuer-cn --issuer-sn $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
 
 ######
 # Alias
@@ -239,7 +245,7 @@ if [ ! -f $ALIAS_KEY ]; then
 fi
 
 ALIAS_CSR_PEM="$DEVICEID_ECA_DIR/csr/alias.csr.pem"
-ALIAS_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=alias/serialNumber=$SERIAL_NUMBER"
+ALIAS_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=alias"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$ALIAS_SUBJ" \
@@ -271,7 +277,7 @@ if [ ! -f $SP_MEASURE_KEY ]; then
 fi
 
 SP_MEASURE_CSR_PEM="$DEVICEID_ECA_DIR/csr/sp-measure.csr.pem"
-SP_MEASURE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=sp-measure/serialNumber=$SERIAL_NUMBER"
+SP_MEASURE_SUBJ="/C=US/O=Oxide Computer Company/CN=sp-measure"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$SP_MEASURE_SUBJ" \
@@ -303,7 +309,7 @@ if [ ! -f $TQDHE_KEY ]; then
 fi
 
 TQDHE_CSR_PEM="$DEVICEID_ECA_DIR/csr/trust-quorum-dhe.csr.pem"
-TQDHE_SUBJ="/C=US/ST=California/L=Emeryville/O=Oxide Computer Company/CN=trust-quorum-dhe/serialNumber=$SERIAL_NUMBER"
+TQDHE_SUBJ="/C=US/O=Oxide Computer Company/CN=trust-quorum-dhe"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$TQDHE_SUBJ" \
