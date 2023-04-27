@@ -116,6 +116,14 @@ enum CsrSubCommand {
     TmplGen {
         /// Path to file.
         path: PathBuf,
+
+        /// Cert has subject with CN
+        #[clap(long)]
+        subject_cn: bool,
+
+        /// Cert has subject with SN
+        #[clap(long)]
+        subject_sn: bool,
     },
 }
 
@@ -314,7 +322,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 Ok(io::stdout().write_all(sig)?)
             }
-            CsrSubCommand::TmplGen { path } => {
+            CsrSubCommand::TmplGen {
+                path,
+                subject_cn,
+                subject_sn,
+            } => {
                 let mut csr = encoding::decode_csr(&path, &args.encoding)?;
                 let mut out = NamedTempFile::new()?;
 
@@ -328,23 +340,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 dice_cert_tmpl::write_range(&mut out, "PUB", start, end)?;
                 csr.clear_range(start, end);
 
-                let (start, end) = csr.get_subject_cn_offsets()?;
-                dice_cert_tmpl::write_range(
-                    &mut out,
-                    "SUBJECT_CN",
-                    start,
-                    end,
-                )?;
-                csr.clear_range(start, end);
+                if subject_cn {
+                    let (start, end) = csr.get_subject_cn_offsets()?;
+                    dice_cert_tmpl::write_range(
+                        &mut out,
+                        "SUBJECT_CN",
+                        start,
+                        end,
+                    )?;
+                    csr.clear_range(start, end);
+                }
 
-                let (start, end) = csr.get_subject_sn_offsets()?;
-                dice_cert_tmpl::write_range(
-                    &mut out,
-                    "SUBJECT_SN",
-                    start,
-                    end,
-                )?;
-                csr.clear_range(start, end);
+                if subject_sn {
+                    let (start, end) = csr.get_subject_sn_offsets()?;
+                    dice_cert_tmpl::write_range(
+                        &mut out,
+                        "SUBJECT_SN",
+                        start,
+                        end,
+                    )?;
+                    csr.clear_range(start, end);
+                }
 
                 let (start, end) = csr.get_sig_offsets()?;
                 dice_cert_tmpl::write_range(&mut out, "SIG", start, end)?;
