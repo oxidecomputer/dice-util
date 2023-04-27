@@ -178,7 +178,7 @@ openssl req \
       -key $PERSISTENT_ID_CA_KEY \
       -out $PERSISTENT_ID_CA_CSR_PEM
 
-cargo run --bin dice-cert-tmpl -- csr tmpl-gen $PERSISTENT_ID_CA_CSR_PEM > $TMPL_DIR/persistentid_csr_tmpl.rs
+cargo run --bin dice-cert-tmpl -- csr tmpl-gen --subject-sn $PERSISTENT_ID_CA_CSR_PEM > $TMPL_DIR/persistentid_csr_tmpl.rs
 cp $PERSISTENT_ID_CA_CSR_PEM $TMPL_DIR/persistentid.csr.pem
 
 PERSISTENT_ID_CA_CERT_PEM=$PERSISTENT_ID_CA_DIR/certs/ca.cert.pem
@@ -232,7 +232,7 @@ openssl ca \
       -in $DEVICEID_ECA_CSR_PEM \
       -out $DEVICEID_ECA_CERT_PEM
 
-cargo run --bin dice-cert-tmpl -- cert tmpl-gen --issuer-cn --issuer-sn $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --issuer-sn $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
 cp $DEVICEID_ECA_CERT_PEM $TMPL_DIR/deviceid.cert.pem
 
 ######
