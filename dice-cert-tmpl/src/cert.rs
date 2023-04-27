@@ -68,7 +68,7 @@ impl<'a> Cert<'a> {
     // patterns are the same. This function searches backward for the pattern
     // since issuer comes before subject in the structure
     pub fn get_issuer_cn_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::ISSUER_CN_PATTERN, SUBJECT_CN_LEN)
+        crate::get_offsets(self.0, &Self::ISSUER_CN_PATTERN, SUBJECT_CN_LEN)
             .ok_or(MissingFieldError::SubjectCn)
     }
 
