@@ -4,8 +4,7 @@
 
 use crate::{
     MissingFieldError, FWID_LEN, ISSUER_SN_LEN, NOTBEFORE_LEN, PUBLIC_KEY_LEN,
-    SERIAL_NUMBER_LEN, SIGNATURE_LEN, SIGNDATA_BEGIN, SUBJECT_CN_LEN,
-    SUBJECT_SN_LEN,
+    SERIAL_NUMBER_LEN, SIGNATURE_LEN, SUBJECT_CN_LEN, SUBJECT_SN_LEN,
 };
 use std::{fmt, result};
 
@@ -143,13 +142,16 @@ impl<'a> Cert<'a> {
         [0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03, 0x41, 0x00];
 
     pub fn get_signdata_offsets(&self) -> Result<(usize, usize)> {
-        // Data to sign is between offset SIGN_BEGIN & beginning of this
-        // pattern. This is the end of the certificationRequestInfo field.
-        let offset =
-            crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
-                .ok_or(MissingFieldError::SignData)?;
+        let start = match self.as_bytes()[1] {
+            0x81 => 3,
+            0x82 => 4,
+            _ => return Err(MissingFieldError::SignDataStart),
+        };
 
-        Ok((SIGNDATA_BEGIN, offset))
+        let end = crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
+            .ok_or(MissingFieldError::SignData)?;
+
+        Ok((start, end))
     }
 
     pub fn get_signdata(&self) -> Result<&[u8]> {
