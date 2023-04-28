@@ -101,6 +101,61 @@ impl SerialNumber {
     }
 }
 
+// Code39 alphabet https://en.wikipedia.org/wiki/Code_39
+const CODE39_LEN: usize = 43;
+const CODE39_ALPHABET: [char; CODE39_LEN] = [
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
+    'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+    'U', 'V', 'W', 'X', 'Y', 'Z', '-', '.', ' ', '$', '/', '+', '%',
+];
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PRNError {
+    PartSeparatorMissing,
+    SeparatorMissing,
+    BadSize,
+    Invalid { i: usize, c: char },
+}
+
+const PRN_LENGTH: usize = 15;
+
+#[repr(C)]
+#[derive(
+    AsBytes, Clone, Copy, Debug, Deserialize, Serialize, SerializedSize,
+)]
+pub struct PartRevisionNumber([u8; PRN_LENGTH]);
+
+impl TryFrom<&str> for PartRevisionNumber {
+    type Error = PRNError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        for (i, c) in s.chars().enumerate() {
+            // see RFD 308
+            match i {
+                3 => {
+                    if c != '-' {
+                        return Err(PRNError::PartSeparatorMissing);
+                    }
+                }
+                11 => {
+                    if c != ':' {
+                        return Err(PRNError::SeparatorMissing);
+                    }
+                }
+                _ => {
+                    if !CODE39_ALPHABET.contains(&c) {
+                        return Err(PRNError::Invalid { i, c });
+                    }
+                }
+            }
+        }
+
+        Ok(Self(
+            s.as_bytes().try_into().map_err(|_| PRNError::BadSize)?,
+        ))
+    }
+}
+
 // large variants in enum is intentional: this is how we do serialization
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Deserialize, Serialize, SerializedSize)]
@@ -149,5 +204,58 @@ impl MfgMessage {
             hubpack::serialize(&mut buf, self).map_err(|_| Error::Serialize)?;
 
         Ok(corncobs::encode_buf(&buf[..size], dst))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{error, result};
+
+    type Result = result::Result<(), Box<dyn error::Error>>;
+
+    #[test]
+    fn prn_check() -> Result {
+        let prn = "PPP-PPPPPPP:RRR";
+        let res = PartRevisionNumber::try_from(prn);
+
+        assert!(!res.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn prn_check_bad_part() -> Result {
+        let prn = "pPP-PPPPPPP:RRR";
+        let prn = PartRevisionNumber::try_from(prn);
+
+        assert_eq!(prn.err(), Some(PRNError::Invalid { i: 0, c: 'p' }));
+        Ok(())
+    }
+
+    #[test]
+    fn prn_check_bad_revision() -> Result {
+        let prn = "PPP-PPPPPPP:RrR";
+        let prn = PartRevisionNumber::try_from(prn);
+
+        assert_eq!(prn.err(), Some(PRNError::Invalid { i: 13, c: 'r' }));
+        Ok(())
+    }
+
+    #[test]
+    fn prn_check_bad_part_sep() -> Result {
+        let prn = "PPPHPPPPPPP:RRR";
+        let prn = PartRevisionNumber::try_from(prn);
+
+        assert_eq!(prn.err(), Some(PRNError::PartSeparatorMissing));
+        Ok(())
+    }
+
+    #[test]
+    fn prn_check_bad_sep() -> Result {
+        let prn = "PPP-PPPPPPPRRRR";
+        let prn = PartRevisionNumber::try_from(prn);
+
+        assert_eq!(prn.err(), Some(PRNError::SeparatorMissing));
+        Ok(())
     }
 }
