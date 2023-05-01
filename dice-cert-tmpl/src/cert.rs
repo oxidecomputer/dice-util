@@ -94,7 +94,7 @@ impl<'a> Cert<'a> {
     }
 
     pub fn get_notbefore(&self) -> Result<&[u8]> {
-        Ok(self.get_bytes(self.get_issuer_sn_offsets()?))
+        Ok(self.get_bytes(self.get_notbefore_offsets()?))
     }
 
     // SET, SEQUENCE, OID (2.5.4.3 / commonName)
