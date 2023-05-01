@@ -82,7 +82,7 @@ impl<'a> Cert<'a> {
     ];
 
     pub fn get_issuer_sn_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::ISSUER_SN_PATTERN, ISSUER_SN_LEN)
+        crate::get_offsets(self.0, &Self::ISSUER_SN_PATTERN, ISSUER_SN_LEN)
             .ok_or(MissingFieldError::IssuerSn)
     }
 
