@@ -57,7 +57,7 @@ impl<'a> Csr<'a> {
 
     // SET, SEQUENCE, OID (2.5.4.3 / commonName)
     const SUBJECT_CN_PATTERN: [u8; 11] = [
-        0x31, 0x18, 0x30, 0x16, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0C, 0x0F,
+        0x31, 0x29, 0x30, 0x27, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0C, 0x20,
     ];
     // when issuer and subject SN are the same length their identifying
     // patterns are the same. This function searches backward for the pattern

@@ -10,6 +10,8 @@ pub use crate::cert::Cert;
 pub use crate::csr::Csr;
 pub use crate::encoding::{Encoding, EncodingError};
 
+use dice_mfg_msgs::PLATFORM_ID_MAX_LEN;
+
 use salty::constants::{
     PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH,
 };
@@ -19,26 +21,28 @@ use std::{error, fmt, io::Write, path::Path, process::Command};
 // csr / cert field sizes
 // get this from sha3 crate as a const requires const generics
 const FWID_LEN: usize = 32;
+const ISSUER_CN_LEN: usize = PLATFORM_ID_MAX_LEN;
 const ISSUER_SN_LEN: usize = 11;
 const NOTBEFORE_LEN: usize = 13;
 const PUBLIC_KEY_LEN: usize = PUBLICKEY_SERIALIZED_LENGTH;
 const SERIAL_NUMBER_LEN: usize = 1;
 const SIGNATURE_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
-const SUBJECT_CN_LEN: usize = 15;
+const SUBJECT_CN_LEN: usize = PLATFORM_ID_MAX_LEN;
 const SUBJECT_SN_LEN: usize = ISSUER_SN_LEN;
 
 #[derive(Debug, PartialEq)]
 pub enum MissingFieldError {
     AuthorityKeyId,
     Fwid,
+    IssuerCn,
     IssuerSn,
     NotBefore,
     PublicKey,
     SerialNumber,
     Signature,
     SignData,
-    SubjectSn,
     SubjectCn,
+    SubjectSn,
     SignDataStart,
 }
 
@@ -50,6 +54,7 @@ impl fmt::Display for MissingFieldError {
             MissingFieldError::AuthorityKeyId => {
                 write!(f, "authorityKeyId not found")
             }
+            MissingFieldError::IssuerCn => write!(f, "Issuer CN not found."),
             MissingFieldError::IssuerSn => write!(f, "Issuer SN not found."),
             MissingFieldError::Fwid => write!(f, "FWID not found."),
             MissingFieldError::NotBefore => write!(f, "NotBefore not found."),
@@ -59,8 +64,8 @@ impl fmt::Display for MissingFieldError {
             }
             MissingFieldError::Signature => write!(f, "Signature not found."),
             MissingFieldError::SignData => write!(f, "Signdata not found."),
-            MissingFieldError::SubjectSn => write!(f, "Subject SN found."),
             MissingFieldError::SubjectCn => write!(f, "Subject CN found."),
+            MissingFieldError::SubjectSn => write!(f, "Subject SN found."),
             MissingFieldError::SignDataStart => {
                 write!(f, "Beginning of CertificationRequestInfo not found.")
             }
