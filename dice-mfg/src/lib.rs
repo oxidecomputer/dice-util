@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use dice_mfg_msgs::{MfgMessage, SerialNumber, SizedBlob};
+use dice_mfg_msgs::{MfgMessage, PlatformId, PlatformIdError, SizedBlob};
 use log::{info, warn};
 
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
@@ -15,7 +15,6 @@ use std::{
     str,
     time::Duration,
 };
-use zerocopy::AsBytes;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -28,9 +27,10 @@ pub enum Error {
     WrongMsg,
     Decode,
     PingRange,
-    NoSerialNumber,
+    NoPlatformId,
     ConfigIncomplete,
     NoResponse,
+    InvalidPlatformId(PlatformIdError),
 }
 
 impl std::error::Error for Error {}
@@ -47,14 +47,17 @@ impl fmt::Display for Error {
             Error::WrongMsg => write!(f, "Unexpected message received."),
             Error::Decode => write!(f, "Failed to decode message."),
             Error::PingRange => write!(f, "Ping-pong sync failed."),
-            Error::NoSerialNumber => {
-                write!(f, "Platform has no serial number: can't generate CSR.")
+            Error::NoPlatformId => {
+                write!(f, "Platform has no platform id: can't generate CSR.")
             }
             Error::ConfigIncomplete => {
                 write!(f, "Configuration incomplete.")
             }
             Error::NoResponse => {
                 write!(f, "No pings acknowledged: check connection to RoT")
+            }
+            Error::InvalidPlatformId(e) => {
+                write!(f, "PlatformId is invalid: {:?}", e)
             }
         }
     }
@@ -69,18 +72,18 @@ pub fn do_manufacture(
     v3_section: Option<String>,
     engine_section: Option<String>,
     ping_retry: u8,
-    serial_number: SerialNumber,
+    platform_id: PlatformId,
     intermediate_cert: PathBuf,
     no_yubi: bool,
 ) -> Result<()> {
     do_liveness(port, ping_retry)?;
-    do_set_serial_number(port, serial_number)?;
+    do_set_platform_id(port, platform_id)?;
 
     let temp_dir = tempfile::tempdir()?;
     let csr = Some(temp_dir.path().join("csr.pem"));
     do_get_csr(port, &csr)?;
 
-    let cert = temp_dir.path().join("cert.pem");
+    let cert = temp_dir.into_path().join("cert.pem");
     do_sign_cert(
         &cert,
         &openssl_cnf,
@@ -198,16 +201,16 @@ pub fn do_set_intermediate(
     }
 }
 
-pub fn do_set_serial_number(
+pub fn do_set_platform_id(
     port: &mut Box<dyn SerialPort>,
-    serial_number: SerialNumber,
+    platform_id: PlatformId,
 ) -> Result<()> {
-    // SerialNumber doesn't implement ToString, dice-mfg-msgs is no_std
-    print!(
-        "setting serial number to: {} ... ",
-        str::from_utf8(serial_number.as_bytes())?
-    );
-    match set_serial_number(port, serial_number) {
+    match platform_id.as_str() {
+        Ok(s) => print!("setting platform id to: \"{}\" ... ", s),
+        Err(e) => return Err(Box::new(Error::InvalidPlatformId(e))),
+    }
+
+    match set_platform_id(port, platform_id) {
         Ok(_) => {
             println!("success");
             Ok(())
@@ -335,7 +338,7 @@ pub fn get_csr(port: &mut Box<dyn SerialPort>) -> Result<SizedBlob> {
         MfgMessage::Csr(csr) => Ok(csr),
         // RoT will nak a request for the DeviceId CSR if it hasn't been given
         // a serial number yet.
-        MfgMessage::Nak => Err(Error::NoSerialNumber.into()),
+        MfgMessage::Nak => Err(Error::NoPlatformId.into()),
         _ => {
             warn!("requested CSR, got unexpected message back: \"{:?}\"", recv);
             Err(Error::WrongMsg.into())
@@ -373,11 +376,11 @@ pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
     }
 }
 
-pub fn set_serial_number(
+pub fn set_platform_id(
     port: &mut Box<dyn SerialPort>,
-    sn: SerialNumber,
+    pid: PlatformId,
 ) -> Result<()> {
-    send_msg(port, &MfgMessage::SerialNumber(sn))?;
+    send_msg(port, &MfgMessage::PlatformId(pid))?;
     recv_ack(port)
 }
 
