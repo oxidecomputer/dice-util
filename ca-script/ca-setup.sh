@@ -40,13 +40,8 @@ KEY_ALG=$KEY_ALG_ED25519
 KEY_OPTS=$KEY_OPTS_ED25519
 
 # ref rfd 219 & 308
-# SN is 11 characters from the code 39 alphabet
 SERIAL_NUMBER="00000000000"
-# part number (PN) is 10 characters from the code 39 alphabet with a hyphen
-# as the 4th character
-# revision number (RN) is 3 code 39 characters, we concatinate the RN to
-# the PN joining the two with a ':'
-PART_REVISION_NUMBER="000-0000000:000"
+PLATFORM_ID_V2="0XV2:000-0000000:000:00000000000"
 
 TMPL_DIR=tmpls
 if [ ! -d $TMPL_DIR ]; then
@@ -87,7 +82,7 @@ echo 10 > crlnumber
 popd
 
 PERSISTENT_ID_CA_CSR_PEM=$PERSISTENT_ID_SELF_CA_DIR/csr/ca.csr.pem
-SUBJ="/C=US/O=Oxide Computer Company/CN=$PART_REVISION_NUMBER/serialNumber=$SERIAL_NUMBER"
+SUBJ="/C=US/O=Oxide Computer Company/CN=$PLATFORM_ID_V2/serialNumber=$SERIAL_NUMBER"
 openssl req \
     -new \
     -config $OPENSSL_CNF \
@@ -105,8 +100,8 @@ openssl ca \
     -in $PERSISTENT_ID_CA_CSR_PEM \
     -out $PERSISTENT_ID_SELF_CA_CERT_PEM
 
-cargo run --bin dice-cert-tmpl -- cert tmpl-gen --subject-sn --issuer-sn $PERSISTENT_ID_SELF_CA_CERT_PEM > $TMPL_DIR/persistentid_cert_tmpl.rs
 cp $PERSISTENT_ID_SELF_CA_CERT_PEM $TMPL_DIR/persistentid.cert.pem
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --subject-cn --subject-sn --issuer-cn --issuer-sn $PERSISTENT_ID_SELF_CA_CERT_PEM > $TMPL_DIR/persistentid_cert_tmpl.rs
 
 #######
 # root CA
@@ -170,7 +165,7 @@ if [ ! -f $PERSISTENT_ID_CA_KEY ]; then
 fi
 
 PERSISTENT_ID_CA_CSR_PEM=$PERSISTENT_ID_CA_DIR/csr/persistentid-ca.csr.pem
-PERSISTENT_ID_CA_SUBJ="/C=US/O=Oxide Computer Company/CN=$PART_REVISION_NUMBER/serialNumber=$SERIAL_NUMBER"
+PERSISTENT_ID_CA_SUBJ="/C=US/O=Oxide Computer Company/CN=$PLATFORM_ID_V2/serialNumber=$SERIAL_NUMBER"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$PERSISTENT_ID_CA_SUBJ" \
@@ -178,8 +173,8 @@ openssl req \
       -key $PERSISTENT_ID_CA_KEY \
       -out $PERSISTENT_ID_CA_CSR_PEM
 
-cargo run --bin dice-cert-tmpl -- csr tmpl-gen --subject-sn $PERSISTENT_ID_CA_CSR_PEM > $TMPL_DIR/persistentid_csr_tmpl.rs
 cp $PERSISTENT_ID_CA_CSR_PEM $TMPL_DIR/persistentid.csr.pem
+cargo run --bin dice-cert-tmpl -- csr tmpl-gen --subject-cn --subject-sn $PERSISTENT_ID_CA_CSR_PEM > $TMPL_DIR/persistentid_csr_tmpl.rs
 
 PERSISTENT_ID_CA_CERT_PEM=$PERSISTENT_ID_CA_DIR/certs/ca.cert.pem
 openssl ca \
@@ -232,7 +227,7 @@ openssl ca \
       -in $DEVICEID_ECA_CSR_PEM \
       -out $DEVICEID_ECA_CERT_PEM
 
-cargo run --bin dice-cert-tmpl -- cert tmpl-gen --issuer-sn $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --issuer-cn --issuer-sn $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
 cp $DEVICEID_ECA_CERT_PEM $TMPL_DIR/deviceid.cert.pem
 
 ######

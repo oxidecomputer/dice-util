@@ -32,7 +32,7 @@ name_opt          = ca_default
 cert_opt          = ca_default
 default_days      = 3650
 preserve          = no
-policy            = policy_with_sn
+policy            = policy_cn
 
 [ ca_intermediate ]
 dir               = ./persistentid-ca
@@ -57,7 +57,7 @@ default_md        = sha3-256
 name_opt          = ca_default
 cert_opt          = ca_default
 preserve          = no
-policy            = policy_without_sn
+policy            = policy_cn
 # intermediate CA will be signing DeviceId ECA certs that don't expire
 default_enddate   = 99991231235959Z
 x509_extensions   = v3_intermediate_eca
@@ -89,7 +89,7 @@ default_md        = sha3-256
 name_opt          = ca_default
 cert_opt          = ca_default
 preserve          = no
-policy            = policy_without_sn
+policy            = policy_cn
 # DeviceId ECA signs other DICE certs that don't expire
 default_enddate   = 99991231235959Z
 # no default x509_extensions, we use this CA to issue certs w/ different sets
@@ -118,23 +118,16 @@ default_md        = sha3-256
 name_opt          = ca_default
 cert_opt          = ca_default
 preserve          = no
-policy            = policy_with_sn
+policy            = policy_cn
 default_enddate   = 99991231235959Z
 
-[ policy_without_sn ]
+[ policy_cn ]
 # The root CA should only sign intermediate certificates that match.
 # See the POLICY FORMAT section of `man ca`.
 countryName             = match
 organizationName        = match
 commonName              = supplied
-
-[ policy_with_sn ]
-# The root CA should only sign intermediate certificates that match.
-# See the POLICY FORMAT section of `man ca`.
-countryName             = match
-organizationName        = match
-commonName              = supplied
-serialNumber            = supplied
+serialNumber            = optional
 
 [ req ]
 # Options for the `req` tool (`man req`).
