@@ -4,7 +4,7 @@
 
 use clap::{Parser, Subcommand};
 use dice_mfg::Result;
-use dice_mfg_msgs::SerialNumber;
+use dice_mfg_msgs::PlatformId;
 use env_logger::Builder;
 use log::{info, LevelFilter};
 use std::{path::PathBuf, result, str};
@@ -38,8 +38,8 @@ enum Command {
     Break,
     /// Send the 'GetCsr' message to request a CSR from the system being
     /// manufactured. If the system being manufactured has not yet received
-    /// the platform serial number (required to generate a CSR) this message
-    /// will be rejected.
+    /// the platform id (required to generate a CSR) this message will be
+    /// rejected.
     GetCsr {
         /// Destination path for CSR, stdout if omitted
         csr_path: Option<PathBuf>,
@@ -78,9 +78,9 @@ enum Command {
         #[clap(long, env)]
         intermediate_cert: PathBuf,
 
-        /// Platform serial number
-        #[clap(value_parser = validate_sn, env)]
-        serial_number: SerialNumber,
+        /// Platform identity string
+        #[clap(value_parser = validate_pid, env)]
+        platform_id: PlatformId,
 
         /// Don't use yubikey for private key operations.
         #[clap(long, env)]
@@ -100,12 +100,12 @@ enum Command {
         /// Path to intermediate cert to send.
         cert_in: PathBuf,
     },
-    /// Send the device being manufactured its assigned serial number in a
-    /// 'SerialNumber' message.
-    SetSerialNumber {
-        /// Platform serial number.
-        #[clap(value_parser = validate_sn)]
-        serial_number: SerialNumber,
+    /// Send the device being manufactured its assigned platform identifier
+    /// in a 'PlatformId' message.
+    SetPlatformId {
+        /// Platform identifier.
+        #[clap(value_parser = validate_pid)]
+        platform_id: PlatformId,
     },
     /// Turn a CSR into a cert. This is a thin wrapper around the `openssl ca`
     /// command and behavior will depend on the openssl.cnf provided by the
@@ -175,7 +175,7 @@ fn main() -> Result<()> {
             v3_section,
             engine_section,
             max_retry,
-            serial_number,
+            platform_id,
             intermediate_cert,
             no_yubi,
         } => {
@@ -187,7 +187,7 @@ fn main() -> Result<()> {
                 v3_section,
                 engine_section,
                 max_retry,
-                serial_number,
+                platform_id,
                 intermediate_cert,
                 no_yubi,
             )
@@ -204,9 +204,9 @@ fn main() -> Result<()> {
             let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
             dice_mfg::do_set_intermediate(&mut port, &cert_in)
         }
-        Command::SetSerialNumber { serial_number } => {
+        Command::SetPlatformId { platform_id } => {
             let mut port = dice_mfg::open_serial(&args.serial_dev, args.baud)?;
-            dice_mfg::do_set_serial_number(&mut port, serial_number)
+            dice_mfg::do_set_platform_id(&mut port, platform_id)
         }
         Command::SignCert {
             cert_out,
@@ -228,19 +228,6 @@ fn main() -> Result<()> {
     }
 }
 
-pub fn validate_sn(s: &str) -> result::Result<SerialNumber, String> {
-    for c in s.chars() {
-        if !c.is_ascii_alphanumeric() {
-            return Err(format!(
-                "invalid character in serial number: \'{}\'",
-                c
-            ));
-        }
-    }
-
-    s.try_into().map_err(|_| {
-        String::from(
-            "serial number is the wrong length, should be 11 characters",
-        )
-    })
+pub fn validate_pid(s: &str) -> result::Result<PlatformId, String> {
+    PlatformId::try_from(s).map_err(|e| format!("Invalid PlatformId: {:?}", e))
 }
