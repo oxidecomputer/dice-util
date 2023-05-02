@@ -8,7 +8,6 @@ use core::convert::TryFrom;
 use hubpack::SerializedSize;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
-use zerocopy::AsBytes;
 
 const BLOB_SIZE: usize = 768;
 
@@ -57,46 +56,6 @@ impl TryFrom<&[u8]> for SizedBlob {
 impl SizedBlob {
     pub fn as_bytes(&self) -> &[u8] {
         &self.data.0[..]
-    }
-}
-
-const SN_LENGTH: usize = 11;
-
-#[repr(C)]
-#[derive(
-    AsBytes, Clone, Copy, Debug, Deserialize, Serialize, SerializedSize,
-)]
-pub struct SerialNumber([u8; SN_LENGTH]);
-
-#[derive(Clone, Copy, Debug)]
-pub enum SNError {
-    BadSize,
-    Invalid,
-}
-
-impl TryFrom<&str> for SerialNumber {
-    type Error = SNError;
-
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
-        for c in s.chars() {
-            if !c.is_ascii_alphanumeric() {
-                return Err(SNError::Invalid);
-            }
-        }
-
-        Ok(Self(s.as_bytes().try_into().map_err(|_| SNError::BadSize)?))
-    }
-}
-
-impl From<&[u8; SN_LENGTH]> for SerialNumber {
-    fn from(sn: &[u8; SN_LENGTH]) -> Self {
-        Self::new(sn)
-    }
-}
-
-impl SerialNumber {
-    pub fn new(sn: &[u8; SN_LENGTH]) -> Self {
-        Self(*sn)
     }
 }
 
@@ -250,7 +209,6 @@ pub enum MfgMessage {
     Nak,
     Ping,
     PlatformId(PlatformId),
-    SerialNumber(SerialNumber),
 }
 
 #[derive(Debug, PartialEq)]
