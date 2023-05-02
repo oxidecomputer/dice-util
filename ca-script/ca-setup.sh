@@ -82,7 +82,7 @@ echo 10 > crlnumber
 popd
 
 PERSISTENT_ID_CA_CSR_PEM=$PERSISTENT_ID_SELF_CA_DIR/csr/ca.csr.pem
-SUBJ="/C=US/O=Oxide Computer Company/CN=$PLATFORM_ID_V2/serialNumber=$SERIAL_NUMBER"
+SUBJ="/C=US/O=Oxide Computer Company/CN=$PLATFORM_ID_V2"
 openssl req \
     -new \
     -config $OPENSSL_CNF \
@@ -101,7 +101,7 @@ openssl ca \
     -out $PERSISTENT_ID_SELF_CA_CERT_PEM
 
 cp $PERSISTENT_ID_SELF_CA_CERT_PEM $TMPL_DIR/persistentid.cert.pem
-cargo run --bin dice-cert-tmpl -- cert tmpl-gen --subject-cn --subject-sn --issuer-cn --issuer-sn $PERSISTENT_ID_SELF_CA_CERT_PEM > $TMPL_DIR/persistentid_cert_tmpl.rs
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --subject-cn --issuer-cn $PERSISTENT_ID_SELF_CA_CERT_PEM > $TMPL_DIR/persistentid_cert_tmpl.rs
 
 #######
 # root CA
@@ -165,7 +165,7 @@ if [ ! -f $PERSISTENT_ID_CA_KEY ]; then
 fi
 
 PERSISTENT_ID_CA_CSR_PEM=$PERSISTENT_ID_CA_DIR/csr/persistentid-ca.csr.pem
-PERSISTENT_ID_CA_SUBJ="/C=US/O=Oxide Computer Company/CN=$PLATFORM_ID_V2/serialNumber=$SERIAL_NUMBER"
+PERSISTENT_ID_CA_SUBJ="/C=US/O=Oxide Computer Company/CN=$PLATFORM_ID_V2"
 openssl req \
       -config $OPENSSL_CNF \
       -subj "$PERSISTENT_ID_CA_SUBJ" \
@@ -174,7 +174,7 @@ openssl req \
       -out $PERSISTENT_ID_CA_CSR_PEM
 
 cp $PERSISTENT_ID_CA_CSR_PEM $TMPL_DIR/persistentid.csr.pem
-cargo run --bin dice-cert-tmpl -- csr tmpl-gen --subject-cn --subject-sn $PERSISTENT_ID_CA_CSR_PEM > $TMPL_DIR/persistentid_csr_tmpl.rs
+cargo run --bin dice-cert-tmpl -- csr tmpl-gen --subject-cn $PERSISTENT_ID_CA_CSR_PEM > $TMPL_DIR/persistentid_csr_tmpl.rs
 
 PERSISTENT_ID_CA_CERT_PEM=$PERSISTENT_ID_CA_DIR/certs/ca.cert.pem
 openssl ca \
@@ -227,7 +227,7 @@ openssl ca \
       -in $DEVICEID_ECA_CSR_PEM \
       -out $DEVICEID_ECA_CERT_PEM
 
-cargo run --bin dice-cert-tmpl -- cert tmpl-gen --issuer-cn --issuer-sn $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
+cargo run --bin dice-cert-tmpl -- cert tmpl-gen --issuer-cn $DEVICEID_ECA_CERT_PEM > $TMPL_DIR/deviceid_cert_tmpl.rs
 cp $DEVICEID_ECA_CERT_PEM $TMPL_DIR/deviceid.cert.pem
 
 ######
