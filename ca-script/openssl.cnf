@@ -127,7 +127,6 @@ default_enddate   = 99991231235959Z
 countryName             = match
 organizationName        = match
 commonName              = supplied
-serialNumber            = optional
 
 [ req ]
 # Options for the `req` tool (`man req`).
@@ -145,7 +144,6 @@ localityName                    = Locality Name
 0.organizationName              = Organization Name
 organizationalUnitName          = Organizational Unit Name
 commonName                      = Common Name
-serialNumber                    = Serial Number
 emailAddress                    = Email Address
 
 # Optionally, specify some defaults.

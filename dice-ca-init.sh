@@ -264,6 +264,7 @@ certificatePolicies = critical, tcg-dice-kp-eca, tcg-dice-kp-attestInit
 subjectKeyIdentifier = none
 
 [ OIDs ]
+tcg-dice-kp-identityInit = 2.23.133.5.4.100.6
 tcg-dice-kp-attestInit = 2.23.133.5.4.100.8
 tcg-dice-kp-eca = 2.23.133.5.4.100.12
 EOF
@@ -274,13 +275,8 @@ EOF
 
 [ policy_strict ]
 countryName = match
-stateOrProvinceName = match
-localityName = match
 organizationName = match
-organizationalUnitName = optional
 commonName = supplied
-# required / supplied?
-serialNumber = optional
 
 [ req ]
 distinguished_name = req_distinguished_name
@@ -291,16 +287,9 @@ default_md = sha384
 [ req_distinguished_name ]
 countryName = Country Name (2 letter code)
 countryName_default = US
-stateOrProvinceName = State or Province Name
-stateOrProvinceName_default = California
-localityName = Locality Name
-localityName_default = Emeryville
 0.organizationName = Organization Name
 0.organizationName_default = Oxide Computer Company
-organizationalUnitName = Organizational Unit Name
-organizationalUnitName_default = Manufacturing
 commonName = Common Name
-serialNumber = Serial Number
 EOF
 }
 
