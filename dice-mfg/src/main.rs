@@ -7,7 +7,10 @@ use clap::{Parser, Subcommand};
 use dice_mfg_msgs::PlatformId;
 use env_logger::Builder;
 use log::{info, LevelFilter};
-use std::{path::PathBuf, result, str};
+use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
+use std::{path::PathBuf, result, str, time::Duration};
+
+use dice_mfg::MfgDriver;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -90,13 +93,13 @@ enum Command {
     Ping,
     /// Send the device being manufactured its identity certificate in a
     /// 'DeviceIdCert' message.
-    SetDeviceId {
+    SetPlatformIdCert {
         /// Path to DeviceId cert to send.
         cert_in: PathBuf,
     },
     /// Send the device being manufactured the certificate for the certifying
     /// CA.
-    SetIntermediate {
+    SetIntermediateCert {
         /// Path to intermediate cert to send.
         cert_in: PathBuf,
     },
@@ -168,16 +171,19 @@ fn main() -> Result<()> {
     }
     match args.command {
         Command::Break => {
-            let mut port = open_serial(&args.serial_dev, args.baud)?;
-            dice_mfg::do_break(&mut port)
+            let port = open_serial(&args.serial_dev, args.baud)?;
+            let mut driver = MfgDriver::new(port);
+            driver.send_break()
         }
         Command::GetCsr { csr_path } => {
-            let mut port = open_serial(&args.serial_dev, args.baud)?;
-            dice_mfg::do_get_csr(&mut port, &csr_path)
+            let port = open_serial(&args.serial_dev, args.baud)?;
+            let mut driver = MfgDriver::new(port);
+            driver.get_csr(&csr_path)
         }
         Command::Liveness { max_retry } => {
-            let mut port = open_serial(&args.serial_dev, args.baud)?;
-            dice_mfg::do_liveness(&mut port, max_retry)
+            let port = open_serial(&args.serial_dev, args.baud)?;
+            let mut driver = MfgDriver::new(port);
+            driver.liveness(max_retry)
         }
         Command::Manufacture {
             openssl_cnf,
@@ -189,34 +195,49 @@ fn main() -> Result<()> {
             intermediate_cert,
             no_yubi,
         } => {
-            let mut port = open_serial(&args.serial_dev, args.baud)?;
-            dice_mfg::do_manufacture(
-                &mut port,
-                openssl_cnf,
+            let port = open_serial(&args.serial_dev, args.baud)?;
+            let mut driver = MfgDriver::new(port);
+
+            driver.liveness(max_retry)?;
+            driver.set_platform_id(platform_id)?;
+
+            let temp_dir = tempfile::tempdir()?;
+            let csr = Some(temp_dir.path().join("csr.pem"));
+            driver.get_csr(&csr)?;
+
+            let cert = temp_dir.into_path().join("cert.pem");
+            dice_mfg::do_sign_cert(
+                &cert,
+                &openssl_cnf,
                 ca_section,
                 v3_section,
                 engine_section,
-                max_retry,
-                platform_id,
-                intermediate_cert,
+                &csr.unwrap(),
                 no_yubi,
-            )
+            )?;
+            driver.set_platform_id_cert(&cert)?;
+            driver.set_intermediate_cert(&intermediate_cert)?;
+            driver.send_break()
         }
         Command::Ping => {
-            let mut port = open_serial(&args.serial_dev, args.baud)?;
-            dice_mfg::do_ping(&mut port)
+            let port = open_serial(&args.serial_dev, args.baud)?;
+            let mut driver = MfgDriver::new(port);
+            driver.ping()
         }
-        Command::SetDeviceId { cert_in } => {
-            let mut port = open_serial(&args.serial_dev, args.baud)?;
-            dice_mfg::do_set_device_id(&mut port, &cert_in)
+        Command::SetPlatformIdCert { cert_in } => {
+            let port = open_serial(&args.serial_dev, args.baud)?;
+            let mut driver = MfgDriver::new(port);
+            driver.set_platform_id_cert(&cert_in)
         }
-        Command::SetIntermediate { cert_in } => {
-            let mut port = open_serial(&args.serial_dev, args.baud)?;
-            dice_mfg::do_set_intermediate(&mut port, &cert_in)
+        Command::SetIntermediateCert { cert_in } => {
+            let port = open_serial(&args.serial_dev, args.baud)?;
+            let mut driver = MfgDriver::new(port);
+            driver.set_intermediate_cert(&cert_in)
         }
         Command::SetPlatformId { platform_id } => {
-            let mut port = open_serial(&args.serial_dev, args.baud)?;
-            dice_mfg::do_set_platform_id(&mut port, platform_id)
+            let port = open_serial(&args.serial_dev, args.baud)?;
+            let mut driver = MfgDriver::new(port);
+            driver.set_platform_id(platform_id)
         }
         Command::SignCert {
             cert_out,
