@@ -477,13 +477,3 @@ fn read_all(port: &mut Box<dyn SerialPort>, buf: &mut [u8]) -> Result<usize> {
 
     Ok(pos)
 }
-
-pub fn open_serial(serial_dev: &str, baud: u32) -> Result<Box<dyn SerialPort>> {
-    Ok(serialport::new(serial_dev, baud)
-        .timeout(Duration::from_secs(1))
-        .data_bits(DataBits::Eight)
-        .flow_control(FlowControl::None)
-        .parity(Parity::None)
-        .stop_bits(StopBits::One)
-        .open()?)
-}
