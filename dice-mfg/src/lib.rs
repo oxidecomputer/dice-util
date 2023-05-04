@@ -6,24 +6,22 @@ use anyhow::Result;
 use dice_mfg_msgs::{MfgMessage, PlatformId, PlatformIdError, SizedBlob};
 use log::{info, warn};
 
-use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
+use serialport::SerialPort;
 use std::{
     fmt,
     fs::{self, File},
     io::{self, Write},
     path::PathBuf,
     process::Command,
-    str,
-    time::Duration,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Error {
     BadTag,
     BufFull,
     CertGenFail,
     Recv,
-    WrongMsg,
+    WrongMsg(String),
     Decode,
     PingRange,
     NoPlatformId,
@@ -43,7 +41,9 @@ impl fmt::Display for Error {
             }
             Error::CertGenFail => write!(f, "Cert generation failed."),
             Error::Recv => write!(f, "Recv failed."),
-            Error::WrongMsg => write!(f, "Unexpected message received."),
+            Error::WrongMsg(s) => {
+                write!(f, "Unexpected message received: {}.", s)
+            }
             Error::Decode => write!(f, "Failed to decode message."),
             Error::PingRange => write!(f, "Ping-pong sync failed."),
             Error::NoPlatformId => {
@@ -62,162 +62,140 @@ impl fmt::Display for Error {
     }
 }
 
-// https://github.com/oxidecomputer/dice-util/issues/16
-#[allow(clippy::too_many_arguments)]
-pub fn do_manufacture(
-    port: &mut Box<dyn SerialPort>,
-    openssl_cnf: PathBuf,
-    ca_section: Option<String>,
-    v3_section: Option<String>,
-    engine_section: Option<String>,
-    ping_retry: u8,
-    platform_id: PlatformId,
-    intermediate_cert: PathBuf,
-    no_yubi: bool,
-) -> Result<()> {
-    do_liveness(port, ping_retry)?;
-    do_set_platform_id(port, platform_id)?;
-
-    let temp_dir = tempfile::tempdir()?;
-    let csr = Some(temp_dir.path().join("csr.pem"));
-    do_get_csr(port, &csr)?;
-
-    let cert = temp_dir.into_path().join("cert.pem");
-    do_sign_cert(
-        &cert,
-        &openssl_cnf,
-        ca_section,
-        v3_section,
-        engine_section,
-        &csr.unwrap(),
-        no_yubi,
-    )?;
-    do_set_device_id(port, &cert)?;
-    do_set_intermediate(port, &intermediate_cert)?;
-    do_break(port)
-}
-pub fn do_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    print!("sending Break ... ");
-    match send_break(port) {
-        Ok(_) => {
-            println!("success");
-            Ok(())
-        }
-        Err(e) => {
-            println!("failed");
-            Err(e)
-        }
-    }
+/// The MfgDriver is used to send commands to the RoT as part of programming
+/// identity credentials. The structure holds SerialPort instance. The
+/// associated functions map 1:1 to members of the MfgMessage enum from
+/// dice-mfg-msgs. The `liveness` function is a minor exception to this rule.
+pub struct MfgDriver {
+    port: Box<dyn SerialPort>,
 }
 
-pub fn do_get_csr(
-    port: &mut Box<dyn SerialPort>,
-    csr_path: &Option<PathBuf>,
-) -> Result<()> {
-    print!("getting CSR ... ");
-    let csr = match get_csr(port) {
-        Ok(csr) => {
-            println!("success");
-            csr
-        }
-        Err(e) => {
-            println!("failed");
-            return Err(e);
-        }
-    };
-    let out: Box<dyn Write> = match csr_path {
-        Some(csr_path) => Box::new(File::create(csr_path)?),
-        None => Box::new(io::stdout()),
-    };
-
-    save_csr(out, csr)
-}
-
-pub fn do_liveness(port: &mut Box<dyn SerialPort>, max_fail: u8) -> Result<()> {
-    print!("checking RoT for liveness ... ");
-    io::stdout().flush()?;
-    match check_liveness(port, max_fail) {
-        Err(e) => {
-            println!("failed");
-            Err(e)
-        }
-        _ => {
-            println!("success");
-            Ok(())
-        }
-    }
-}
-
-pub fn do_ping(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    print!("sending ping ... ");
-    match send_ping(port) {
-        Ok(_) => {
-            println!("success");
-            Ok(())
-        }
-        Err(e) => {
-            println!("failed");
-            Err(e)
-        }
-    }
-}
-
-pub fn do_set_device_id(
-    port: &mut Box<dyn SerialPort>,
-    cert_in: &PathBuf,
-) -> Result<()> {
-    let cert = sized_blob_from_pem_path(cert_in)?;
-
-    print!("setting DeviceId cert ... ");
-    match set_deviceid(port, cert) {
-        Ok(_) => {
-            println!("success");
-            Ok(())
-        }
-        Err(e) => {
-            println!("failed");
-            Err(e)
-        }
-    }
-}
-
-pub fn do_set_intermediate(
-    port: &mut Box<dyn SerialPort>,
-    cert_in: &PathBuf,
-) -> Result<()> {
-    let cert = sized_blob_from_pem_path(cert_in)?;
-
-    print!("setting Intermediate cert ... ");
-    match set_intermediate(port, cert) {
-        Ok(_) => {
-            println!("success");
-            Ok(())
-        }
-        Err(e) => {
-            println!("failed");
-            Err(e)
-        }
-    }
-}
-
-pub fn do_set_platform_id(
-    port: &mut Box<dyn SerialPort>,
-    platform_id: PlatformId,
-) -> Result<()> {
-    match platform_id.as_str() {
-        Ok(s) => print!("setting platform id to: \"{}\" ... ", s),
-        Err(e) => return Err(Error::InvalidPlatformId(e).into()),
+impl MfgDriver {
+    pub fn new(port: Box<dyn SerialPort>) -> Self {
+        MfgDriver { port }
     }
 
-    match set_platform_id(port, platform_id) {
-        Ok(_) => {
-            println!("success");
-            Ok(())
+    /// Ping the RoT at most `max_fail` times. If the RoT does not reply with
+    /// an Ack to one of these Pings this function returns an error.
+    pub fn liveness(&mut self, mut max_fail: u8) -> Result<()> {
+        print!("checking RoT for liveness ... ");
+        io::stdout().flush()?;
+
+        loop {
+            send_msg(&mut self.port, &MfgMessage::Ping)?;
+            match recv_ack(&mut self.port) {
+                Err(e) => {
+                    if max_fail > 0 {
+                        max_fail -= 1;
+                    } else {
+                        return Err(e);
+                    }
+                }
+                _ => {
+                    println!("success");
+                    return Ok(());
+                }
+            }
         }
-        Err(e) => {
-            println!("failed");
-            Err(e)
+    }
+
+    /// Tell the RoT that we're dong programming it.NOTE: This function name
+    /// is prefixed with `send_` to avoid conflict with the `break` keyword.
+    pub fn send_break(&mut self) -> Result<()> {
+        print!("sending Break ... ");
+        io::stdout().flush()?;
+
+        send_msg(&mut self.port, &MfgMessage::Break)?;
+        recv_ack(&mut self.port)?;
+
+        println!("success");
+        Ok(())
+    }
+
+    /// Ping the RoT. If the RoT doesn't acknowledge the Ping this function
+    /// returns an error.
+    pub fn ping(&mut self) -> Result<()> {
+        print!("sending ping ... ");
+        io::stdout().flush()?;
+
+        send_msg(&mut self.port, &MfgMessage::Ping)?;
+        recv_ack(&mut self.port)?;
+
+        println!("success");
+        Ok(())
+    }
+
+    /// Tell the RoT what it's unique ID is.
+    pub fn set_platform_id(&mut self, pid: PlatformId) -> Result<()> {
+        match pid.as_str() {
+            Ok(s) => print!("setting platform id to: \"{}\" ... ", s),
+            Err(e) => return Err(Error::InvalidPlatformId(e).into()),
         }
+        io::stdout().flush()?;
+
+        send_msg(&mut self.port, &MfgMessage::PlatformId(pid))?;
+        recv_ack(&mut self.port)?;
+
+        println!("success");
+        Ok(())
+    }
+
+    /// Request a CSR from the RoT.
+    pub fn get_csr(&mut self, csr_path: &Option<PathBuf>) -> Result<()> {
+        print!("getting CSR ... ");
+        io::stdout().flush()?;
+
+        send_msg(&mut self.port, &MfgMessage::CsrPlz)?;
+        let recv = recv_msg(&mut self.port)?;
+
+        let csr = match recv {
+            MfgMessage::Csr(csr) => {
+                println!("success");
+                csr
+            }
+            // RoT will nak a request for the DeviceId CSR if it hasn't been
+            // given a serial number yet.
+            MfgMessage::Nak => return Err(Error::NoPlatformId.into()),
+            _ => {
+                warn!("requested CSR, got unexpected response: \"{:?}\"", recv);
+                return Err(Error::WrongMsg(recv.as_str().to_string()).into());
+            }
+        };
+
+        let out: Box<dyn Write> = match csr_path {
+            Some(csr_path) => Box::new(File::create(csr_path)?),
+            None => Box::new(io::stdout()),
+        };
+
+        save_csr(out, csr)
+    }
+
+    /// Send the RoT the cert for the intermediate / signing CA.
+    pub fn set_intermediate_cert(&mut self, cert_in: &PathBuf) -> Result<()> {
+        let cert = sized_blob_from_pem_path(cert_in)?;
+
+        print!("setting Intermediate cert ... ");
+        io::stdout().flush()?;
+
+        send_msg(&mut self.port, &MfgMessage::IntermediateCert(cert))?;
+        recv_ack(&mut self.port)?;
+
+        println!("success");
+        Ok(())
+    }
+
+    /// Send the RoT its certified identity.
+    pub fn set_platform_id_cert(&mut self, cert_in: &PathBuf) -> Result<()> {
+        let cert = sized_blob_from_pem_path(cert_in)?;
+
+        print!("setting PlatformId cert ... ");
+        io::stdout().flush()?;
+
+        send_msg(&mut self.port, &MfgMessage::IdentityCert(cert))?;
+        recv_ack(&mut self.port)?;
+
+        println!("success");
+        Ok(())
     }
 }
 
@@ -312,39 +290,6 @@ pub fn sign_cert(
     }
 }
 
-pub fn set_intermediate(
-    port: &mut Box<dyn SerialPort>,
-    cert: SizedBlob,
-) -> Result<()> {
-    send_msg(port, &MfgMessage::IntermediateCert(cert))?;
-    recv_ack(port)
-}
-
-pub fn set_deviceid(
-    port: &mut Box<dyn SerialPort>,
-    cert: SizedBlob,
-) -> Result<()> {
-    send_msg(port, &MfgMessage::IdentityCert(cert))?;
-    recv_ack(port)
-}
-
-pub fn get_csr(port: &mut Box<dyn SerialPort>) -> Result<SizedBlob> {
-    send_msg(port, &MfgMessage::CsrPlz)?;
-
-    let recv = recv_msg(port)?;
-
-    match recv {
-        MfgMessage::Csr(csr) => Ok(csr),
-        // RoT will nak a request for the DeviceId CSR if it hasn't been given
-        // a serial number yet.
-        MfgMessage::Nak => Err(Error::NoPlatformId.into()),
-        _ => {
-            warn!("requested CSR, got unexpected message back: \"{:?}\"", recv);
-            Err(Error::WrongMsg.into())
-        }
-    }
-}
-
 pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
     let size = usize::from(csr.size);
 
@@ -363,63 +308,15 @@ pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
     Ok(w.write_all(csr_pem.as_bytes())?)
 }
 
-pub fn send_break(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    send_msg(port, &MfgMessage::Break)?;
-
-    let resp = recv_msg(port)?;
-
-    match resp {
-        MfgMessage::Ack => Ok(()),
-        MfgMessage::Nak => Err(Error::ConfigIncomplete.into()),
-        _ => Err(Error::WrongMsg.into()),
-    }
-}
-
-pub fn set_platform_id(
-    port: &mut Box<dyn SerialPort>,
-    pid: PlatformId,
-) -> Result<()> {
-    send_msg(port, &MfgMessage::PlatformId(pid))?;
-    recv_ack(port)
-}
-
-pub fn check_liveness(
-    port: &mut Box<dyn SerialPort>,
-    mut max_fail: u8,
-) -> Result<()> {
-    loop {
-        match send_ping(port) {
-            Err(e) => {
-                if max_fail > 0 {
-                    max_fail -= 1;
-                } else {
-                    return Err(e);
-                }
-            }
-            _ => {
-                return Ok(());
-            }
-        }
-    }
-}
-
-pub fn send_ping(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    send_msg(port, &MfgMessage::Ping)?;
-    recv_ack(port)
-}
-
 fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {
     info!("waiting for Ack ... ");
     let resp = recv_msg(port)?;
 
     match resp {
-        MfgMessage::Ack => {
-            info!("success");
-            Ok(())
-        }
+        MfgMessage::Ack => Ok(()),
         _ => {
             warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
-            Err(Error::WrongMsg.into())
+            Err(Error::WrongMsg(resp.as_str().to_string()).into())
         }
     }
 }

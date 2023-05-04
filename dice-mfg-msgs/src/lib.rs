@@ -223,6 +223,20 @@ impl MfgMessage {
     pub const MAX_ENCODED_SIZE: usize =
         corncobs::max_encoded_len(Self::MAX_SIZE);
 
+    pub fn as_str(&self) -> &str {
+        match self {
+            MfgMessage::Ack => "MfgMessage::Ack",
+            MfgMessage::Break => "MfgMessage::Break",
+            MfgMessage::Csr(_) => "MfgMessage::Csr",
+            MfgMessage::CsrPlz => "MfgMessage::CsrPlz",
+            MfgMessage::IdentityCert(_) => "MfgMessage::IdentityCert",
+            MfgMessage::IntermediateCert(_) => "MfgMessage::IntermediateCert",
+            MfgMessage::Nak => "MfgMessage::Nack",
+            MfgMessage::Ping => "MfgMessage::Ping",
+            MfgMessage::PlatformId(_) => "MfgMessage::PlatformId",
+        }
+    }
+
     pub fn decode(data: &[u8]) -> Result<Self, Error> {
         let mut buf = [0u8; Self::MAX_SIZE];
 
