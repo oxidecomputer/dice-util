@@ -6,6 +6,7 @@ description = "A command line tool for creating and programming device identitie
 license = "MPL-2.0"
 
 [dependencies]
+anyhow = "1.0.71"
 clap = { version = "4", features = ["derive", "env"] }
 dice-mfg-msgs = { path = "../dice-mfg-msgs" }
 env_logger = "0.9"

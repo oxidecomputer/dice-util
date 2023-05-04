@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use anyhow::Result;
 use dice_mfg_msgs::{MfgMessage, PlatformId, PlatformIdError, SizedBlob};
 use log::{info, warn};
 
@@ -15,8 +16,6 @@ use std::{
     str,
     time::Duration,
 };
-
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error {
@@ -207,7 +206,7 @@ pub fn do_set_platform_id(
 ) -> Result<()> {
     match platform_id.as_str() {
         Ok(s) => print!("setting platform id to: \"{}\" ... ", s),
-        Err(e) => return Err(Box::new(Error::InvalidPlatformId(e))),
+        Err(e) => return Err(Error::InvalidPlatformId(e).into()),
     }
 
     match set_platform_id(port, platform_id) {
@@ -309,7 +308,7 @@ pub fn sign_cert(
     } else {
         warn!("command failed with status: {}", output.status);
         warn!("stderr: \"{}\"", String::from_utf8_lossy(&output.stderr));
-        Err(Box::new(Error::CertGenFail))
+        Err(Error::CertGenFail.into())
     }
 }
 
