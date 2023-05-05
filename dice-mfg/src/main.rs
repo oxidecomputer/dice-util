@@ -169,22 +169,15 @@ fn main() -> Result<()> {
     if args.verbose {
         info!("device: {}, baud: {}", args.serial_dev, args.baud);
     }
+    let driver = match args.command {
+        Command::SignCert { .. } => None,
+        _ => Some(MfgDriver::new(open_serial(&args.serial_dev, args.baud)?)),
+    };
+    // all variants except for `Command::SignCert` can safely unwrap `driver`
     match args.command {
-        Command::Break => {
-            let port = open_serial(&args.serial_dev, args.baud)?;
-            let mut driver = MfgDriver::new(port);
-            driver.send_break()
-        }
-        Command::GetCsr { csr_path } => {
-            let port = open_serial(&args.serial_dev, args.baud)?;
-            let mut driver = MfgDriver::new(port);
-            driver.get_csr(&csr_path)
-        }
-        Command::Liveness { max_retry } => {
-            let port = open_serial(&args.serial_dev, args.baud)?;
-            let mut driver = MfgDriver::new(port);
-            driver.liveness(max_retry)
-        }
+        Command::Break => driver.unwrap().send_break(),
+        Command::GetCsr { csr_path } => driver.unwrap().get_csr(&csr_path),
+        Command::Liveness { max_retry } => driver.unwrap().liveness(max_retry),
         Command::Manufacture {
             openssl_cnf,
             ca_section,
@@ -195,8 +188,7 @@ fn main() -> Result<()> {
             intermediate_cert,
             no_yubi,
         } => {
-            let port = open_serial(&args.serial_dev, args.baud)?;
-            let mut driver = MfgDriver::new(port);
+            let mut driver = driver.unwrap();
 
             driver.liveness(max_retry)?;
             driver.set_platform_id(platform_id)?;
@@ -219,25 +211,15 @@ fn main() -> Result<()> {
             driver.set_intermediate_cert(&intermediate_cert)?;
             driver.send_break()
         }
-        Command::Ping => {
-            let port = open_serial(&args.serial_dev, args.baud)?;
-            let mut driver = MfgDriver::new(port);
-            driver.ping()
-        }
+        Command::Ping => driver.unwrap().ping(),
         Command::SetPlatformIdCert { cert_in } => {
-            let port = open_serial(&args.serial_dev, args.baud)?;
-            let mut driver = MfgDriver::new(port);
-            driver.set_platform_id_cert(&cert_in)
+            driver.unwrap().set_platform_id_cert(&cert_in)
         }
         Command::SetIntermediateCert { cert_in } => {
-            let port = open_serial(&args.serial_dev, args.baud)?;
-            let mut driver = MfgDriver::new(port);
-            driver.set_intermediate_cert(&cert_in)
+            driver.unwrap().set_intermediate_cert(&cert_in)
         }
         Command::SetPlatformId { platform_id } => {
-            let port = open_serial(&args.serial_dev, args.baud)?;
-            let mut driver = MfgDriver::new(port);
-            driver.set_platform_id(platform_id)
+            driver.unwrap().set_platform_id(platform_id)
         }
         Command::SignCert {
             cert_out,
