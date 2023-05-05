@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(test, feature = "std")), no_std)]
 
-use core::convert::TryFrom;
+use core::{convert::TryFrom, fmt};
 use hubpack::SerializedSize;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
@@ -67,12 +67,30 @@ const CODE39_ALPHABET: [char; CODE39_LEN] = [
     'U', 'V', 'W', 'X', 'Y', 'Z', '-', '.', ' ', '$', '/', '+', '%',
 ];
 
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlatformIdError {
     BadSize,
     Invalid { i: usize, c: char },
     InvalidPrefix,
     Malformed,
+}
+
+impl fmt::Display for PlatformIdError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PlatformIdError::BadSize => {
+                write!(f, "PID string length not supported")
+            }
+            PlatformIdError::Invalid { i, c } => {
+                write!(f, "invalid char '{}' at offset {}", c, i)
+            }
+            PlatformIdError::InvalidPrefix => {
+                write!(f, "PID string has invalid prefix")
+            }
+            PlatformIdError::Malformed => write!(f, "PID string is malformed"),
+        }
+    }
 }
 
 // see RFD 308 § 4.3.1
@@ -196,6 +214,30 @@ impl PlatformId {
     }
 }
 
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[derive(Debug, PartialEq)]
+pub enum Error {
+    Decode,
+    Deserialize,
+    Serialize,
+    SliceTooBig,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Decode => write!(f, "Failed to decode corncobs message"),
+            Error::Deserialize => {
+                write!(f, "Failed to deserialize hubpack message")
+            }
+            Error::Serialize => {
+                write!(f, "Failed to serialize hubpack message")
+            }
+            Error::SliceTooBig => write!(f, "Slice too large for SizedBuf"),
+        }
+    }
+}
+
 // large variants in enum is intentional: this is how we do serialization
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Deserialize, Serialize, SerializedSize)]
@@ -211,31 +253,29 @@ pub enum MfgMessage {
     PlatformId(PlatformId),
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Error {
-    Decode,
-    Deserialize,
-    Serialize,
-    SliceTooBig,
+impl fmt::Display for MfgMessage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MfgMessage::Ack => write!(f, "MfgMessage::Ack"),
+            MfgMessage::Break => write!(f, "MfgMessage::Break"),
+            MfgMessage::Csr(_) => write!(f, "MfgMessage::Csr"),
+            MfgMessage::CsrPlz => write!(f, "MfgMessage::CsrPlz"),
+            MfgMessage::IdentityCert(_) => {
+                write!(f, "MfgMessage::IdentityCert")
+            }
+            MfgMessage::IntermediateCert(_) => {
+                write!(f, "MfgMessage::IntermediateCert")
+            }
+            MfgMessage::Nak => write!(f, "MfgMessage::Nack"),
+            MfgMessage::Ping => write!(f, "MfgMessage::Ping"),
+            MfgMessage::PlatformId(_) => write!(f, "MfgMessage::PlatformId"),
+        }
+    }
 }
 
 impl MfgMessage {
     pub const MAX_ENCODED_SIZE: usize =
         corncobs::max_encoded_len(Self::MAX_SIZE);
-
-    pub fn as_str(&self) -> &str {
-        match self {
-            MfgMessage::Ack => "MfgMessage::Ack",
-            MfgMessage::Break => "MfgMessage::Break",
-            MfgMessage::Csr(_) => "MfgMessage::Csr",
-            MfgMessage::CsrPlz => "MfgMessage::CsrPlz",
-            MfgMessage::IdentityCert(_) => "MfgMessage::IdentityCert",
-            MfgMessage::IntermediateCert(_) => "MfgMessage::IntermediateCert",
-            MfgMessage::Nak => "MfgMessage::Nack",
-            MfgMessage::Ping => "MfgMessage::Ping",
-            MfgMessage::PlatformId(_) => "MfgMessage::PlatformId",
-        }
-    }
 
     pub fn decode(data: &[u8]) -> Result<Self, Error> {
         let mut buf = [0u8; Self::MAX_SIZE];

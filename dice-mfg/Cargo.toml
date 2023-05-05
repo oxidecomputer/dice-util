@@ -8,7 +8,7 @@ license = "MPL-2.0"
 [dependencies]
 anyhow = "1.0.71"
 clap = { version = "4", features = ["derive", "env"] }
-dice-mfg-msgs = { path = "../dice-mfg-msgs" }
+dice-mfg-msgs = { path = "../dice-mfg-msgs", features = ["std"] }
 env_logger = "0.9"
 log = "0.4"
 pem = "1"
