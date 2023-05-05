@@ -82,8 +82,8 @@ impl MfgDriver {
         io::stdout().flush()?;
 
         loop {
-            send_msg(&mut self.port, &MfgMessage::Ping)?;
-            match recv_ack(&mut self.port) {
+            self.send_msg(&MfgMessage::Ping)?;
+            match self.recv_ack() {
                 Err(e) => {
                     if max_fail > 0 {
                         max_fail -= 1;
@@ -105,8 +105,8 @@ impl MfgDriver {
         print!("sending Break ... ");
         io::stdout().flush()?;
 
-        send_msg(&mut self.port, &MfgMessage::Break)?;
-        recv_ack(&mut self.port)?;
+        self.send_msg(&MfgMessage::Break)?;
+        self.recv_ack()?;
 
         println!("success");
         Ok(())
@@ -118,8 +118,8 @@ impl MfgDriver {
         print!("sending ping ... ");
         io::stdout().flush()?;
 
-        send_msg(&mut self.port, &MfgMessage::Ping)?;
-        recv_ack(&mut self.port)?;
+        self.send_msg(&MfgMessage::Ping)?;
+        self.recv_ack()?;
 
         println!("success");
         Ok(())
@@ -133,8 +133,8 @@ impl MfgDriver {
         }
         io::stdout().flush()?;
 
-        send_msg(&mut self.port, &MfgMessage::PlatformId(pid))?;
-        recv_ack(&mut self.port)?;
+        self.send_msg(&MfgMessage::PlatformId(pid))?;
+        self.recv_ack()?;
 
         println!("success");
         Ok(())
@@ -145,8 +145,8 @@ impl MfgDriver {
         print!("getting CSR ... ");
         io::stdout().flush()?;
 
-        send_msg(&mut self.port, &MfgMessage::CsrPlz)?;
-        let recv = recv_msg(&mut self.port)?;
+        self.send_msg(&MfgMessage::CsrPlz)?;
+        let recv = self.recv_msg()?;
 
         let csr = match recv {
             MfgMessage::Csr(csr) => {
@@ -177,8 +177,8 @@ impl MfgDriver {
         print!("setting Intermediate cert ... ");
         io::stdout().flush()?;
 
-        send_msg(&mut self.port, &MfgMessage::IntermediateCert(cert))?;
-        recv_ack(&mut self.port)?;
+        self.send_msg(&MfgMessage::IntermediateCert(cert))?;
+        self.recv_ack()?;
 
         println!("success");
         Ok(())
@@ -191,11 +191,83 @@ impl MfgDriver {
         print!("setting PlatformId cert ... ");
         io::stdout().flush()?;
 
-        send_msg(&mut self.port, &MfgMessage::IdentityCert(cert))?;
-        recv_ack(&mut self.port)?;
+        self.send_msg(&MfgMessage::IdentityCert(cert))?;
+        self.recv_ack()?;
 
         println!("success");
         Ok(())
+    }
+
+    /// Read a message from the serial port. Return an error if it's not an
+    /// `Ack`.
+    fn recv_ack(&mut self) -> Result<()> {
+        info!("waiting for Ack ... ");
+        let resp = self.recv_msg()?;
+
+        match resp {
+            MfgMessage::Ack => Ok(()),
+            _ => {
+                warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
+                Err(Error::WrongMsg(resp.as_str().to_string()).into())
+            }
+        }
+    }
+
+    /// Send a message to the RoT.
+    fn send_msg(&mut self, msg: &MfgMessage) -> Result<()> {
+        let mut buf = [0u8; MfgMessage::MAX_ENCODED_SIZE];
+
+        let size = msg.encode(&mut buf).expect("encode");
+
+        self.port.write_all(&buf[..size])?;
+        self.port.flush().map_err(|e| e.into())
+    }
+
+    /// Receive a message from the RoT.
+    fn recv_msg(&mut self) -> Result<MfgMessage> {
+        let mut encoded_buf = [0xFFu8; MfgMessage::MAX_ENCODED_SIZE];
+
+        let size = self.read_all(&mut encoded_buf)?;
+
+        // map_err?
+        match MfgMessage::decode(&encoded_buf[..size]) {
+            Ok(msg) => Ok(msg),
+            Err(e) => {
+                warn!("{:?}", e);
+                Err(Error::Decode.into())
+            }
+        }
+    }
+
+    /// Read from serial port till 0 byte.
+    fn read_all(&mut self, buf: &mut [u8]) -> Result<usize> {
+        if buf.is_empty() {
+            panic!("zero sized buffer, nothing to send");
+        }
+        let mut pos = 0;
+        let mut done = false;
+        while !done {
+            done = match self.port.read(&mut buf[pos..]) {
+                Ok(bytes_read) => {
+                    pos += bytes_read;
+                    if buf[pos - 1] == 0 {
+                        // zero byte ends read
+                        true
+                    } else if pos < buf.len() {
+                        // more buffer available, keep reading
+                        false
+                    } else {
+                        return Err(Error::BufFull.into());
+                    }
+                }
+                Err(e) => {
+                    warn!("read_all failed with error: \"{}\"", e);
+                    return Err(e.into());
+                }
+            }
+        }
+
+        Ok(pos)
     }
 }
 
@@ -306,71 +378,4 @@ pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
     );
 
     Ok(w.write_all(csr_pem.as_bytes())?)
-}
-
-fn recv_ack(port: &mut Box<dyn SerialPort>) -> Result<()> {
-    info!("waiting for Ack ... ");
-    let resp = recv_msg(port)?;
-
-    match resp {
-        MfgMessage::Ack => Ok(()),
-        _ => {
-            warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
-            Err(Error::WrongMsg(resp.as_str().to_string()).into())
-        }
-    }
-}
-
-fn send_msg(port: &mut Box<dyn SerialPort>, msg: &MfgMessage) -> Result<()> {
-    let mut buf = [0u8; MfgMessage::MAX_ENCODED_SIZE];
-
-    let size = msg.encode(&mut buf).expect("encode");
-
-    port.write_all(&buf[..size])?;
-    port.flush().map_err(|e| e.into())
-}
-
-fn recv_msg(port: &mut Box<dyn SerialPort>) -> Result<MfgMessage> {
-    let mut encoded_buf = [0xFFu8; MfgMessage::MAX_ENCODED_SIZE];
-
-    let size = read_all(port, &mut encoded_buf)?;
-
-    // map_err?
-    match MfgMessage::decode(&encoded_buf[..size]) {
-        Ok(msg) => Ok(msg),
-        Err(e) => {
-            warn!("{:?}", e);
-            Err(Error::Decode.into())
-        }
-    }
-}
-
-fn read_all(port: &mut Box<dyn SerialPort>, buf: &mut [u8]) -> Result<usize> {
-    if buf.is_empty() {
-        panic!("zero sized buffer, nothing to send");
-    }
-    let mut pos = 0;
-    let mut done = false;
-    while !done {
-        done = match port.read(&mut buf[pos..]) {
-            Ok(bytes_read) => {
-                pos += bytes_read;
-                if buf[pos - 1] == 0 {
-                    // zero byte ends read
-                    true
-                } else if pos < buf.len() {
-                    // more buffer available, keep reading
-                    false
-                } else {
-                    return Err(Error::BufFull.into());
-                }
-            }
-            Err(e) => {
-                warn!("read_all failed with error: \"{}\"", e);
-                return Err(e.into());
-            }
-        }
-    }
-
-    Ok(pos)
 }
