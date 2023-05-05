@@ -67,7 +67,7 @@ const CODE39_ALPHABET: [char; CODE39_LEN] = [
     'U', 'V', 'W', 'X', 'Y', 'Z', '-', '.', ' ', '$', '/', '+', '%',
 ];
 
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[cfg_attr(any(test, feature = "std"), derive(thiserror::Error))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlatformIdError {
     #[cfg_attr(
@@ -210,7 +210,7 @@ impl PlatformId {
     }
 }
 
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[cfg_attr(any(test, feature = "std"), derive(thiserror::Error))]
 #[derive(Debug, PartialEq)]
 pub enum Error {
     #[cfg_attr(
