@@ -70,27 +70,23 @@ const CODE39_ALPHABET: [char; CODE39_LEN] = [
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlatformIdError {
+    #[cfg_attr(
+        any(test, feature = "std"),
+        error("PID string length not supported")
+    )]
     BadSize,
+    #[cfg_attr(
+        any(test, feature = "std"),
+        error("invalid char '{c:?}' at offset {i:?}")
+    )]
     Invalid { i: usize, c: char },
+    #[cfg_attr(
+        any(test, feature = "std"),
+        error("PID string has invalid prefix")
+    )]
     InvalidPrefix,
+    #[cfg_attr(any(test, feature = "std"), error("PID string is malformed"))]
     Malformed,
-}
-
-impl fmt::Display for PlatformIdError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            PlatformIdError::BadSize => {
-                write!(f, "PID string length not supported")
-            }
-            PlatformIdError::Invalid { i, c } => {
-                write!(f, "invalid char '{}' at offset {}", c, i)
-            }
-            PlatformIdError::InvalidPrefix => {
-                write!(f, "PID string has invalid prefix")
-            }
-            PlatformIdError::Malformed => write!(f, "PID string is malformed"),
-        }
-    }
 }
 
 // see RFD 308 § 4.3.1
@@ -217,25 +213,26 @@ impl PlatformId {
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 #[derive(Debug, PartialEq)]
 pub enum Error {
+    #[cfg_attr(
+        any(test, feature = "std"),
+        error("Failed to decode corncobs message")
+    )]
     Decode,
+    #[cfg_attr(
+        any(test, feature = "std"),
+        error("Failed to deserialize hubpack message")
+    )]
     Deserialize,
+    #[cfg_attr(
+        any(test, feature = "std"),
+        error("Failed to serialize hubpack message")
+    )]
     Serialize,
+    #[cfg_attr(
+        any(test, feature = "std"),
+        error("Slice too large for SizedBuf")
+    )]
     SliceTooBig,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Decode => write!(f, "Failed to decode corncobs message"),
-            Error::Deserialize => {
-                write!(f, "Failed to deserialize hubpack message")
-            }
-            Error::Serialize => {
-                write!(f, "Failed to serialize hubpack message")
-            }
-            Error::SliceTooBig => write!(f, "Slice too large for SizedBuf"),
-        }
-    }
 }
 
 // large variants in enum is intentional: this is how we do serialization
