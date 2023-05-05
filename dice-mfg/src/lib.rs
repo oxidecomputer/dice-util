@@ -158,7 +158,7 @@ impl MfgDriver {
             MfgMessage::Nak => return Err(Error::NoPlatformId.into()),
             _ => {
                 warn!("requested CSR, got unexpected response: \"{:?}\"", recv);
-                return Err(Error::WrongMsg(recv.as_str().to_string()).into());
+                return Err(Error::WrongMsg(recv.to_string()).into());
             }
         };
 
@@ -208,7 +208,7 @@ impl MfgDriver {
             MfgMessage::Ack => Ok(()),
             _ => {
                 warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
-                Err(Error::WrongMsg(resp.as_str().to_string()).into())
+                Err(Error::WrongMsg(resp.to_string()).into())
             }
         }
     }
