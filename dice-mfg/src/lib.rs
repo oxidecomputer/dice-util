@@ -5,7 +5,7 @@
 use anyhow::Result;
 use dice_mfg_msgs::{MfgMessage, PlatformId, PlatformIdError, SizedBlob};
 use log::{info, warn};
-
+use pem_rfc7468::LineEnding;
 use serialport::SerialPort;
 use std::{
     fmt,
@@ -28,6 +28,8 @@ pub enum Error {
     ConfigIncomplete,
     NoResponse,
     InvalidPlatformId(PlatformIdError),
+    CertTooBig,
+    PemNotCert,
 }
 
 impl std::error::Error for Error {}
@@ -57,6 +59,12 @@ impl fmt::Display for Error {
             }
             Error::InvalidPlatformId(e) => {
                 write!(f, "PlatformId is invalid: {:?}", e)
+            }
+            Error::CertTooBig => {
+                write!(f, "Insufficient space to store the provided cert in SizedBlog: see dice-mfg-msgs")
+            }
+            Error::PemNotCert => {
+                write!(f, "PEM provided doesn't have \"CERTIFICATE\" label")
             }
         }
     }
@@ -172,7 +180,7 @@ impl MfgDriver {
 
     /// Send the RoT the cert for the intermediate / signing CA.
     pub fn set_intermediate_cert(&mut self, cert_in: &PathBuf) -> Result<()> {
-        let cert = sized_blob_from_pem_path(cert_in)?;
+        let cert = sized_blob_from_pem_cert_path(cert_in)?;
 
         print!("setting Intermediate cert ... ");
         io::stdout().flush()?;
@@ -186,7 +194,7 @@ impl MfgDriver {
 
     /// Send the RoT its certified identity.
     pub fn set_platform_id_cert(&mut self, cert_in: &PathBuf) -> Result<()> {
-        let cert = sized_blob_from_pem_path(cert_in)?;
+        let cert = sized_blob_from_pem_cert_path(cert_in)?;
 
         print!("setting PlatformId cert ... ");
         io::stdout().flush()?;
@@ -235,12 +243,16 @@ pub fn do_sign_cert(
     }
 }
 
-fn sized_blob_from_pem_path(p: &PathBuf) -> Result<SizedBlob> {
+fn sized_blob_from_pem_cert_path(p: &PathBuf) -> Result<SizedBlob> {
     let cert = fs::read_to_string(p)?;
-    let cert = pem::parse(cert)?;
+    let (label, cert) = pem_rfc7468::decode_vec(cert.as_bytes())?;
+
+    if label != "CERTIFICATE" {
+        return Err(Error::PemNotCert.into());
+    }
 
     // Error type doesn't implement std Error
-    Ok(SizedBlob::try_from(&cert.contents[..]).expect("cert too big"))
+    Ok(SizedBlob::try_from(cert.as_slice()).map_err(|_| Error::CertTooBig)?)
 }
 
 pub fn sign_cert(
@@ -291,19 +303,11 @@ pub fn sign_cert(
 }
 
 pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
-    let size = usize::from(csr.size);
-
-    // encode as PEM
-    let pem = pem::Pem {
-        tag: String::from("CERTIFICATE REQUEST"),
-        contents: csr.as_bytes()[..size].to_vec(),
-    };
-    let csr_pem = pem::encode_config(
-        &pem,
-        pem::EncodeConfig {
-            line_ending: pem::LineEnding::LF,
-        },
-    );
+    let csr_pem = pem_rfc7468::encode_string(
+        "CERTIFICATE REQUEST",
+        LineEnding::LF,
+        csr.as_bytes(),
+    )?;
 
     Ok(w.write_all(csr_pem.as_bytes())?)
 }

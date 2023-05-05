@@ -11,7 +11,7 @@ clap = { version = "4", features = ["derive", "env"] }
 dice-mfg-msgs = { path = "../dice-mfg-msgs" }
 env_logger = "0.9"
 log = "0.4"
-pem = "1"
+pem-rfc7468 = { version = "0.7.0", features = ["alloc", "std"] }
 serialport = "4"
 string-error = "0.1"
 tempfile = "3.3"

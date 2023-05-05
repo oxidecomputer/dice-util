@@ -285,7 +285,7 @@ dependencies = [
  "dice-mfg-msgs",
  "env_logger 0.9.3",
  "log",
- "pem",
+ "pem-rfc7468 0.7.0",
  "serialport",
  "string-error",
  "tempfile",
@@ -723,6 +723,15 @@ version = "0.7.0-pre"
 source = "git+https://github.com/RustCrypto/formats#9c3ad4366d7f6132d770fe1ead839fbca295cff9"
 dependencies = [
  "base64ct 1.5.3 (git+https://github.com/RustCrypto/formats)",
+]
+
+[[package]]
+name = "pem-rfc7468"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412"
+dependencies = [
+ "base64ct 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
