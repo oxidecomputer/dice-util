@@ -22,7 +22,6 @@ pub enum Error {
     CertGenFail,
     Recv,
     WrongMsg(String),
-    Decode,
     PingRange,
     NoPlatformId,
     ConfigIncomplete,
@@ -44,7 +43,6 @@ impl fmt::Display for Error {
             Error::WrongMsg(s) => {
                 write!(f, "Unexpected message received: {}.", s)
             }
-            Error::Decode => write!(f, "Failed to decode message."),
             Error::PingRange => write!(f, "Ping-pong sync failed."),
             Error::NoPlatformId => {
                 write!(f, "Platform has no platform id: can't generate CSR.")
@@ -217,7 +215,7 @@ impl MfgDriver {
     fn send_msg(&mut self, msg: &MfgMessage) -> Result<()> {
         let mut buf = [0u8; MfgMessage::MAX_ENCODED_SIZE];
 
-        let size = msg.encode(&mut buf).expect("encode");
+        let size = msg.encode(&mut buf)?;
 
         self.port.write_all(&buf[..size])?;
         self.port.flush().map_err(|e| e.into())
@@ -229,14 +227,7 @@ impl MfgDriver {
 
         let size = self.read_all(&mut encoded_buf)?;
 
-        // map_err?
-        match MfgMessage::decode(&encoded_buf[..size]) {
-            Ok(msg) => Ok(msg),
-            Err(e) => {
-                warn!("{:?}", e);
-                Err(Error::Decode.into())
-            }
-        }
+        Ok(MfgMessage::decode(&encoded_buf[..size])?)
     }
 
     /// Read from serial port till 0 byte.
@@ -312,7 +303,7 @@ fn sized_blob_from_pem_path(p: &PathBuf) -> Result<SizedBlob> {
     let cert = pem::parse(cert)?;
 
     // Error type doesn't implement std Error
-    Ok(SizedBlob::try_from(&cert.contents[..]).expect("cert too big"))
+    Ok(SizedBlob::try_from(&cert.contents[..])?)
 }
 
 pub fn sign_cert(
