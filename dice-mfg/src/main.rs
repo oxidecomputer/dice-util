@@ -10,7 +10,7 @@ use log::{info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::{path::PathBuf, result, str, time::Duration};
 
-use dice_mfg::MfgDriver;
+use dice_mfg::{CertSignerBuilder, MfgDriver};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -176,7 +176,9 @@ fn main() -> Result<()> {
     // all variants except for `Command::SignCert` can safely unwrap `driver`
     match args.command {
         Command::Break => driver.unwrap().send_break(),
-        Command::GetCsr { csr_path } => driver.unwrap().get_csr(&csr_path),
+        Command::GetCsr { csr_path } => {
+            driver.unwrap().get_csr(csr_path.as_ref())
+        }
         Command::Liveness { max_retry } => driver.unwrap().liveness(max_retry),
         Command::Manufacture {
             openssl_cnf,
@@ -194,19 +196,17 @@ fn main() -> Result<()> {
             driver.set_platform_id(platform_id)?;
 
             let temp_dir = tempfile::tempdir()?;
-            let csr = Some(temp_dir.path().join("csr.pem"));
-            driver.get_csr(&csr)?;
+            let csr = temp_dir.path().join("csr.pem");
+            driver.get_csr(Some(&csr))?;
 
             let cert = temp_dir.into_path().join("cert.pem");
-            dice_mfg::do_sign_cert(
-                &cert,
-                &openssl_cnf,
-                ca_section,
-                v3_section,
-                engine_section,
-                &csr.unwrap(),
-                no_yubi,
-            )?;
+            let cert_signer = CertSignerBuilder::new(openssl_cnf)
+                .set_ca_section(ca_section)
+                .set_v3_section(v3_section)
+                .set_engine_section(engine_section)
+                .set_no_yubi(no_yubi)
+                .build();
+            cert_signer.sign(&csr, &cert)?;
             driver.set_platform_id_cert(&cert)?;
             driver.set_intermediate_cert(&intermediate_cert)?;
             driver.send_break()
@@ -229,15 +229,15 @@ fn main() -> Result<()> {
             engine_section,
             csr_in,
             no_yubi,
-        } => dice_mfg::do_sign_cert(
-            &cert_out,
-            &openssl_cnf,
-            ca_section,
-            v3_section,
-            engine_section,
-            &csr_in,
-            no_yubi,
-        ),
+        } => {
+            let cert_signer = CertSignerBuilder::new(openssl_cnf)
+                .set_ca_section(ca_section)
+                .set_v3_section(v3_section)
+                .set_engine_section(engine_section)
+                .set_no_yubi(no_yubi)
+                .build();
+            cert_signer.sign(&csr_in, &cert_out)
+        }
     }
 }
 

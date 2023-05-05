@@ -139,7 +139,7 @@ impl MfgDriver {
     }
 
     /// Request a CSR from the RoT.
-    pub fn get_csr(&mut self, csr_path: &Option<PathBuf>) -> Result<()> {
+    pub fn get_csr(&mut self, csr_path: Option<&PathBuf>) -> Result<()> {
         print!("getting CSR ... ");
         io::stdout().flush()?;
 
@@ -262,38 +262,116 @@ impl MfgDriver {
     }
 }
 
-pub fn do_sign_cert(
-    cert_out: &PathBuf,
-    openssl_cnf: &PathBuf,
+pub struct CertSignerBuilder {
+    openssl_cnf: PathBuf,
     ca_section: Option<String>,
     v3_section: Option<String>,
     engine_section: Option<String>,
-    csr_in: &PathBuf,
     no_yubi: bool,
-) -> Result<()> {
-    // this is kinda ugly. Remove the 'no-yubi' trap door?
-    let engine_section = if !no_yubi && engine_section.is_none() {
-        Some(String::from("pkcs11"))
-    } else {
-        engine_section
-    };
+}
 
-    print!("signing CSR ... ");
-    match sign_cert(
-        openssl_cnf,
-        csr_in,
-        cert_out,
-        ca_section,
-        v3_section,
-        engine_section,
-    ) {
-        Ok(_) => {
+impl CertSignerBuilder {
+    pub fn new(openssl_cnf: PathBuf) -> Self {
+        CertSignerBuilder {
+            openssl_cnf,
+            ca_section: None,
+            v3_section: None,
+            engine_section: None,
+            no_yubi: false,
+        }
+    }
+
+    pub fn set_ca_section(mut self, ca_section: Option<String>) -> Self {
+        self.ca_section = ca_section;
+        self
+    }
+
+    pub fn set_v3_section(mut self, v3_section: Option<String>) -> Self {
+        self.v3_section = v3_section;
+        self
+    }
+
+    pub fn set_engine_section(
+        mut self,
+        engine_section: Option<String>,
+    ) -> Self {
+        self.engine_section = engine_section;
+        self
+    }
+
+    pub fn set_no_yubi(mut self, no_yubi: bool) -> Self {
+        self.no_yubi = no_yubi;
+        self
+    }
+
+    pub fn build(self) -> CertSigner {
+        CertSigner {
+            openssl_cnf: self.openssl_cnf,
+            ca_section: self.ca_section,
+            v3_section: self.v3_section,
+            engine_section: self.engine_section,
+            no_yubi: self.no_yubi,
+        }
+    }
+}
+
+pub struct CertSigner {
+    openssl_cnf: PathBuf,
+    ca_section: Option<String>,
+    v3_section: Option<String>,
+    engine_section: Option<String>,
+    no_yubi: bool,
+}
+
+impl CertSigner {
+    pub fn sign(&self, csr_in: &PathBuf, cert_out: &PathBuf) -> Result<()> {
+        print!("signing CSR ... ");
+        io::stdout().flush()?;
+
+        // this is kinda ugly. Remove the 'no-yubi' trap door?
+        let engine_section = if !self.no_yubi && self.engine_section.is_none() {
+            Some(String::from("pkcs11"))
+        } else {
+            self.engine_section.clone()
+        };
+
+        let mut cmd = Command::new("openssl");
+
+        cmd.arg("ca")
+            .arg("-batch")
+            .arg("-notext")
+            .arg("-config")
+            .arg(&self.openssl_cnf)
+            .arg("-in")
+            .arg(csr_in)
+            .arg("-out")
+            .arg(cert_out);
+
+        if let Some(section) = &self.ca_section {
+            cmd.arg("-name").arg(section);
+        }
+        if let Some(section) = &self.v3_section {
+            cmd.arg("-extensions").arg(section);
+        }
+
+        if let Some(section) = engine_section {
+            cmd.arg("-engine")
+                .arg(section)
+                .arg("-keyform")
+                .arg("engine");
+        }
+
+        info!("cmd: {:?}", cmd);
+
+        let output = cmd.output()?;
+
+        if output.status.success() {
             println!("success");
             Ok(())
-        }
-        Err(e) => {
-            println!("failed");
-            Err(e)
+        } else {
+            warn!("command failed with status: {}", output.status);
+            warn!("stderr: \"{}\"", String::from_utf8_lossy(&output.stderr));
+            Err(Error::CertGenFail.into())
         }
     }
 }
@@ -304,53 +382,6 @@ fn sized_blob_from_pem_path(p: &PathBuf) -> Result<SizedBlob> {
 
     // Error type doesn't implement std Error
     Ok(SizedBlob::try_from(&cert.contents[..])?)
-}
-
-pub fn sign_cert(
-    openssl_cnf: &PathBuf,
-    csr_in: &PathBuf,
-    cert_out: &PathBuf,
-    ca_section: Option<String>,
-    v3_section: Option<String>,
-    engine_section: Option<String>,
-) -> Result<()> {
-    let mut cmd = Command::new("openssl");
-
-    cmd.arg("ca")
-        .arg("-batch")
-        .arg("-notext")
-        .arg("-config")
-        .arg(openssl_cnf)
-        .arg("-in")
-        .arg(csr_in)
-        .arg("-out")
-        .arg(cert_out);
-
-    if let Some(section) = ca_section {
-        cmd.arg("-name").arg(section);
-    }
-    if let Some(section) = v3_section {
-        cmd.arg("-extensions").arg(section);
-    }
-
-    if let Some(section) = engine_section {
-        cmd.arg("-engine")
-            .arg(section)
-            .arg("-keyform")
-            .arg("engine");
-    }
-
-    info!("cmd: {:?}", cmd);
-
-    let output = cmd.output()?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        warn!("command failed with status: {}", output.status);
-        warn!("stderr: \"{}\"", String::from_utf8_lossy(&output.stderr));
-        Err(Error::CertGenFail.into())
-    }
 }
 
 pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
