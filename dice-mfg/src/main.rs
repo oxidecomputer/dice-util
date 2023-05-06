@@ -85,10 +85,6 @@ enum Command {
         #[clap(value_parser = validate_pid, env)]
         platform_id: PlatformId,
 
-        /// Don't use yubikey for private key operations.
-        #[clap(long, env)]
-        no_yubi: bool,
-
         /// Root directory for CA state. If provided the tool will chdir to
         /// this directory before executing openssl commands. This is
         /// intended to support openssl.cnf files that use relative paths.
@@ -144,10 +140,6 @@ enum Command {
         #[clap(long, env)]
         csr_in: PathBuf,
 
-        /// Don't use yubikey for private key operations.
-        #[clap(long, env)]
-        no_yubi: bool,
-
         /// Root directory for CA state. If provided the tool will chdir to
         /// this directory before executing openssl commands. This is
         /// intended to support openssl.cnf files that use relative paths.
@@ -200,7 +192,6 @@ fn main() -> Result<()> {
             max_retry,
             platform_id,
             intermediate_cert,
-            no_yubi,
             ca_root,
         } => {
             let mut driver = driver.unwrap();
@@ -218,7 +209,6 @@ fn main() -> Result<()> {
                 .set_ca_section(ca_section)
                 .set_v3_section(v3_section)
                 .set_engine_section(engine_section)
-                .set_no_yubi(no_yubi)
                 .build();
             cert_signer.sign(&csr, &cert)?;
             driver.set_platform_id_cert(&cert)?;
@@ -242,7 +232,6 @@ fn main() -> Result<()> {
             v3_section,
             engine_section,
             csr_in,
-            no_yubi,
             ca_root,
         } => {
             let cert_signer = CertSignerBuilder::new(openssl_cnf)
@@ -250,7 +239,6 @@ fn main() -> Result<()> {
                 .set_ca_root(ca_root)
                 .set_v3_section(v3_section)
                 .set_engine_section(engine_section)
-                .set_no_yubi(no_yubi)
                 .build();
             cert_signer.sign(&csr_in, &cert_out)
         }

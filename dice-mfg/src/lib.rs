@@ -270,7 +270,6 @@ pub struct CertSignerBuilder {
     ca_section: Option<String>,
     v3_section: Option<String>,
     engine_section: Option<String>,
-    no_yubi: bool,
 }
 
 impl CertSignerBuilder {
@@ -281,7 +280,6 @@ impl CertSignerBuilder {
             ca_section: None,
             v3_section: None,
             engine_section: None,
-            no_yubi: false,
         }
     }
 
@@ -308,11 +306,6 @@ impl CertSignerBuilder {
         self
     }
 
-    pub fn set_no_yubi(mut self, no_yubi: bool) -> Self {
-        self.no_yubi = no_yubi;
-        self
-    }
-
     pub fn build(self) -> CertSigner {
         CertSigner {
             openssl_cnf: self.openssl_cnf,
@@ -320,7 +313,6 @@ impl CertSignerBuilder {
             ca_section: self.ca_section,
             v3_section: self.v3_section,
             engine_section: self.engine_section,
-            no_yubi: self.no_yubi,
         }
     }
 }
@@ -331,7 +323,6 @@ pub struct CertSigner {
     ca_section: Option<String>,
     v3_section: Option<String>,
     engine_section: Option<String>,
-    no_yubi: bool,
 }
 
 impl CertSigner {
@@ -343,8 +334,7 @@ impl CertSigner {
             return Err(anyhow::anyhow!("output file already exists"));
         }
 
-        // this is kinda ugly. Remove the 'no-yubi' trap door?
-        let engine_section = if !self.no_yubi && self.engine_section.is_none() {
+        let engine_section = if self.engine_section.is_none() {
             Some(String::from("pkcs11"))
         } else {
             self.engine_section.clone()
