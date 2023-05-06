@@ -17,6 +17,10 @@ use std::{
     process::Command,
 };
 
+// string for environment variable used to pass in the authentication
+// password for the HSM
+pub const ENV_PASSWD: &str = "DICE_MFG_PKCS11_AUTH";
+
 #[derive(Debug, PartialEq)]
 pub enum Error {
     BadTag,
@@ -376,7 +380,9 @@ impl CertSigner {
             cmd.arg("-engine")
                 .arg(section)
                 .arg("-keyform")
-                .arg("engine");
+                .arg("engine")
+                .arg("-passin")
+                .arg(format!("env:{ENV_PASSWD}"));
         }
 
         info!("cmd: {:?}", cmd);

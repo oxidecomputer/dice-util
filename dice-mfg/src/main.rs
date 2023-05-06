@@ -8,9 +8,10 @@ use dice_mfg_msgs::PlatformId;
 use env_logger::Builder;
 use log::{info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
-use std::{path::PathBuf, result, str, time::Duration};
+use std::{env, path::PathBuf, result, str, time::Duration};
+use zeroize::Zeroizing;
 
-use dice_mfg::{CertSignerBuilder, MfgDriver};
+use dice_mfg::{CertSignerBuilder, MfgDriver, ENV_PASSWD};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -57,6 +58,10 @@ enum Command {
     /// Perform device identity provisioning by exchanging the required
     /// messages with the device being manufactured.
     Manufacture {
+        /// Auth ID used w/r YubiHSM.
+        #[clap(long, env, default_value = "2")]
+        auth_id: u16,
+
         /// Path to openssl.cnf file used for signing operation.
         #[clap(long, env)]
         openssl_cnf: PathBuf,
@@ -116,6 +121,10 @@ enum Command {
     /// command and behavior will depend on the openssl.cnf provided by the
     /// caller.
     SignCert {
+        /// Auth ID used w/r YubiHSM.
+        #[clap(long, env, default_value = "2")]
+        auth_id: u16,
+
         /// Destination path for Cert.
         #[clap(long, env)]
         cert_out: PathBuf,
@@ -158,6 +167,22 @@ fn open_serial(serial_dev: &str, baud: u32) -> Result<Box<dyn SerialPort>> {
         .open()?)
 }
 
+fn passwd_to_env(auth_id: u16) -> Result<()> {
+    if auth_id > 9999 {
+        return Err(anyhow::anyhow!(
+            "auth id too large for YubiHSM PKCS11 auth"
+        ));
+    }
+    let mut password = Zeroizing::new(format!("{auth_id:04x}"));
+    match env::var(ENV_PASSWD).ok() {
+        Some(p) => password.push_str(&p),
+        None => password
+            .push_str(&rpassword::prompt_password("Enter YubiHSM Password: ")?),
+    }
+    std::env::set_var(ENV_PASSWD, password);
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
 
@@ -185,6 +210,7 @@ fn main() -> Result<()> {
         }
         Command::Liveness { max_retry } => driver.unwrap().liveness(max_retry),
         Command::Manufacture {
+            auth_id,
             openssl_cnf,
             ca_section,
             v3_section,
@@ -194,6 +220,7 @@ fn main() -> Result<()> {
             intermediate_cert,
             ca_root,
         } => {
+            passwd_to_env(auth_id)?;
             let mut driver = driver.unwrap();
 
             driver.liveness(max_retry)?;
@@ -226,6 +253,7 @@ fn main() -> Result<()> {
             driver.unwrap().set_platform_id(platform_id)
         }
         Command::SignCert {
+            auth_id,
             cert_out,
             openssl_cnf,
             ca_section,
@@ -234,6 +262,7 @@ fn main() -> Result<()> {
             csr_in,
             ca_root,
         } => {
+            passwd_to_env(auth_id)?;
             let cert_signer = CertSignerBuilder::new(openssl_cnf)
                 .set_ca_section(ca_section)
                 .set_ca_root(ca_root)
