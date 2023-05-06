@@ -88,6 +88,12 @@ enum Command {
         /// Don't use yubikey for private key operations.
         #[clap(long, env)]
         no_yubi: bool,
+
+        /// Root directory for CA state. If provided the tool will chdir to
+        /// this directory before executing openssl commands. This is
+        /// intended to support openssl.cnf files that use relative paths.
+        #[clap(long, env)]
+        ca_root: Option<PathBuf>,
     },
     /// Send a 'Ping' message to the system being manufactured.
     Ping,
@@ -141,6 +147,12 @@ enum Command {
         /// Don't use yubikey for private key operations.
         #[clap(long, env)]
         no_yubi: bool,
+
+        /// Root directory for CA state. If provided the tool will chdir to
+        /// this directory before executing openssl commands. This is
+        /// intended to support openssl.cnf files that use relative paths.
+        #[clap(long, env)]
+        ca_root: Option<PathBuf>,
     },
 }
 
@@ -189,6 +201,7 @@ fn main() -> Result<()> {
             platform_id,
             intermediate_cert,
             no_yubi,
+            ca_root,
         } => {
             let mut driver = driver.unwrap();
 
@@ -201,6 +214,7 @@ fn main() -> Result<()> {
 
             let cert = temp_dir.into_path().join("cert.pem");
             let cert_signer = CertSignerBuilder::new(openssl_cnf)
+                .set_ca_root(ca_root)
                 .set_ca_section(ca_section)
                 .set_v3_section(v3_section)
                 .set_engine_section(engine_section)
@@ -229,9 +243,11 @@ fn main() -> Result<()> {
             engine_section,
             csr_in,
             no_yubi,
+            ca_root,
         } => {
             let cert_signer = CertSignerBuilder::new(openssl_cnf)
                 .set_ca_section(ca_section)
+                .set_ca_root(ca_root)
                 .set_v3_section(v3_section)
                 .set_engine_section(engine_section)
                 .set_no_yubi(no_yubi)
