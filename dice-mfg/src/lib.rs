@@ -2,13 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#![feature(absolute_path)]
+
 use anyhow::Result;
 use dice_mfg_msgs::{MfgMessage, PlatformId, PlatformIdError, SizedBlob};
 use log::{info, warn};
 
 use serialport::SerialPort;
 use std::{
-    fmt,
+    env, fmt,
     fs::{self, File},
     io::{self, Write},
     path::PathBuf,
@@ -264,6 +266,7 @@ impl MfgDriver {
 
 pub struct CertSignerBuilder {
     openssl_cnf: PathBuf,
+    ca_root: Option<PathBuf>,
     ca_section: Option<String>,
     v3_section: Option<String>,
     engine_section: Option<String>,
@@ -274,6 +277,7 @@ impl CertSignerBuilder {
     pub fn new(openssl_cnf: PathBuf) -> Self {
         CertSignerBuilder {
             openssl_cnf,
+            ca_root: None,
             ca_section: None,
             v3_section: None,
             engine_section: None,
@@ -283,6 +287,11 @@ impl CertSignerBuilder {
 
     pub fn set_ca_section(mut self, ca_section: Option<String>) -> Self {
         self.ca_section = ca_section;
+        self
+    }
+
+    pub fn set_ca_root(mut self, ca_root: Option<PathBuf>) -> Self {
+        self.ca_root = ca_root;
         self
     }
 
@@ -307,6 +316,7 @@ impl CertSignerBuilder {
     pub fn build(self) -> CertSigner {
         CertSigner {
             openssl_cnf: self.openssl_cnf,
+            ca_root: self.ca_root,
             ca_section: self.ca_section,
             v3_section: self.v3_section,
             engine_section: self.engine_section,
@@ -317,6 +327,7 @@ impl CertSignerBuilder {
 
 pub struct CertSigner {
     openssl_cnf: PathBuf,
+    ca_root: Option<PathBuf>,
     ca_section: Option<String>,
     v3_section: Option<String>,
     engine_section: Option<String>,
@@ -328,11 +339,28 @@ impl CertSigner {
         print!("signing CSR ... ");
         io::stdout().flush()?;
 
+        if cert_out.exists() {
+            return Err(anyhow::anyhow!("output file already exists"));
+        }
+
         // this is kinda ugly. Remove the 'no-yubi' trap door?
         let engine_section = if !self.no_yubi && self.engine_section.is_none() {
             Some(String::from("pkcs11"))
         } else {
             self.engine_section.clone()
+        };
+
+        //canonicalize paths before we potentially chdir
+        let openssl_cnf = fs::canonicalize(&self.openssl_cnf)?;
+        let csr_in = fs::canonicalize(csr_in)?;
+        let cert_out = std::path::absolute(cert_out)?;
+        let lastpwd = if let Some(p) = &self.ca_root {
+            let tmppwd = env::current_dir()?;
+            info!("setting pwd to: {}", p.display());
+            env::set_current_dir(p.as_path())?;
+            Some(tmppwd)
+        } else {
+            None
         };
 
         let mut cmd = Command::new("openssl");
@@ -341,7 +369,7 @@ impl CertSigner {
             .arg("-batch")
             .arg("-notext")
             .arg("-config")
-            .arg(&self.openssl_cnf)
+            .arg(openssl_cnf)
             .arg("-in")
             .arg(csr_in)
             .arg("-out")
@@ -364,6 +392,11 @@ impl CertSigner {
         info!("cmd: {:?}", cmd);
 
         let output = cmd.output()?;
+
+        if let Some(p) = lastpwd {
+            info!("restoring pwd to: {}", p.display());
+            env::set_current_dir(p)?;
+        }
 
         if output.status.success() {
             println!("success");
