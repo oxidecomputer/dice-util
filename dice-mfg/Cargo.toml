@@ -12,7 +12,9 @@ dice-mfg-msgs = { path = "../dice-mfg-msgs", features = ["std"] }
 env_logger = "0.9"
 log = "0.4"
 pem = "1"
+rpassword = "7.2.0"
 serialport = "4"
 string-error = "0.1"
 tempfile = "3.3"
 zerocopy = "0.6"
+zeroize = { version = "1.6.0", features = ["std", "alloc"] }
