@@ -10,16 +10,25 @@ use log::{info, warn};
 
 use serialport::SerialPort;
 use std::{
-    env, fmt,
+    env::{self, VarError},
+    fmt,
     fs::{self, File},
     io::{self, Write},
     path::PathBuf,
     process::Command,
 };
+use yubihsm::object::Id;
+use zeroize::Zeroizing;
 
 // string for environment variable used to pass in the authentication
 // password for the HSM
-pub const ENV_PASSWD: &str = "DICE_MFG_PKCS11_AUTH";
+pub const ENV_PASSWD: &str = "DICE_MFG_YUBIHSM_AUTH";
+// string for environment variable used to pass in the authentication
+// password for the HSM
+pub const ENV_PASSWD_PKCS11: &str = "DICE_MFG_PKCS11_AUTH";
+
+// default object id for auth credential from oks
+pub const DEFAULT_AUTH_ID: Id = 2;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -269,6 +278,7 @@ impl MfgDriver {
 }
 
 pub struct CertSignerBuilder {
+    auth_id: Id,
     openssl_cnf: PathBuf,
     ca_root: Option<PathBuf>,
     ca_section: Option<String>,
@@ -279,12 +289,18 @@ pub struct CertSignerBuilder {
 impl CertSignerBuilder {
     pub fn new(openssl_cnf: PathBuf) -> Self {
         CertSignerBuilder {
+            auth_id: DEFAULT_AUTH_ID,
             openssl_cnf,
             ca_root: None,
             ca_section: None,
             v3_section: None,
             engine_section: None,
         }
+    }
+
+    pub fn set_auth_id(mut self, auth_id: Id) -> Self {
+        self.auth_id = auth_id;
+        self
     }
 
     pub fn set_ca_section(mut self, ca_section: Option<String>) -> Self {
@@ -312,6 +328,7 @@ impl CertSignerBuilder {
 
     pub fn build(self) -> CertSigner {
         CertSigner {
+            auth_id: self.auth_id,
             openssl_cnf: self.openssl_cnf,
             ca_root: self.ca_root,
             ca_section: self.ca_section,
@@ -322,6 +339,7 @@ impl CertSignerBuilder {
 }
 
 pub struct CertSigner {
+    auth_id: Id,
     openssl_cnf: PathBuf,
     ca_root: Option<PathBuf>,
     ca_section: Option<String>,
@@ -377,12 +395,24 @@ impl CertSigner {
         }
 
         if let Some(section) = engine_section {
+            let mut password = Zeroizing::new(format!("{:04x}", self.auth_id));
+            match env::var(ENV_PASSWD) {
+                Ok(p) => password.push_str(&p),
+                Err(VarError::NotPresent) => {
+                    return Err(anyhow::anyhow!(
+                        "could not get auth value from env"
+                    ));
+                }
+                Err(e) => return Err(e.into()),
+            }
+            env::set_var(ENV_PASSWD_PKCS11, password);
+
             cmd.arg("-engine")
                 .arg(section)
                 .arg("-keyform")
                 .arg("engine")
                 .arg("-passin")
-                .arg(format!("env:{ENV_PASSWD}"));
+                .arg(format!("env:{ENV_PASSWD_PKCS11}"));
         }
 
         info!("cmd: {:?}", cmd);
