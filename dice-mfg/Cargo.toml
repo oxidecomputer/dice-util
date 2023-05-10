@@ -16,5 +16,6 @@ rpassword = "7.2.0"
 serialport = "4"
 string-error = "0.1"
 tempfile = "3.3"
+yubihsm = "0.42.0"
 zerocopy = "0.6"
 zeroize = { version = "1.6.0", features = ["std", "alloc"] }

@@ -8,10 +8,16 @@ use dice_mfg_msgs::PlatformId;
 use env_logger::Builder;
 use log::{info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
-use std::{env, path::PathBuf, result, str, time::Duration};
+use std::{
+    env::{self, VarError},
+    path::PathBuf,
+    result, str,
+    time::Duration,
+};
+use yubihsm::object::Id;
 use zeroize::Zeroizing;
 
-use dice_mfg::{CertSignerBuilder, MfgDriver, ENV_PASSWD};
+use dice_mfg::{CertSignerBuilder, MfgDriver, DEFAULT_AUTH_ID, ENV_PASSWD};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -59,8 +65,8 @@ enum Command {
     /// messages with the device being manufactured.
     Manufacture {
         /// Auth ID used w/r YubiHSM.
-        #[clap(long, env, default_value = "2")]
-        auth_id: u16,
+        #[clap(long, env, default_value_t = DEFAULT_AUTH_ID)]
+        auth_id: Id,
 
         /// Path to openssl.cnf file used for signing operation.
         #[clap(long, env)]
@@ -123,7 +129,7 @@ enum Command {
     SignCert {
         /// Auth ID used w/r YubiHSM.
         #[clap(long, env, default_value = "2")]
-        auth_id: u16,
+        auth_id: Id,
 
         /// Destination path for Cert.
         #[clap(long, env)]
@@ -167,20 +173,20 @@ fn open_serial(serial_dev: &str, baud: u32) -> Result<Box<dyn SerialPort>> {
         .open()?)
 }
 
-fn passwd_to_env(auth_id: u16) -> Result<()> {
-    if auth_id > 9999 {
-        return Err(anyhow::anyhow!(
-            "auth id too large for YubiHSM PKCS11 auth"
-        ));
+/// Get password from environment if set. Else fall back to challenging the
+/// user. Once we get the passwd from the user we set it in the env.
+fn passwd_to_env() -> Result<()> {
+    match env::var(ENV_PASSWD) {
+        Ok(_) => Ok(()), // passwd is already preset in the env
+        Err(VarError::NotPresent) => {
+            let passwd = Zeroizing::new(rpassword::prompt_password(
+                "Enter YubiHSM Password: ",
+            )?);
+            std::env::set_var(ENV_PASSWD, passwd);
+            Ok(())
+        }
+        Err(e) => Err(e.into()),
     }
-    let mut password = Zeroizing::new(format!("{auth_id:04x}"));
-    match env::var(ENV_PASSWD).ok() {
-        Some(p) => password.push_str(&p),
-        None => password
-            .push_str(&rpassword::prompt_password("Enter YubiHSM Password: ")?),
-    }
-    std::env::set_var(ENV_PASSWD, password);
-    Ok(())
 }
 
 fn main() -> Result<()> {
@@ -220,7 +226,7 @@ fn main() -> Result<()> {
             intermediate_cert,
             ca_root,
         } => {
-            passwd_to_env(auth_id)?;
+            passwd_to_env()?;
             let mut driver = driver.unwrap();
 
             driver.liveness(max_retry)?;
@@ -232,6 +238,7 @@ fn main() -> Result<()> {
 
             let cert = temp_dir.into_path().join("cert.pem");
             let cert_signer = CertSignerBuilder::new(openssl_cnf)
+                .set_auth_id(auth_id)
                 .set_ca_root(ca_root)
                 .set_ca_section(ca_section)
                 .set_v3_section(v3_section)
@@ -262,8 +269,9 @@ fn main() -> Result<()> {
             csr_in,
             ca_root,
         } => {
-            passwd_to_env(auth_id)?;
+            passwd_to_env()?;
             let cert_signer = CertSignerBuilder::new(openssl_cnf)
+                .set_auth_id(auth_id)
                 .set_ca_section(ca_section)
                 .set_ca_root(ca_root)
                 .set_v3_section(v3_section)
