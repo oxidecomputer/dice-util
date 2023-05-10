@@ -70,7 +70,7 @@ enum Command {
 
         /// Path to openssl.cnf file used for signing operation.
         #[clap(long, env)]
-        openssl_cnf: PathBuf,
+        openssl_cnf: Option<PathBuf>,
 
         /// CA section from openssl.cnf used for signing operation.
         #[clap(long, env)]
@@ -90,7 +90,7 @@ enum Command {
 
         /// Path to intermediate cert to send.
         #[clap(long, env)]
-        intermediate_cert: PathBuf,
+        intermediate_cert: Option<PathBuf>,
 
         /// Platform identity string
         #[clap(value_parser = validate_pid, env)]
@@ -100,7 +100,7 @@ enum Command {
         /// this directory before executing openssl commands. This is
         /// intended to support openssl.cnf files that use relative paths.
         #[clap(long, env)]
-        ca_root: Option<PathBuf>,
+        ca_root: PathBuf,
     },
     /// Send a 'Ping' message to the system being manufactured.
     Ping,
@@ -137,7 +137,7 @@ enum Command {
 
         /// Path to openssl.cnf file used for signing operation.
         #[clap(long, env)]
-        openssl_cnf: PathBuf,
+        openssl_cnf: Option<PathBuf>,
 
         /// CA section from openssl.cnf.
         #[clap(long, env)]
@@ -159,7 +159,7 @@ enum Command {
         /// this directory before executing openssl commands. This is
         /// intended to support openssl.cnf files that use relative paths.
         #[clap(long, env)]
-        ca_root: Option<PathBuf>,
+        ca_root: PathBuf,
     },
     DumpLogEntries {
         /// Auth ID used w/r YubiHSM.
@@ -242,12 +242,14 @@ fn main() -> Result<()> {
             driver.get_csr(Some(&csr))?;
 
             let cert = temp_dir.into_path().join("cert.pem");
-            let cert_signer = CertSignerBuilder::new(openssl_cnf)
+            let intermediate_cert = intermediate_cert
+                .unwrap_or_else(|| ca_root.join("ca.cert.pem"));
+            let cert_signer = CertSignerBuilder::new(ca_root)
                 .set_auth_id(auth_id)
-                .set_ca_root(ca_root)
                 .set_ca_section(ca_section)
-                .set_v3_section(v3_section)
                 .set_engine_section(engine_section)
+                .set_openssl_cnf(openssl_cnf)
+                .set_v3_section(v3_section)
                 .build();
             cert_signer.sign(&csr, &cert)?;
             driver.set_platform_id_cert(&cert)?;
@@ -275,12 +277,12 @@ fn main() -> Result<()> {
             ca_root,
         } => {
             passwd_to_env()?;
-            let cert_signer = CertSignerBuilder::new(openssl_cnf)
+            let cert_signer = CertSignerBuilder::new(ca_root)
                 .set_auth_id(auth_id)
                 .set_ca_section(ca_section)
-                .set_ca_root(ca_root)
-                .set_v3_section(v3_section)
                 .set_engine_section(engine_section)
+                .set_openssl_cnf(openssl_cnf)
+                .set_v3_section(v3_section)
                 .build();
             cert_signer.sign(&csr_in, &cert_out)
         }

@@ -29,6 +29,8 @@ pub const ENV_PASSWD_PKCS11: &str = "DICE_MFG_PKCS11_AUTH";
 
 // default object id for auth credential from oks
 pub const DEFAULT_AUTH_ID: Id = 2;
+// default openssl engine section
+pub const DEFAULT_ENGINE_SECTION: &str = "pkcs11";
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -279,22 +281,22 @@ impl MfgDriver {
 
 pub struct CertSignerBuilder {
     auth_id: Id,
-    openssl_cnf: PathBuf,
-    ca_root: Option<PathBuf>,
+    ca_root: PathBuf,
     ca_section: Option<String>,
-    v3_section: Option<String>,
     engine_section: Option<String>,
+    openssl_cnf: Option<PathBuf>,
+    v3_section: Option<String>,
 }
 
 impl CertSignerBuilder {
-    pub fn new(openssl_cnf: PathBuf) -> Self {
+    pub fn new(ca_root: PathBuf) -> Self {
         CertSignerBuilder {
             auth_id: DEFAULT_AUTH_ID,
-            openssl_cnf,
-            ca_root: None,
+            ca_root,
             ca_section: None,
-            v3_section: None,
             engine_section: None,
+            openssl_cnf: None,
+            v3_section: None,
         }
     }
 
@@ -308,8 +310,8 @@ impl CertSignerBuilder {
         self
     }
 
-    pub fn set_ca_root(mut self, ca_root: Option<PathBuf>) -> Self {
-        self.ca_root = ca_root;
+    pub fn set_openssl_cnf(mut self, openssl_cnf: Option<PathBuf>) -> Self {
+        self.openssl_cnf = openssl_cnf;
         self
     }
 
@@ -329,22 +331,24 @@ impl CertSignerBuilder {
     pub fn build(self) -> CertSigner {
         CertSigner {
             auth_id: self.auth_id,
-            openssl_cnf: self.openssl_cnf,
+            openssl_cnf: self
+                .openssl_cnf
+                .unwrap_or_else(|| self.ca_root.join("openssl.cnf")),
             ca_root: self.ca_root,
             ca_section: self.ca_section,
-            v3_section: self.v3_section,
             engine_section: self.engine_section,
+            v3_section: self.v3_section,
         }
     }
 }
 
 pub struct CertSigner {
     auth_id: Id,
-    openssl_cnf: PathBuf,
-    ca_root: Option<PathBuf>,
+    ca_root: PathBuf,
     ca_section: Option<String>,
-    v3_section: Option<String>,
     engine_section: Option<String>,
+    openssl_cnf: PathBuf,
+    v3_section: Option<String>,
 }
 
 impl CertSigner {
@@ -356,24 +360,30 @@ impl CertSigner {
             return Err(anyhow::anyhow!("output file already exists"));
         }
 
-        let engine_section = if self.engine_section.is_none() {
-            Some(String::from("pkcs11"))
-        } else {
-            self.engine_section.clone()
-        };
+        let engine_section = &self
+            .engine_section
+            .clone()
+            .unwrap_or(DEFAULT_ENGINE_SECTION.to_string());
 
-        //canonicalize paths before we potentially chdir
+        //canonicalize paths before we chdir
         let openssl_cnf = fs::canonicalize(&self.openssl_cnf)?;
         let csr_in = fs::canonicalize(csr_in)?;
         let cert_out = std::path::absolute(cert_out)?;
-        let lastpwd = if let Some(p) = &self.ca_root {
-            let tmppwd = env::current_dir()?;
-            info!("setting pwd to: {}", p.display());
-            env::set_current_dir(p.as_path())?;
-            Some(tmppwd)
-        } else {
-            None
-        };
+        let lastpwd = env::current_dir()?;
+        info!("setting pwd to: {}", self.ca_root.display());
+        env::set_current_dir(&self.ca_root)?;
+
+        let mut password = Zeroizing::new(format!("{:04x}", self.auth_id));
+        match env::var(ENV_PASSWD) {
+            Ok(p) => password.push_str(&p),
+            Err(VarError::NotPresent) => {
+                return Err(anyhow::anyhow!(
+                    "could not get auth value from env"
+                ));
+            }
+            Err(e) => return Err(e.into()),
+        }
+        env::set_var(ENV_PASSWD_PKCS11, password);
 
         let mut cmd = Command::new("openssl");
 
@@ -385,34 +395,19 @@ impl CertSigner {
             .arg("-in")
             .arg(csr_in)
             .arg("-out")
-            .arg(cert_out);
+            .arg(cert_out)
+            .arg("-engine")
+            .arg(engine_section)
+            .arg("-keyform")
+            .arg("engine")
+            .arg("-passin")
+            .arg(format!("env:{ENV_PASSWD_PKCS11}"));
 
         if let Some(section) = &self.ca_section {
             cmd.arg("-name").arg(section);
         }
         if let Some(section) = &self.v3_section {
             cmd.arg("-extensions").arg(section);
-        }
-
-        if let Some(section) = engine_section {
-            let mut password = Zeroizing::new(format!("{:04x}", self.auth_id));
-            match env::var(ENV_PASSWD) {
-                Ok(p) => password.push_str(&p),
-                Err(VarError::NotPresent) => {
-                    return Err(anyhow::anyhow!(
-                        "could not get auth value from env"
-                    ));
-                }
-                Err(e) => return Err(e.into()),
-            }
-            env::set_var(ENV_PASSWD_PKCS11, password);
-
-            cmd.arg("-engine")
-                .arg(section)
-                .arg("-keyform")
-                .arg("engine")
-                .arg("-passin")
-                .arg(format!("env:{ENV_PASSWD_PKCS11}"));
         }
 
         info!("cmd: {:?}", cmd);
@@ -450,10 +445,8 @@ impl CertSigner {
             }
         }
 
-        if let Some(p) = lastpwd {
-            info!("restoring pwd to: {}", p.display());
-            env::set_current_dir(p)?;
-        }
+        info!("restoring pwd to: {}", lastpwd.display());
+        env::set_current_dir(lastpwd)?;
 
         Ok(())
     }
