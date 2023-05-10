@@ -161,6 +161,11 @@ enum Command {
         #[clap(long, env)]
         ca_root: Option<PathBuf>,
     },
+    DumpLogEntries {
+        /// Auth ID used w/r YubiHSM.
+        #[clap(long, env, default_value = "2")]
+        auth_id: u16,
+    },
 }
 
 fn open_serial(serial_dev: &str, baud: u32) -> Result<Box<dyn SerialPort>> {
@@ -278,6 +283,11 @@ fn main() -> Result<()> {
                 .set_engine_section(engine_section)
                 .build();
             cert_signer.sign(&csr_in, &cert_out)
+        }
+        Command::DumpLogEntries { auth_id } => {
+            passwd_to_env()?;
+            let index = dice_mfg::get_log_entries(auth_id)?;
+            dice_mfg::set_log_index(auth_id, index)
         }
     }
 }

@@ -17,7 +17,7 @@ use std::{
     path::PathBuf,
     process::Command,
 };
-use yubihsm::object::Id;
+use yubihsm::{object::Id, Client, Connector, Credentials, HttpConfig};
 use zeroize::Zeroizing;
 
 // string for environment variable used to pass in the authentication
@@ -419,19 +419,43 @@ impl CertSigner {
 
         let output = cmd.output()?;
 
+        if output.status.success() {
+            println!("success");
+        } else {
+            warn!("command failed with status: {}", output.status);
+            warn!("stderr: \"{}\"", String::from_utf8_lossy(&output.stderr));
+            return Err(Error::CertGenFail.into());
+        }
+
+        let client = get_client(self.auth_id)?;
+
+        info!("getting log entries");
+        let entries = client.get_log_entries()?;
+        info!("LogEntries: {:#?}", entries);
+
+        use chrono::{SecondsFormat, Utc};
+
+        let now = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        info!("now: {}", now);
+        fs::write(
+            format!("{}.audit.json", now),
+            serde_json::to_string(&entries)?,
+        )?;
+
+        // set log index to last entry returned or error out if it's empty
+        match entries.entries.last() {
+            Some(e) => client.set_log_index(e.item)?,
+            None => {
+                return Err(anyhow::anyhow!("audit log contains no entries"));
+            }
+        }
+
         if let Some(p) = lastpwd {
             info!("restoring pwd to: {}", p.display());
             env::set_current_dir(p)?;
         }
 
-        if output.status.success() {
-            println!("success");
-            Ok(())
-        } else {
-            warn!("command failed with status: {}", output.status);
-            warn!("stderr: \"{}\"", String::from_utf8_lossy(&output.stderr));
-            Err(Error::CertGenFail.into())
-        }
+        Ok(())
     }
 }
 
@@ -459,4 +483,34 @@ pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
     );
 
     Ok(w.write_all(csr_pem.as_bytes())?)
+}
+
+pub fn get_log_entries(auth_id: Id) -> Result<u16> {
+    let client = get_client(auth_id)?;
+
+    let entries = client.get_log_entries()?;
+    println!("{}", serde_json::to_string_pretty(&entries)?);
+
+    match entries.entries.last() {
+        Some(e) => Ok(e.item),
+        None => Err(anyhow::anyhow!("audit log contains no entries")),
+    }
+}
+
+pub fn set_log_index(auth_id: Id, index: u16) -> Result<()> {
+    let client = get_client(auth_id)?;
+    info!("setting log index to: {}", index);
+
+    Ok(client.set_log_index(index)?)
+}
+
+fn get_client(auth_id: Id) -> Result<Client> {
+    let config = HttpConfig::default();
+    let connector = Connector::http(&config);
+
+    // get passwd from env
+    let password = Zeroizing::new(env::var(ENV_PASSWD)?);
+    let credentials = Credentials::from_password(auth_id, password.as_bytes());
+
+    Ok(Client::open(connector, credentials, true)?)
 }
