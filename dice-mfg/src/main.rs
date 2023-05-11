@@ -237,10 +237,11 @@ fn main() -> Result<()> {
             driver.liveness(max_retry)?;
             driver.set_platform_id(platform_id)?;
 
-            let temp_dir = tempfile::tempdir()?;
-            let csr = temp_dir.path().join("csr.pem");
+            let csr =
+                ca_root.join(format!("csr/{}.csr.pem", platform_id.as_str()?));
             driver.get_csr(Some(&csr))?;
 
+            let temp_dir = tempfile::tempdir()?;
             let cert = temp_dir.into_path().join("cert.pem");
             let intermediate_cert = intermediate_cert
                 .unwrap_or_else(|| ca_root.join("ca.cert.pem"));
