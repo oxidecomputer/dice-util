@@ -24,7 +24,7 @@ use dice_mfg::{CertSignerBuilder, MfgDriver, DEFAULT_AUTH_ID, ENV_PASSWD};
 /// Send commands to the RoT for DeviceId certification.
 struct Args {
     /// serial port device path
-    #[clap(long, default_value = "/dev/ttyACM0", env)]
+    #[clap(long, default_value = "/dev/ttyACM0", env = "DICE_MFG_SERIAL_DEV")]
     serial_dev: String,
 
     /// baud rate
@@ -65,7 +65,7 @@ enum Command {
     /// messages with the device being manufactured.
     Manufacture {
         /// Auth ID used w/r YubiHSM.
-        #[clap(long, env, default_value_t = DEFAULT_AUTH_ID)]
+        #[clap(long, env = "DICE_MFG_AUTH_ID", default_value_t = DEFAULT_AUTH_ID)]
         auth_id: Id,
 
         /// Path to openssl.cnf file used for signing operation.
@@ -93,13 +93,13 @@ enum Command {
         intermediate_cert: Option<PathBuf>,
 
         /// Platform identity string
-        #[clap(value_parser = validate_pid, env)]
+        #[clap(value_parser = validate_pid, env = "DICE_MFG_PLATFORM_ID")]
         platform_id: PlatformId,
 
         /// Root directory for CA state. If provided the tool will chdir to
         /// this directory before executing openssl commands. This is
         /// intended to support openssl.cnf files that use relative paths.
-        #[clap(long, env)]
+        #[clap(long, env = "DICE_MFG_CA_ROOT")]
         ca_root: PathBuf,
     },
     /// Send a 'Ping' message to the system being manufactured.
@@ -120,7 +120,7 @@ enum Command {
     /// in a 'PlatformId' message.
     SetPlatformId {
         /// Platform identifier.
-        #[clap(value_parser = validate_pid)]
+        #[clap(value_parser = validate_pid, env = "DICE_MFG_PLATFORM_ID")]
         platform_id: PlatformId,
     },
     /// Turn a CSR into a cert. This is a thin wrapper around the `openssl ca`
@@ -128,7 +128,7 @@ enum Command {
     /// caller.
     SignCert {
         /// Auth ID used w/r YubiHSM.
-        #[clap(long, env, default_value = "2")]
+        #[clap(long, env = "DICE_MFG_AUTH_ID", default_value = "2")]
         auth_id: Id,
 
         /// Destination path for Cert.
@@ -158,12 +158,12 @@ enum Command {
         /// Root directory for CA state. If provided the tool will chdir to
         /// this directory before executing openssl commands. This is
         /// intended to support openssl.cnf files that use relative paths.
-        #[clap(long, env)]
+        #[clap(long, env = "DICE_MFG_CA_ROOT")]
         ca_root: PathBuf,
     },
     DumpLogEntries {
         /// Auth ID used w/r YubiHSM.
-        #[clap(long, env, default_value = "2")]
+        #[clap(long, env = "DICE_MFG_AUTH_ID", default_value = "2")]
         auth_id: u16,
     },
 }
