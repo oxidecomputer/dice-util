@@ -90,51 +90,31 @@ pub enum PlatformIdError {
 }
 
 // see RFD 308 § 4.3.1
-// 0XV1:PPPPPPPPPP:RRR:LLLWWYYSSSS
 // 0XV2:PPP-PPPPPPP:RRR:LLLWWYYSSSS
-const PLATFORM_ID_V1_LEN: usize = 31;
-const PLATFORM_ID_V1_PREFIX: &str = "0XV1";
-const PLATFORM_ID_V2_LEN: usize = 32;
-const PLATFORM_ID_V2_PREFIX: &str = "0XV2";
-pub const PLATFORM_ID_MAX_LEN: usize = PLATFORM_ID_V2_LEN;
+const PREFIX_LEN: usize = 4;
+const RFD308_V2_LEN: usize = 32;
+const RFD308_V2_PREFIX: &str = "0XV2";
+
+// RFD 303 §4.6
+const PLATFORM_ID_V1_LEN: usize = 32;
+const PLATFORM_ID_V1_PREFIX: &str = "PDV1";
+pub const PLATFORM_ID_MAX_LEN: usize = PLATFORM_ID_V1_LEN;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, SerializedSize)]
 #[repr(C)]
-pub enum PlatformId {
-    V1([u8; PLATFORM_ID_V1_LEN]),
-    V2([u8; PLATFORM_ID_V2_LEN]),
-}
+pub struct PlatformId([u8; PLATFORM_ID_V1_LEN]);
 
-fn new_platform_id_v1(s: &str) -> Result<PlatformId, PlatformIdError> {
-    if !s.starts_with(PLATFORM_ID_V1_PREFIX) {
+fn validate_0xv2(s: &str) -> Result<(), PlatformIdError> {
+    if s.len() != RFD308_V2_LEN {
+        return Err(PlatformIdError::BadSize);
+    }
+    if !s.starts_with(RFD308_V2_PREFIX) {
         return Err(PlatformIdError::InvalidPrefix);
     }
-    for (i, c) in s.chars().enumerate() {
-        match i {
-            4 | 15 | 19 => {
-                if c != ':' {
-                    return Err(PlatformIdError::Invalid { i, c });
-                }
-            }
-            _ => {
-                if c == 'O' || c == 'I' || !CODE39_ALPHABET.contains(&c) {
-                    return Err(PlatformIdError::Invalid { i, c });
-                }
-            }
-        }
-    }
-
-    Ok(PlatformId::V1(
-        s.as_bytes()
-            .try_into()
-            .map_err(|_| PlatformIdError::BadSize)?,
-    ))
+    validate_0xv2_noprefix(s)
 }
 
-fn new_platform_id_v2(s: &str) -> Result<PlatformId, PlatformIdError> {
-    if !s.starts_with(PLATFORM_ID_V2_PREFIX) {
-        return Err(PlatformIdError::InvalidPrefix);
-    }
+fn validate_0xv2_noprefix(s: &str) -> Result<(), PlatformIdError> {
     for (i, c) in s.chars().enumerate() {
         match i {
             8 => {
@@ -154,8 +134,38 @@ fn new_platform_id_v2(s: &str) -> Result<PlatformId, PlatformIdError> {
             }
         }
     }
+    Ok(())
+}
 
-    Ok(PlatformId::V2(
+fn validate_pdv1(s: &str) -> Result<(), PlatformIdError> {
+    if s.len() != PLATFORM_ID_V1_LEN {
+        return Err(PlatformIdError::BadSize);
+    }
+    if !s.starts_with(PLATFORM_ID_V1_PREFIX) {
+        return Err(PlatformIdError::InvalidPrefix);
+    }
+    // the only difference between the `0XV2` and `PDV1` formats are their
+    // prefix
+    validate_0xv2_noprefix(s)
+}
+
+fn platform_id_from_0xv2(s: &str) -> Result<PlatformId, PlatformIdError> {
+    validate_0xv2(s)?;
+    let s = s.as_bytes();
+
+    const LEN: usize = PLATFORM_ID_MAX_LEN;
+    let mut bytes = [0u8; LEN];
+    bytes[..PLATFORM_ID_V1_PREFIX.len()]
+        .copy_from_slice(PLATFORM_ID_V1_PREFIX.as_bytes());
+    bytes[PLATFORM_ID_V1_PREFIX.len()..LEN]
+        .copy_from_slice(&s[PLATFORM_ID_V1_PREFIX.len()..]);
+
+    Ok(PlatformId(bytes))
+}
+
+fn platform_id_from_pdv1(s: &str) -> Result<PlatformId, PlatformIdError> {
+    validate_pdv1(s)?;
+    Ok(PlatformId(
         s.as_bytes()
             .try_into()
             .map_err(|_| PlatformIdError::BadSize)?,
@@ -167,10 +177,10 @@ impl TryFrom<&str> for PlatformId {
 
     /// Construct a PlatformId enum variant appropriate for the supplied &str.
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        match s.len() {
-            PLATFORM_ID_V1_LEN => new_platform_id_v1(s),
-            PLATFORM_ID_V2_LEN => new_platform_id_v2(s),
-            _ => Err(PlatformIdError::BadSize),
+        match &s[..PREFIX_LEN] {
+            RFD308_V2_PREFIX => platform_id_from_0xv2(s),
+            PLATFORM_ID_V1_PREFIX => platform_id_from_pdv1(s),
+            _ => Err(PlatformIdError::InvalidPrefix),
         }
     }
 }
@@ -184,29 +194,18 @@ impl TryFrom<&[u8]> for PlatformId {
             core::str::from_utf8(b).map_err(|_| PlatformIdError::Malformed)?;
         let pid = pid.trim_end_matches('\0');
 
-        match pid.len() {
-            PLATFORM_ID_V1_LEN => new_platform_id_v1(pid),
-            PLATFORM_ID_V2_LEN => new_platform_id_v2(pid),
-            _ => Err(PlatformIdError::BadSize),
-        }
+        Self::try_from(pid)
     }
 }
 
 impl PlatformId {
     pub fn as_bytes(&self) -> &[u8] {
-        match self {
-            PlatformId::V1(b) => &b[..],
-            PlatformId::V2(b) => &b[..],
-        }
+        &self.0[..]
     }
 
     pub fn as_str(&self) -> Result<&str, PlatformIdError> {
-        match self {
-            PlatformId::V1(b) => core::str::from_utf8(&b[..])
-                .map_err(|_| PlatformIdError::Malformed),
-            PlatformId::V2(b) => core::str::from_utf8(&b[..])
-                .map_err(|_| PlatformIdError::Malformed),
-        }
+        core::str::from_utf8(self.as_bytes())
+            .map_err(|_| PlatformIdError::Malformed)
     }
 }
 
@@ -304,111 +303,25 @@ mod tests {
 
     type Result = std::result::Result<(), PlatformIdError>;
 
-    const PID_V1_GOOD: &str = "0XV1:PPPPPPPPPP:RRR:SSSSSSSSSSS";
-    const PID_V2_GOOD: &str = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
+    const RFD308_V2_GOOD: &str = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
+    const PID_V1_GOOD: &str = "PDV1:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
+
+    #[test]
+    fn rfd308_v2_good() -> Result {
+        assert!(!validate_0xv2(RFD308_V2_GOOD).is_err());
+
+        Ok(())
+    }
 
     #[test]
     fn pid_v1_good() -> Result {
-        let res = new_platform_id_v1(PID_V1_GOOD);
-
-        assert!(!res.is_err());
-        assert_eq!(res.unwrap().as_str().unwrap(), PID_V1_GOOD);
-
-        Ok(())
-    }
-
-    // malformed UTF-8 from:
-    // https://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt
-    #[test]
-    fn pid_v1_malformed() -> Result {
-        let mut bytes = [0u8; PLATFORM_ID_V1_LEN];
-        bytes[0] = 0xed;
-        bytes[1] = 0xa0;
-        bytes[2] = 0x80;
-        let pid = PlatformId::V1(bytes);
-        let res = pid.as_str();
-
-        assert_eq!(res.err(), Some(PlatformIdError::Malformed));
+        assert!(!validate_pdv1(PID_V1_GOOD).is_err());
 
         Ok(())
     }
 
     #[test]
-    fn pid_v1_bad_length() -> Result {
-        // missing an 'S'
-        let pid = "0XV1:PPPPPPPPPP:RRR:SSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::BadSize));
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v1_bad_prefix_part_sep() -> Result {
-        let pid = "0XV1SPPPPPPPPPP:RRR:SSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 4, c: 'S' }));
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v1_bad_part_rev_sep() -> Result {
-        let pid = "0XV1:PPPPPPPPPPERRR:SSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 15, c: 'E' }));
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v1_bad_rev_sn_sep() -> Result {
-        let pid = "0XV1:PPPPPPPPPP:RRRPSSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 19, c: 'P' }));
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v1_bad_part() -> Result {
-        let pid = "0XV1:pPPPPPPPPP:RRR:SSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 5, c: 'p' }));
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v1_bad_revision() -> Result {
-        let pid = "0XV1:PPPPPPPPPP:rRR:SSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 16, c: 'r' }));
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v1_bad_serial() -> Result {
-        let pid = "0XV1:PPPPPPPPPP:RRR:sSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 20, c: 's' }));
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v2_good() -> Result {
-        let res = new_platform_id_v2(PID_V2_GOOD);
-
-        assert!(!res.is_err());
-        assert_eq!(res.unwrap().as_str().unwrap(), PID_V2_GOOD);
-
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v2_bad_length() -> Result {
+    fn rfd308_v2_bad_length() -> Result {
         // missing an 'S'
         let pid = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSS";
         let pid = PlatformId::try_from(pid);
@@ -418,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v2_bad_prefix_part_sep() -> Result {
+    fn rfd308_v2_bad_prefix_part_sep() -> Result {
         let pid = "0XV2SPPP-PPPPPPP:RRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -427,7 +340,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v2_bad_part_rev_sep() -> Result {
+    fn rfd308_v2_bad_part_rev_sep() -> Result {
         let pid = "0XV2:PPP-PPPPPPPERRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -436,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v2_bad_rev_sn_sep() -> Result {
+    fn rfd308_v2_bad_rev_sn_sep() -> Result {
         let pid = "0XV2:PPP-PPPPPPP:RRRPSSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -445,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v2_bad_part() -> Result {
+    fn rfd308_v2_bad_part() -> Result {
         let pid = "0XV2:pPP-PPPPPPP:RRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -454,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v2_bad_revision() -> Result {
+    fn rfd308_v2_bad_revision() -> Result {
         let pid = "0XV2:PPP-PPPPPPP:rRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -463,8 +376,86 @@ mod tests {
     }
 
     #[test]
-    fn pid_v2_bad_serial() -> Result {
+    fn rfd308_v2_bad_serial() -> Result {
         let pid = "0XV2:PPP-PPPPPPP:RRR:sSSSSSSSSSS";
+        let pid = PlatformId::try_from(pid);
+
+        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 21, c: 's' }));
+        Ok(())
+    }
+    // malformed UTF-8 from:
+    // https://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt
+    #[test]
+    fn rfd308_v2_malformed() -> Result {
+        let mut bytes = [0u8; RFD308_V2_LEN];
+        bytes[0] = 0xed;
+        bytes[1] = 0xa0;
+        bytes[2] = 0x80;
+        let res = PlatformId::try_from(&bytes[..]);
+
+        assert_eq!(res.err(), Some(PlatformIdError::Malformed));
+
+        Ok(())
+    }
+
+    #[test]
+    fn pid_v1_bad_length() -> Result {
+        // missing an 'S'
+        let pid = "PDV1:PPP-PPPPPPP:RRR:SSSSSSSSSS";
+        let pid = PlatformId::try_from(pid);
+
+        assert_eq!(pid.err(), Some(PlatformIdError::BadSize));
+        Ok(())
+    }
+
+    #[test]
+    fn pid_v1_bad_prefix_part_sep() -> Result {
+        let pid = "PDV1SPPP-PPPPPPP:RRR:SSSSSSSSSSS";
+        let pid = PlatformId::try_from(pid);
+
+        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 4, c: 'S' }));
+        Ok(())
+    }
+
+    #[test]
+    fn pid_v1_bad_part_rev_sep() -> Result {
+        let pid = "PDV1:PPP-PPPPPPPERRR:SSSSSSSSSSS";
+        let pid = PlatformId::try_from(pid);
+
+        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 16, c: 'E' }));
+        Ok(())
+    }
+
+    #[test]
+    fn pid_v1_bad_rev_sn_sep() -> Result {
+        let pid = "PDV1:PPP-PPPPPPP:RRRPSSSSSSSSSSS";
+        let pid = PlatformId::try_from(pid);
+
+        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 20, c: 'P' }));
+        Ok(())
+    }
+
+    #[test]
+    fn pid_v1_bad_part() -> Result {
+        let pid = "PDV1:pPP-PPPPPPP:RRR:SSSSSSSSSSS";
+        let pid = PlatformId::try_from(pid);
+
+        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 5, c: 'p' }));
+        Ok(())
+    }
+
+    #[test]
+    fn pid_v1_bad_revision() -> Result {
+        let pid = "PDV1:PPP-PPPPPPP:rRR:SSSSSSSSSSS";
+        let pid = PlatformId::try_from(pid);
+
+        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 17, c: 'r' }));
+        Ok(())
+    }
+
+    #[test]
+    fn pid_v1_bad_serial() -> Result {
+        let pid = "PDV1:PPP-PPPPPPP:RRR:sSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
         assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 21, c: 's' }));
@@ -472,13 +463,14 @@ mod tests {
     }
 
     #[test]
-    fn pid_v1_copy_to_template() -> Result {
-        let pid = "0XV1:PPPPPPPPPP:RRR:SSSSSSSSSSS";
+    fn rfd308_v2_copy_to_template() -> Result {
+        let pid = RFD308_V2_GOOD;
         let pid = PlatformId::try_from(pid)?;
         let mut dest = [0u8; PLATFORM_ID_MAX_LEN];
 
         dest[..pid.as_str()?.len()].copy_from_slice(pid.as_str()?.as_bytes());
 
+        assert_eq!(&dest[..PREFIX_LEN], PLATFORM_ID_V1_PREFIX.as_bytes());
         assert_eq!(pid.as_bytes(), &dest[..pid.as_str()?.len()]);
         Ok(())
     }
@@ -502,7 +494,7 @@ mod tests {
 
     #[test]
     fn pid_v2_from_template() -> Result {
-        let pid = PlatformId::try_from(PID_V2_GOOD)?;
+        let pid = PlatformId::try_from(RFD308_V2_GOOD)?;
         let mut dest = [0u8; PLATFORM_ID_MAX_LEN];
 
         dest[..pid.as_str()?.len()].copy_from_slice(pid.as_str()?.as_bytes());
@@ -512,7 +504,7 @@ mod tests {
         assert_eq!(pid.as_bytes(), &dest[..pid.as_str()?.len()]);
 
         let pid = PlatformId::try_from(&dest[..])?;
-        assert_eq!(pid.as_str()?, PID_V2_GOOD);
+        assert_eq!(pid.as_str()?, PID_V1_GOOD);
 
         Ok(())
     }
