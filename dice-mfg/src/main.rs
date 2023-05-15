@@ -210,7 +210,7 @@ fn main() -> Result<()> {
         info!("device: {}, baud: {}", args.serial_dev, args.baud);
     }
     let driver = match args.command {
-        Command::SignCert { .. } => None,
+        Command::SignCert { .. } | Command::DumpLogEntries { .. } => None,
         _ => Some(MfgDriver::new(open_serial(&args.serial_dev, args.baud)?)),
     };
     // all variants except for `Command::SignCert` can safely unwrap `driver`
