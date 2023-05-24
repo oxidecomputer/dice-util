@@ -99,6 +99,13 @@ enum Command {
         #[clap(value_parser = validate_pid, env = "DICE_MFG_PLATFORM_ID")]
         platform_id: PlatformId,
 
+        /// An optional working directory where CSRs from the device being
+        /// programmed and the identity certs generated and passed back
+        /// are written. The contents of this directory will persist beyond
+        /// execution of this tool.
+        #[clap(long, env = "DICE_MFG_WORK_DIR")]
+        work_dir: Option<PathBuf>,
+
         /// Root directory for CA state. If provided the tool will chdir to
         /// this directory before executing openssl commands. This is
         /// intended to support openssl.cnf files that use relative paths.
@@ -238,6 +245,7 @@ fn main() -> Result<()> {
             platform_id,
             intermediate_cert,
             ca_root,
+            work_dir,
         } => {
             passwd_to_env()?;
             let mut driver = driver.unwrap();
@@ -245,12 +253,24 @@ fn main() -> Result<()> {
             driver.liveness(max_retry)?;
             driver.set_platform_id(platform_id)?;
 
-            let csr =
-                ca_root.join(format!("csr/{}.csr.pem", platform_id.as_str()?));
+            let temp_dir = tempfile::tempdir()?;
+
+            let (cert, csr) = if let Some(w) = work_dir {
+                // use workdir to hold CSR if provided
+                let id = platform_id.as_str()?;
+                (
+                    w.join(format!("{}.cert.pem", id)),
+                    w.join(format!("{}.csr.pem", id)),
+                )
+            } else {
+                // otherwise use a tempdir
+                (
+                    temp_dir.path().join("cert.pem"),
+                    temp_dir.path().join("csr.pem"),
+                )
+            };
             driver.get_csr(Some(&csr))?;
 
-            let temp_dir = tempfile::tempdir()?;
-            let cert = temp_dir.into_path().join("cert.pem");
             let intermediate_cert = intermediate_cert
                 .unwrap_or_else(|| ca_root.join("ca.cert.pem"));
             let cert_signer = CertSignerBuilder::new(ca_root)
