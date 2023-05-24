@@ -22,6 +22,9 @@ use dice_mfg::{CertSignerBuilder, MfgDriver, DEFAULT_AUTH_ID, ENV_PASSWD};
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 /// Send commands to the RoT for DeviceId certification.
+/// We explicitly do not allow providing the YubiHSM password as an option.
+/// To prevent interactive password entry set the `DICE_MFG_YUBIHSM_AUTH`
+/// environment variable.
 struct Args {
     /// serial port device path
     #[clap(long, default_value = "/dev/ttyACM0", env = "DICE_MFG_SERIAL_DEV")]
