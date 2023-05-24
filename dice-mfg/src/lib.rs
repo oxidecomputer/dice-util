@@ -20,12 +20,14 @@ use std::{
 use yubihsm::{object::Id, Client, Connector, Credentials, HttpConfig};
 use zeroize::Zeroizing;
 
-// string for environment variable used to pass in the authentication
-// password for the HSM
+// Name of environment variable used to pass in the YubiHSM password into
+// the application.
 pub const ENV_PASSWD: &str = "DICE_MFG_YUBIHSM_AUTH";
-// string for environment variable used to pass in the authentication
-// password for the HSM
-pub const ENV_PASSWD_PKCS11: &str = "DICE_MFG_PKCS11_AUTH";
+
+// Name of environment variable used to pass the YubiHSM password through
+// openssl & PKCS#11 module to the YubiHSM. This variable is set should
+// *not* be set by the caller.
+const ENV_PASSWD_PKCS11: &str = "DICE_MFG_PKCS11_AUTH";
 
 // default object id for auth credential from oks
 pub const DEFAULT_AUTH_ID: Id = 2;
