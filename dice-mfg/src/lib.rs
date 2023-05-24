@@ -4,7 +4,7 @@
 
 #![feature(absolute_path)]
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use dice_mfg_msgs::{MfgMessage, PlatformId, PlatformIdError, SizedBlob};
 use log::{info, warn};
 
@@ -162,6 +162,23 @@ impl MfgDriver {
         print!("getting CSR ... ");
         io::stdout().flush()?;
 
+        // get file first to check for existence
+        let out: Box<dyn Write> =
+            match csr_path {
+                Some(csr) => {
+                    if csr.exists() {
+                        return Err(anyhow::anyhow!(
+                            "output file already exists: {}",
+                            csr.display()
+                        ));
+                    }
+                    Box::new(File::create(csr).with_context(|| {
+                        format!("creating {}", csr.display())
+                    })?)
+                }
+                None => Box::new(io::stdout()),
+            };
+
         self.send_msg(&MfgMessage::CsrPlz)?;
         let recv = self.recv_msg()?;
 
@@ -177,11 +194,6 @@ impl MfgDriver {
                 warn!("requested CSR, got unexpected response: \"{:?}\"", recv);
                 return Err(Error::WrongMsg(recv.to_string()).into());
             }
-        };
-
-        let out: Box<dyn Write> = match csr_path {
-            Some(csr_path) => Box::new(File::create(csr_path)?),
-            None => Box::new(io::stdout()),
         };
 
         save_csr(out, csr)
@@ -359,7 +371,10 @@ impl CertSigner {
         io::stdout().flush()?;
 
         if cert_out.exists() {
-            return Err(anyhow::anyhow!("output file already exists"));
+            return Err(anyhow::anyhow!(
+                "output file already exists: {}",
+                cert_out.display()
+            ));
         }
 
         let engine_section = &self
