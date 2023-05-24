@@ -215,6 +215,29 @@ impl MfgDriver {
         Ok(())
     }
 
+    /// Asks the device to report its lock status, and returns a pair of
+    /// booleans, which must **both** be `true` for the device to be locked.
+    ///
+    /// The booleans are, in order: whether the CMPA contents indicate that it
+    /// should be locked, and whether the bits in the SYSCON set by the ROM
+    /// indicate that it is currently locked.
+    pub fn check_lock_status(&mut self) -> Result<(bool, bool)> {
+        self.send_msg(&MfgMessage::YouLockedBro)?;
+        let recv = self.recv_msg()?;
+
+        match recv {
+            MfgMessage::LockStatus {
+                cmpa_locked,
+                syscon_locked,
+            } => Ok((cmpa_locked, syscon_locked)),
+            MfgMessage::Nak => Err(Error::NoResponse.into()),
+            _ => {
+                warn!("unexpcted response: {recv:?}");
+                Err(Error::WrongMsg(recv.to_string()).into())
+            }
+        }
+    }
+
     /// Read a message from the serial port. Return an error if it's not an
     /// `Ack`.
     fn recv_ack(&mut self) -> Result<()> {

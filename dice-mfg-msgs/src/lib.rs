@@ -247,6 +247,11 @@ pub enum MfgMessage {
     Nak,
     Ping,
     PlatformId(PlatformId),
+    YouLockedBro,
+    LockStatus {
+        cmpa_locked: bool,
+        syscon_locked: bool,
+    },
 }
 
 impl fmt::Display for MfgMessage {
@@ -265,6 +270,10 @@ impl fmt::Display for MfgMessage {
             MfgMessage::Nak => write!(f, "MfgMessage::Nack"),
             MfgMessage::Ping => write!(f, "MfgMessage::Ping"),
             MfgMessage::PlatformId(_) => write!(f, "MfgMessage::PlatformId"),
+            MfgMessage::YouLockedBro => f.write_str("MfgMessage::YouLockedBro"),
+            MfgMessage::LockStatus { .. } => {
+                f.write_str("MfgMessage::LockStatus")
+            }
         }
     }
 }
