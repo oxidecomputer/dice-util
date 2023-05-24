@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use clap::{Parser, Subcommand};
 use dice_mfg_msgs::PlatformId;
 use env_logger::Builder;
@@ -169,6 +169,11 @@ enum Command {
         #[clap(long, env = "DICE_MFG_AUTH_ID", default_value = "2")]
         auth_id: u16,
     },
+    /// Asks the firmware for its opinion on whether the device it's running on
+    /// is locked, and fails if it isn't.
+    ///
+    /// You can only trust this as far as you trust the firmware, of course.
+    RequireLocked,
 }
 
 fn open_serial(serial_dev: &str, baud: u32) -> Result<Box<dyn SerialPort>> {
@@ -294,6 +299,14 @@ fn main() -> Result<()> {
             passwd_to_env()?;
             let index = dice_mfg::get_log_entries(auth_id)?;
             dice_mfg::set_log_index(auth_id, index)
+        }
+        Command::RequireLocked => {
+            let (cmpa, syscon) = driver.unwrap().check_lock_status()?;
+            if (cmpa, syscon) != (true, true) {
+                bail!("device is not locked! (cmpa: {cmpa:?}, syscon: {syscon:?})");
+            }
+
+            Ok(())
         }
     }
 }
