@@ -98,11 +98,13 @@ const RFD308_V2_PREFIX: &str = "0XV2";
 // RFD 303 §4.6
 const PLATFORM_ID_V1_LEN: usize = 32;
 const PLATFORM_ID_V1_PREFIX: &str = "PDV1";
+const PLATFORM_ID_V2_LEN: usize = 32;
+const PLATFORM_ID_V2_PREFIX: &str = "PDV2";
 pub const PLATFORM_ID_MAX_LEN: usize = PLATFORM_ID_V1_LEN;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, SerializedSize)]
 #[repr(C)]
-pub struct PlatformId([u8; PLATFORM_ID_V1_LEN]);
+pub struct PlatformId([u8; PLATFORM_ID_MAX_LEN]);
 
 fn validate_0xv2(s: &str) -> Result<(), PlatformIdError> {
     if s.len() != RFD308_V2_LEN {
@@ -149,20 +151,66 @@ fn validate_pdv1(s: &str) -> Result<(), PlatformIdError> {
     validate_0xv2_noprefix(s)
 }
 
+fn validate_pdv2(s: &str) -> Result<(), PlatformIdError> {
+    if s.len() != PLATFORM_ID_V2_LEN {
+        return Err(PlatformIdError::BadSize);
+    }
+    if !s.starts_with(PLATFORM_ID_V2_PREFIX) {
+        return Err(PlatformIdError::InvalidPrefix);
+    }
+
+    for (i, c) in s.chars().enumerate() {
+        match i {
+            8 => {
+                if c != '-' {
+                    return Err(PlatformIdError::Invalid { i, c });
+                }
+            }
+            4 | 16 | 20 => {
+                if c != ':' {
+                    return Err(PlatformIdError::Invalid { i, c });
+                }
+            }
+            17 | 18 | 19 => {
+                if c != 'R' {
+                    return Err(PlatformIdError::Invalid { i, c });
+                }
+            }
+            _ => {
+                if c == 'O' || c == 'I' || !CODE39_ALPHABET.contains(&c) {
+                    return Err(PlatformIdError::Invalid { i, c });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// 0XV2 strings are converted to the most recent version of the PlatformId
+// string.
 fn platform_id_from_0xv2(s: &str) -> Result<PlatformId, PlatformIdError> {
     validate_0xv2(s)?;
     let s = s.as_bytes();
+    let mut bytes = [0u8; PLATFORM_ID_MAX_LEN];
 
-    const LEN: usize = PLATFORM_ID_MAX_LEN;
-    let mut bytes = [0u8; LEN];
-    bytes[..PLATFORM_ID_V1_PREFIX.len()]
-        .copy_from_slice(PLATFORM_ID_V1_PREFIX.as_bytes());
-    bytes[PLATFORM_ID_V1_PREFIX.len()..LEN]
-        .copy_from_slice(&s[PLATFORM_ID_V1_PREFIX.len()..]);
+    // set PDV2 prefix
+    bytes[..PLATFORM_ID_V2_PREFIX.len()]
+        .copy_from_slice(PLATFORM_ID_V2_PREFIX.as_bytes());
+
+    // copy ':PN'
+    bytes[PLATFORM_ID_V1_PREFIX.len()..16]
+        .copy_from_slice(&s[PLATFORM_ID_V2_PREFIX.len()..16]);
+
+    bytes[16..20].copy_from_slice(&[b':', b'R', b'R', b'R']);
+    // copy ':SN'
+    bytes[20..32].copy_from_slice(&s[20..32]);
 
     Ok(PlatformId(bytes))
 }
 
+// PDV1 strings are copied verbatim. This is to support systems already mfg'd
+// with certs containing PDV1 strings in the subject CN. We must be able to
+// set the issuer field to the same value in it's descendants.
 fn platform_id_from_pdv1(s: &str) -> Result<PlatformId, PlatformIdError> {
     validate_pdv1(s)?;
     Ok(PlatformId(
@@ -170,6 +218,16 @@ fn platform_id_from_pdv1(s: &str) -> Result<PlatformId, PlatformIdError> {
             .try_into()
             .map_err(|_| PlatformIdError::BadSize)?,
     ))
+}
+
+fn platform_id_from_pdv2(s: &str) -> Result<PlatformId, PlatformIdError> {
+    validate_pdv2(s)?;
+
+    const LEN: usize = PLATFORM_ID_MAX_LEN;
+    let mut bytes = [0u8; LEN];
+    bytes[..PLATFORM_ID_V2_LEN].copy_from_slice(s.as_bytes());
+
+    Ok(PlatformId(bytes))
 }
 
 impl TryFrom<&str> for PlatformId {
@@ -180,6 +238,7 @@ impl TryFrom<&str> for PlatformId {
         match &s[..PREFIX_LEN] {
             RFD308_V2_PREFIX => platform_id_from_0xv2(s),
             PLATFORM_ID_V1_PREFIX => platform_id_from_pdv1(s),
+            PLATFORM_ID_V2_PREFIX => platform_id_from_pdv2(s),
             _ => Err(PlatformIdError::InvalidPrefix),
         }
     }
@@ -200,12 +259,17 @@ impl TryFrom<&[u8]> for PlatformId {
 
 impl PlatformId {
     pub fn as_bytes(&self) -> &[u8] {
-        &self.0[..]
+        match &self.0[..PREFIX_LEN] {
+            [b'P', b'D', b'V', b'1'] => &self.0[..PLATFORM_ID_V1_LEN],
+            [b'P', b'D', b'V', b'2'] => &self.0[..PLATFORM_ID_V2_LEN],
+            _ => panic!("invalid prefix in constructed PlatformId"),
+        }
     }
 
     pub fn as_str(&self) -> Result<&str, PlatformIdError> {
-        core::str::from_utf8(self.as_bytes())
-            .map_err(|_| PlatformIdError::Malformed)
+        Ok(core::str::from_utf8(self.as_bytes())
+            .map_err(|_| PlatformIdError::Malformed)?
+            .trim_end_matches('\0'))
     }
 }
 
@@ -313,7 +377,8 @@ mod tests {
     type Result = std::result::Result<(), PlatformIdError>;
 
     const RFD308_V2_GOOD: &str = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
-    const PID_V1_GOOD: &str = "PDV1:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
+    const PID_V1_GOOD: &str = "PDV1:PPP-PPPPPPP:000:SSSSSSSSSSS";
+    const PID_V2_GOOD: &str = "PDV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
 
     #[test]
     fn rfd308_v2_good() -> Result {
@@ -325,6 +390,13 @@ mod tests {
     #[test]
     fn pid_v1_good() -> Result {
         assert!(!validate_pdv1(PID_V1_GOOD).is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn pid_v2_good() -> Result {
+        assert!(validate_pdv2(PID_V2_GOOD).is_ok());
 
         Ok(())
     }
@@ -477,10 +549,12 @@ mod tests {
         let pid = PlatformId::try_from(pid)?;
         let mut dest = [0u8; PLATFORM_ID_MAX_LEN];
 
+        assert_eq!(pid.as_str()?.len(), PLATFORM_ID_V2_LEN);
         dest[..pid.as_str()?.len()].copy_from_slice(pid.as_str()?.as_bytes());
 
-        assert_eq!(&dest[..PREFIX_LEN], PLATFORM_ID_V1_PREFIX.as_bytes());
-        assert_eq!(pid.as_bytes(), &dest[..pid.as_str()?.len()]);
+        assert_eq!(&dest[..PREFIX_LEN], PLATFORM_ID_V2_PREFIX.as_bytes());
+        assert_eq!(&pid.as_bytes()[4..16], &dest[4..16]);
+        assert_eq!(&pid.as_bytes()[16..28], &dest[16..28]);
         Ok(())
     }
 
@@ -513,7 +587,7 @@ mod tests {
         assert_eq!(pid.as_bytes(), &dest[..pid.as_str()?.len()]);
 
         let pid = PlatformId::try_from(&dest[..])?;
-        assert_eq!(pid.as_str()?, PID_V1_GOOD);
+        assert_eq!(pid.as_str()?, PID_V2_GOOD);
 
         Ok(())
     }
