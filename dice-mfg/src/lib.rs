@@ -5,10 +5,13 @@
 #![feature(absolute_path)]
 
 use anyhow::{Context, Result};
-use dice_mfg_msgs::{MfgMessage, PlatformId, PlatformIdError, SizedBlob};
+use dice_mfg_msgs::{
+    MessageHash, MfgMessage, PlatformId, PlatformIdError, SizedBlob, NULL_HASH,
+};
 use log::{info, warn};
 
 use serialport::SerialPort;
+use sha3::{Digest, Sha3_256};
 use std::{
     env::{self, VarError},
     fmt,
@@ -108,9 +111,17 @@ impl MfgDriver {
                         return Err(e);
                     }
                 }
-                _ => {
-                    println!("success");
-                    return Ok(());
+                Ok(h) => {
+                    if h == NULL_HASH {
+                        println!("success");
+                        return Ok(());
+                    } else if max_fail > 0 {
+                        max_fail -= 1;
+                    } else {
+                        return Err(anyhow::anyhow!(
+                            "Ping integrity check failed"
+                        ));
+                    }
                 }
             }
         }
@@ -123,10 +134,12 @@ impl MfgDriver {
         io::stdout().flush()?;
 
         self.send_msg(&MfgMessage::Break)?;
-        self.recv_ack()?;
-
-        println!("success");
-        Ok(())
+        if self.recv_ack()? == NULL_HASH {
+            println!("success");
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Break integrity check failed"))
+        }
     }
 
     /// Ping the RoT. If the RoT doesn't acknowledge the Ping this function
@@ -136,10 +149,12 @@ impl MfgDriver {
         io::stdout().flush()?;
 
         self.send_msg(&MfgMessage::Ping)?;
-        self.recv_ack()?;
-
-        println!("success");
-        Ok(())
+        if self.recv_ack()? == NULL_HASH {
+            println!("success");
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Ping integrity check failed"))
+        }
     }
 
     /// Tell the RoT what it's unique ID is.
@@ -150,11 +165,13 @@ impl MfgDriver {
         }
         io::stdout().flush()?;
 
-        self.send_msg(&MfgMessage::PlatformId(pid))?;
-        self.recv_ack()?;
-
-        println!("success");
-        Ok(())
+        let hash = self.send_msg(&MfgMessage::PlatformId(pid))?;
+        if self.recv_ack()? == hash {
+            println!("success");
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("SetPlatformId integrity check failed"))
+        }
     }
 
     /// Request a CSR from the RoT.
@@ -206,11 +223,15 @@ impl MfgDriver {
         print!("setting Intermediate cert ... ");
         io::stdout().flush()?;
 
-        self.send_msg(&MfgMessage::IntermediateCert(cert))?;
-        self.recv_ack()?;
-
-        println!("success");
-        Ok(())
+        let hash = self.send_msg(&MfgMessage::IntermediateCert(cert))?;
+        if self.recv_ack()? == hash {
+            println!("success");
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "SetIntermediateCert integrity check failed"
+            ))
+        }
     }
 
     /// Send the RoT its certified identity.
@@ -220,11 +241,13 @@ impl MfgDriver {
         print!("setting PlatformId cert ... ");
         io::stdout().flush()?;
 
-        self.send_msg(&MfgMessage::IdentityCert(cert))?;
-        self.recv_ack()?;
-
-        println!("success");
-        Ok(())
+        let hash = self.send_msg(&MfgMessage::IdentityCert(cert))?;
+        if self.recv_ack()? == hash {
+            println!("success");
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("SetPlatformIdCert integrity check failed"))
+        }
     }
 
     /// Asks the device to report its lock status, and returns a pair of
@@ -252,12 +275,12 @@ impl MfgDriver {
 
     /// Read a message from the serial port. Return an error if it's not an
     /// `Ack`.
-    fn recv_ack(&mut self) -> Result<()> {
+    fn recv_ack(&mut self) -> Result<MessageHash> {
         info!("waiting for Ack ... ");
         let resp = self.recv_msg()?;
 
         match resp {
-            MfgMessage::Ack => Ok(()),
+            MfgMessage::Ack(h) => Ok(h),
             _ => {
                 warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
                 Err(Error::WrongMsg(resp.to_string()).into())
@@ -266,13 +289,18 @@ impl MfgDriver {
     }
 
     /// Send a message to the RoT.
-    fn send_msg(&mut self, msg: &MfgMessage) -> Result<()> {
+    fn send_msg(&mut self, msg: &MfgMessage) -> Result<[u8; 32]> {
         let mut buf = [0u8; MfgMessage::MAX_ENCODED_SIZE];
 
         let size = msg.encode(&mut buf)?;
 
+        let mut hash = Sha3_256::new();
+        hash.update(&buf[..size]);
+
         self.port.write_all(&buf[..size])?;
-        self.port.flush().map_err(|e| e.into())
+        self.port.flush()?;
+
+        Ok(hash.finalize().try_into().unwrap())
     }
 
     /// Receive a message from the RoT.
