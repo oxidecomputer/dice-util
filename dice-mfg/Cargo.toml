@@ -16,6 +16,7 @@ pem = "1"
 rpassword = "7.2.0"
 serde_json = { version = "1.0.96", features = ["std", "alloc"] }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
+sha3 = { version = "0.10.8" }
 string-error = "0.1"
 tempfile = "3.3"
 yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs" }

@@ -9,6 +9,9 @@ use hubpack::SerializedSize;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
+pub type MessageHash = [u8; 32];
+pub const NULL_HASH: MessageHash = [0u8; 32];
+
 const BLOB_SIZE: usize = 768;
 
 #[derive(Clone, Debug, Deserialize, Serialize, SerializedSize)]
@@ -302,7 +305,7 @@ pub enum Error {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Deserialize, Serialize, SerializedSize)]
 pub enum MfgMessage {
-    Ack,
+    Ack(MessageHash),
     Break,
     Csr(SizedBlob),
     CsrPlz,
@@ -321,7 +324,7 @@ pub enum MfgMessage {
 impl fmt::Display for MfgMessage {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MfgMessage::Ack => write!(f, "MfgMessage::Ack"),
+            MfgMessage::Ack(hash) => write!(f, "MfgMessage::Ack: {:?}", hash),
             MfgMessage::Break => write!(f, "MfgMessage::Break"),
             MfgMessage::Csr(_) => write!(f, "MfgMessage::Csr"),
             MfgMessage::CsrPlz => write!(f, "MfgMessage::CsrPlz"),
