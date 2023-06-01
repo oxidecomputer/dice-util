@@ -6,12 +6,12 @@
 
 use anyhow::{Context, Result};
 use dice_mfg_msgs::{
-    MessageHash, MfgMessage, PlatformId, PlatformIdError, SizedBlob, NULL_HASH,
+    MessageHash, MfgMessage, PlatformId, PlatformIdError, SizedBlob,
 };
 use log::{info, warn};
 
 use serialport::SerialPort;
-use sha3::{Digest, Sha3_256};
+use sha3::{digest::FixedOutputReset, Digest, Sha3_256};
 use std::{
     env::{self, VarError},
     fmt,
@@ -49,6 +49,7 @@ pub enum Error {
     ConfigIncomplete,
     NoResponse,
     InvalidPlatformId(PlatformIdError),
+    IntegrityFail,
 }
 
 impl std::error::Error for Error {}
@@ -75,6 +76,9 @@ impl fmt::Display for Error {
             Error::NoResponse => {
                 write!(f, "No pings acknowledged: check connection to RoT")
             }
+            Error::IntegrityFail => {
+                write!(f, "Response Ack contained invalid digest")
+            }
             Error::InvalidPlatformId(e) => {
                 write!(f, "PlatformId is invalid: {:?}", e)
             }
@@ -88,42 +92,18 @@ impl fmt::Display for Error {
 /// dice-mfg-msgs. The `liveness` function is a minor exception to this rule.
 pub struct MfgDriver {
     port: Box<dyn SerialPort>,
+    /// the maximum number of failed integrity checks we'll tollerate before
+    /// returning an error
+    max_retry: u8,
+    hash: Sha3_256,
 }
 
 impl MfgDriver {
-    pub fn new(port: Box<dyn SerialPort>) -> Self {
-        MfgDriver { port }
-    }
-
-    /// Ping the RoT at most `max_fail` times. If the RoT does not reply with
-    /// an Ack to one of these Pings this function returns an error.
-    pub fn liveness(&mut self, mut max_fail: u8) -> Result<()> {
-        print!("checking RoT for liveness ... ");
-        io::stdout().flush()?;
-
-        loop {
-            self.send_msg(&MfgMessage::Ping)?;
-            match self.recv_ack() {
-                Err(e) => {
-                    if max_fail > 0 {
-                        max_fail -= 1;
-                    } else {
-                        return Err(e);
-                    }
-                }
-                Ok(h) => {
-                    if h == NULL_HASH {
-                        println!("success");
-                        return Ok(());
-                    } else if max_fail > 0 {
-                        max_fail -= 1;
-                    } else {
-                        return Err(anyhow::anyhow!(
-                            "Ping integrity check failed"
-                        ));
-                    }
-                }
-            }
+    pub fn new(port: Box<dyn SerialPort>, max_retry: u8) -> Self {
+        MfgDriver {
+            port,
+            max_retry,
+            hash: Sha3_256::new(),
         }
     }
 
@@ -133,44 +113,79 @@ impl MfgDriver {
         print!("sending Break ... ");
         io::stdout().flush()?;
 
-        self.send_msg(&MfgMessage::Break)?;
-        if self.recv_ack()? == NULL_HASH {
-            println!("success");
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("Break integrity check failed"))
+        // We only warn on a hash mismatch because once the RoT sends an
+        // `Ack` it breaks out of the message handling loop and boots so
+        // resending will fail. Additionally if the RoT received enough of
+        // our message to identify it as a `Break` then we don't really
+        // care if other parts of the message were corrupted.
+        let hash = self.send_msg(&MfgMessage::Break)?;
+        let resp = self.recv_msg()?;
+        match resp {
+            MfgMessage::Ack(h) => {
+                println!("success");
+                if h != hash {
+                    warn!("Ack hash mismatch ignored for `Break`");
+                }
+                Ok(())
+            }
+            _ => {
+                warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
+                Err(Error::WrongMsg(resp.to_string()).into())
+            }
         }
     }
 
-    /// Ping the RoT. If the RoT doesn't acknowledge the Ping this function
-    /// returns an error.
+    /// Ping the RoT. If the RoT doesn't acknowledge the Ping or the integrity
+    /// check failes this function will retry until self.max_retry is exceeded.
     pub fn ping(&mut self) -> Result<()> {
-        print!("sending ping ... ");
-        io::stdout().flush()?;
+        let mut retry = self.max_retry;
+        loop {
+            print!("sending ping ... ");
+            io::stdout().flush()?;
 
-        self.send_msg(&MfgMessage::Ping)?;
-        if self.recv_ack()? == NULL_HASH {
-            println!("success");
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("Ping integrity check failed"))
+            let hash = self.send_msg(&MfgMessage::Ping)?;
+            match self.recv_ack(&hash) {
+                Err(e) => {
+                    if retry > 0 {
+                        retry -= 1;
+                    } else {
+                        return Err(e.context("Ping: retry limit exceeded"));
+                    }
+                }
+                _ => {
+                    println!("success");
+                    return Ok(());
+                }
+            }
         }
     }
 
     /// Tell the RoT what it's unique ID is.
     pub fn set_platform_id(&mut self, pid: PlatformId) -> Result<()> {
-        match pid.as_str() {
-            Ok(s) => print!("setting platform id to: \"{}\" ... ", s),
-            Err(e) => return Err(Error::InvalidPlatformId(e).into()),
-        }
-        io::stdout().flush()?;
+        let mut retry = self.max_retry;
+        loop {
+            match pid.as_str() {
+                Ok(s) => print!("setting platform id to: \"{}\" ... ", s),
+                Err(e) => return Err(Error::InvalidPlatformId(e).into()),
+            }
+            io::stdout().flush()?;
 
-        let hash = self.send_msg(&MfgMessage::PlatformId(pid))?;
-        if self.recv_ack()? == hash {
-            println!("success");
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("SetPlatformId integrity check failed"))
+            let hash = self.send_msg(&MfgMessage::PlatformId(pid))?;
+            match self.recv_ack(&hash) {
+                Err(e) => {
+                    if retry > 0 {
+                        retry -= 1;
+                    } else {
+                        return Err(
+                            e.context("SetPlatformId: retry limit exceeded")
+                        );
+                    }
+                }
+                _ => {
+                    println!("success");
+                    return Ok(());
+                }
+            }
         }
     }
 
@@ -219,34 +234,58 @@ impl MfgDriver {
     /// Send the RoT the cert for the intermediate / signing CA.
     pub fn set_intermediate_cert(&mut self, cert_in: &PathBuf) -> Result<()> {
         let cert = sized_blob_from_pem_path(cert_in)?;
+        let mut retry = self.max_retry;
 
-        print!("setting Intermediate cert ... ");
-        io::stdout().flush()?;
+        loop {
+            print!("setting Intermediate cert ... ");
+            io::stdout().flush()?;
 
-        let hash = self.send_msg(&MfgMessage::IntermediateCert(cert))?;
-        if self.recv_ack()? == hash {
-            println!("success");
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
-                "SetIntermediateCert integrity check failed"
-            ))
+            let hash =
+                self.send_msg(&MfgMessage::IntermediateCert(cert.clone()))?;
+            match self.recv_ack(&hash) {
+                Err(e) => {
+                    if retry > 0 {
+                        retry -= 1;
+                    } else {
+                        return Err(e.context(
+                            "SetIntermediateCert: retry limit exceeded",
+                        ));
+                    }
+                }
+                _ => {
+                    println!("success");
+                    return Ok(());
+                }
+            }
         }
     }
 
     /// Send the RoT its certified identity.
     pub fn set_platform_id_cert(&mut self, cert_in: &PathBuf) -> Result<()> {
         let cert = sized_blob_from_pem_path(cert_in)?;
+        let mut retry = self.max_retry;
 
-        print!("setting PlatformId cert ... ");
-        io::stdout().flush()?;
+        loop {
+            print!("setting PlatformId cert ... ");
+            io::stdout().flush()?;
 
-        let hash = self.send_msg(&MfgMessage::IdentityCert(cert))?;
-        if self.recv_ack()? == hash {
-            println!("success");
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("SetPlatformIdCert integrity check failed"))
+            let hash =
+                self.send_msg(&MfgMessage::IdentityCert(cert.clone()))?;
+            match self.recv_ack(&hash) {
+                Err(e) => {
+                    if retry > 0 {
+                        retry -= 1;
+                    } else {
+                        return Err(e.context(
+                            "SetPlatformIdCert: retry limit exceeded",
+                        ));
+                    }
+                }
+                _ => {
+                    println!("success");
+                    return Ok(());
+                }
+            }
         }
     }
 
@@ -274,13 +313,20 @@ impl MfgDriver {
     }
 
     /// Read a message from the serial port. Return an error if it's not an
-    /// `Ack`.
-    fn recv_ack(&mut self) -> Result<MessageHash> {
+    /// `Ack` or the integrity check fails.
+    fn recv_ack(&mut self, hash: &MessageHash) -> Result<()> {
         info!("waiting for Ack ... ");
         let resp = self.recv_msg()?;
 
         match resp {
-            MfgMessage::Ack(h) => Ok(h),
+            MfgMessage::Ack(h) => {
+                if h == *hash {
+                    Ok(())
+                } else {
+                    warn!("Ack contained invalid hash");
+                    Err(Error::IntegrityFail.into())
+                }
+            }
             _ => {
                 warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
                 Err(Error::WrongMsg(resp.to_string()).into())
@@ -289,18 +335,17 @@ impl MfgDriver {
     }
 
     /// Send a message to the RoT.
-    fn send_msg(&mut self, msg: &MfgMessage) -> Result<[u8; 32]> {
+    fn send_msg(&mut self, msg: &MfgMessage) -> Result<MessageHash> {
         let mut buf = [0u8; MfgMessage::MAX_ENCODED_SIZE];
 
         let size = msg.encode(&mut buf)?;
 
-        let mut hash = Sha3_256::new();
-        hash.update(&buf[..size]);
+        self.hash.update(&buf[..size]);
 
         self.port.write_all(&buf[..size])?;
         self.port.flush()?;
 
-        Ok(hash.finalize().try_into().unwrap())
+        Ok(self.hash.finalize_fixed_reset().try_into().unwrap())
     }
 
     /// Receive a message from the RoT.

@@ -38,6 +38,10 @@ struct Args {
     #[command(subcommand)]
     command: Command,
 
+    /// Maximum number of retries for failed pings.
+    #[clap(long, default_value = "10", env)]
+    max_retry: u8,
+
     /// verbosity
     #[clap(long, env)]
     verbose: bool,
@@ -56,13 +60,6 @@ enum Command {
     GetCsr {
         /// Destination path for CSR, stdout if omitted
         csr_path: Option<PathBuf>,
-    },
-    /// Send 'Ping' messages to the system being manufactured until we
-    /// successfully receive an 'Ack' or 'max_retry' attempts fail.
-    Liveness {
-        /// Maximum number of retries for failed pings.
-        #[clap(default_value = "10")]
-        max_retry: u8,
     },
     /// Perform device identity provisioning by exchanging the required
     /// messages with the device being manufactured.
@@ -86,10 +83,6 @@ enum Command {
         /// Engine config section from openssl.cnf used for signing operation.
         #[clap(long, env)]
         engine_section: Option<String>,
-
-        /// Maximum number of retries for failed pings.
-        #[clap(long, default_value = "10", env)]
-        max_retry: u8,
 
         /// Path to intermediate cert to send.
         #[clap(long, env)]
@@ -226,7 +219,10 @@ fn main() -> Result<()> {
     }
     let driver = match args.command {
         Command::SignCert { .. } | Command::DumpLogEntries { .. } => None,
-        _ => Some(MfgDriver::new(open_serial(&args.serial_dev, args.baud)?)),
+        _ => {
+            let serial = open_serial(&args.serial_dev, args.baud)?;
+            Some(MfgDriver::new(serial, args.max_retry))
+        }
     };
     // all variants except for `Command::SignCert` can safely unwrap `driver`
     match args.command {
@@ -234,14 +230,12 @@ fn main() -> Result<()> {
         Command::GetCsr { csr_path } => {
             driver.unwrap().get_csr(csr_path.as_ref())
         }
-        Command::Liveness { max_retry } => driver.unwrap().liveness(max_retry),
         Command::Manufacture {
             auth_id,
             openssl_cnf,
             ca_section,
             v3_section,
             engine_section,
-            max_retry,
             platform_id,
             intermediate_cert,
             ca_root,
@@ -250,7 +244,7 @@ fn main() -> Result<()> {
             passwd_to_env()?;
             let mut driver = driver.unwrap();
 
-            driver.liveness(max_retry)?;
+            driver.ping()?;
             driver.set_platform_id(platform_id)?;
 
             let temp_dir = tempfile::tempdir()?;
