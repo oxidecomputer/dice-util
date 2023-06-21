@@ -105,7 +105,9 @@ const PLATFORM_ID_V2_LEN: usize = 32;
 const PLATFORM_ID_V2_PREFIX: &str = "PDV2";
 pub const PLATFORM_ID_MAX_LEN: usize = PLATFORM_ID_V1_LEN;
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, SerializedSize)]
+#[derive(
+    Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, SerializedSize,
+)]
 #[repr(C)]
 pub struct PlatformId([u8; PLATFORM_ID_MAX_LEN]);
 
