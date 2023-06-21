@@ -5,6 +5,7 @@
 #![feature(absolute_path)]
 
 use anyhow::{Context, Result};
+use const_oid::ObjectIdentifier;
 use dice_mfg_msgs::{
     MessageHash, MfgMessage, PlatformId, PlatformIdError, SizedBlob,
 };
@@ -19,7 +20,9 @@ use std::{
     io::{self, Write},
     path::PathBuf,
     process::Command,
+    str,
 };
+use x509_cert::{der::DecodePem, request::CertReq};
 use yubihsm::{object::Id, Client, Connector, Credentials, HttpConfig};
 use zeroize::Zeroizing;
 
@@ -36,6 +39,10 @@ const ENV_PASSWD_PKCS11: &str = "DICE_MFG_PKCS11_AUTH";
 pub const DEFAULT_AUTH_ID: Id = 2;
 // default openssl engine section
 pub const DEFAULT_ENGINE_SECTION: &str = "pkcs11";
+
+// cn / commonName OID from IANA LDAP descriptors registry / RFC 4519
+// https://www.iana.org/assignments/ldap-parameters/ldap-parameters.xhtml
+const CN_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.4.3");
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -84,6 +91,37 @@ impl fmt::Display for Error {
             }
         }
     }
+}
+
+/// Check that the provided CSR is something we're willing to sign.
+/// This policy will likely shift over time. The checks performed are:
+/// - the 'commonName' field in the 'subject' Name (see RFC 2986) is
+///   equal to the provided PlatformId
+pub fn check_csr(csr: &PathBuf, pid: &PlatformId) -> Result<bool> {
+    print!("checking CSR ... ");
+    io::stdout().flush()?;
+
+    let csr = fs::read_to_string(csr)
+        .context(format!("Failed to read file: {}", csr.display()))?;
+    let csr = CertReq::from_pem(csr)?;
+
+    for dn in csr.info.subject.0 {
+        for atv in dn.0.iter() {
+            if CN_OID == atv.oid {
+                let cn_str = str::from_utf8(atv.value.value())?;
+                let cn_pid = PlatformId::try_from(cn_str)?;
+                if &cn_pid == pid {
+                    info!(
+                        "commonName from CSR matches expected value: {cn_str}"
+                    );
+                    println!("success");
+                    return Ok(true);
+                }
+            }
+        }
+    }
+
+    Ok(false)
 }
 
 /// The MfgDriver is used to send commands to the RoT as part of programming

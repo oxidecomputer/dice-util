@@ -174,6 +174,14 @@ enum Command {
     ///
     /// You can only trust this as far as you trust the firmware, of course.
     RequireLocked,
+    CheckCsr {
+        /// Platform identifier.
+        #[clap(long, value_parser = validate_pid, env = "DICE_MFG_PLATFORM_ID")]
+        platform_id: PlatformId,
+
+        /// Path to input CSR file.
+        csr_in: PathBuf,
+    },
 }
 
 fn open_serial(serial_dev: &str, baud: u32) -> Result<Box<dyn SerialPort>> {
@@ -218,7 +226,9 @@ fn main() -> Result<()> {
         info!("device: {}, baud: {}", args.serial_dev, args.baud);
     }
     let driver = match args.command {
-        Command::SignCert { .. } | Command::DumpLogEntries { .. } => None,
+        Command::SignCert { .. }
+        | Command::DumpLogEntries { .. }
+        | Command::CheckCsr { .. } => None,
         _ => {
             let serial = open_serial(&args.serial_dev, args.baud)?;
             Some(MfgDriver::new(serial, args.max_retry))
@@ -264,6 +274,9 @@ fn main() -> Result<()> {
                 )
             };
             driver.get_csr(Some(&csr))?;
+            if !dice_mfg::check_csr(&csr, &platform_id)? {
+                bail!("CSR does not meet policy requirements");
+            }
 
             let intermediate_cert = intermediate_cert
                 .unwrap_or_else(|| ca_root.join("ca.cert.pem"));
@@ -320,6 +333,15 @@ fn main() -> Result<()> {
                 bail!("device is not locked! (cmpa: {cmpa:?}, syscon: {syscon:?})");
             }
 
+            Ok(())
+        }
+        Command::CheckCsr {
+            platform_id,
+            csr_in,
+        } => {
+            if !dice_mfg::check_csr(&csr_in, &platform_id)? {
+                bail!("CSR does not meet policy requirements");
+            }
             Ok(())
         }
     }
