@@ -278,6 +278,13 @@ impl PlatformId {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize, SerializedSize)]
+pub enum KeySlotStatus {
+    Invalid,
+    Enabled,
+    Revoked,
+}
+
 #[cfg_attr(any(test, feature = "std"), derive(thiserror::Error))]
 #[derive(Debug, PartialEq)]
 pub enum Error {
@@ -321,6 +328,10 @@ pub enum MfgMessage {
         cmpa_locked: bool,
         syscon_locked: bool,
     },
+    GetKeySlotStatus,
+    KeySlotStatus {
+        slots: [KeySlotStatus; 4],
+    },
 }
 
 impl fmt::Display for MfgMessage {
@@ -342,6 +353,12 @@ impl fmt::Display for MfgMessage {
             MfgMessage::YouLockedBro => f.write_str("MfgMessage::YouLockedBro"),
             MfgMessage::LockStatus { .. } => {
                 f.write_str("MfgMessage::LockStatus")
+            }
+            MfgMessage::GetKeySlotStatus => {
+                f.write_str("MfgMessage::GetKeySlotStatus")
+            }
+            MfgMessage::KeySlotStatus { .. } => {
+                f.write_str("MfgMessage::KeySlotStatus")
             }
         }
     }
