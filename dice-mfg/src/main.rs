@@ -182,6 +182,11 @@ enum Command {
         /// Path to input CSR file.
         csr_in: PathBuf,
     },
+    /// Asks the firmware for its opinion on which secure boot key slots are
+    /// enabled on the device it's running on.
+    ///
+    /// You can only trust this as far as you trust the firmware, of course.
+    GetKeySlotStatus,
 }
 
 fn open_serial(serial_dev: &str, baud: u32) -> Result<Box<dyn SerialPort>> {
@@ -342,6 +347,18 @@ fn main() -> Result<()> {
             if !dice_mfg::check_csr(&csr_in, &platform_id)? {
                 bail!("CSR does not meet policy requirements");
             }
+            Ok(())
+        }
+        Command::GetKeySlotStatus => {
+            for (slot, status) in driver
+                .unwrap()
+                .get_key_slot_status()?
+                .into_iter()
+                .enumerate()
+            {
+                println!("Slot {}: {:?}", slot, status);
+            }
+
             Ok(())
         }
     }
