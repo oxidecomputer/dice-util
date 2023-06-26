@@ -7,7 +7,8 @@
 use anyhow::{Context, Result};
 use const_oid::ObjectIdentifier;
 use dice_mfg_msgs::{
-    MessageHash, MfgMessage, PlatformId, PlatformIdError, SizedBlob,
+    KeySlotStatus, MessageHash, MfgMessage, PlatformId, PlatformIdError,
+    SizedBlob,
 };
 use log::{info, warn};
 
@@ -342,6 +343,20 @@ impl MfgDriver {
                 cmpa_locked,
                 syscon_locked,
             } => Ok((cmpa_locked, syscon_locked)),
+            MfgMessage::Nak => Err(Error::NoResponse.into()),
+            _ => {
+                warn!("unexpcted response: {recv:?}");
+                Err(Error::WrongMsg(recv.to_string()).into())
+            }
+        }
+    }
+
+    pub fn get_key_slot_status(&mut self) -> Result<[KeySlotStatus; 4]> {
+        self.send_msg(&MfgMessage::GetKeySlotStatus)?;
+        let recv = self.recv_msg()?;
+
+        match recv {
+            MfgMessage::KeySlotStatus { slots } => Ok(slots),
             MfgMessage::Nak => Err(Error::NoResponse.into()),
             _ => {
                 warn!("unexpcted response: {recv:?}");
