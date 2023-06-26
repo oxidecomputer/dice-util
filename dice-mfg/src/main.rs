@@ -4,7 +4,7 @@
 
 use anyhow::{bail, Result};
 use clap::{Parser, Subcommand};
-use dice_mfg_msgs::PlatformId;
+use dice_mfg_msgs::{KeySlotStatus, PlatformId};
 use env_logger::Builder;
 use log::{info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
@@ -104,6 +104,12 @@ enum Command {
         /// intended to support openssl.cnf files that use relative paths.
         #[clap(long, env = "DICE_MFG_CA_ROOT")]
         ca_root: PathBuf,
+
+        /// Whether to enforce release policy.  Release policy requires that a
+        /// device have its CMPA locked, release secure boot key slots enabled,
+        /// and development secure boot key slots disabled.
+        #[clap(long, default_value_t=true, action=clap::ArgAction::Set)]
+        require_release_policy: bool,
     },
     /// Send a 'Ping' message to the system being manufactured.
     Ping,
@@ -255,11 +261,35 @@ fn main() -> Result<()> {
             intermediate_cert,
             ca_root,
             work_dir,
+            require_release_policy,
         } => {
             passwd_to_env()?;
             let mut driver = driver.unwrap();
 
             driver.ping()?;
+
+            // Verify the device is in compliance with policy before beginning.
+            if require_release_policy {
+                let (cmpa, syscon) = driver.check_lock_status()?;
+                if (cmpa, syscon) != (true, true) {
+                    bail!("device is not locked! (cmpa: {cmpa:?}, syscon: {syscon:?})");
+                }
+
+                let key_slots = driver.get_key_slot_status()?;
+                if !matches!(
+                    key_slots,
+                    [
+                        KeySlotStatus::Enabled,
+                        KeySlotStatus::Enabled,
+                        KeySlotStatus::Invalid,
+                        KeySlotStatus::Invalid
+                    ]
+                ) {
+                    bail!("device does not have release key configuration set! (0: {:?}, 1: {:?}, 2: {:?}, 3: {:?})",
+                        key_slots[0], key_slots[1], key_slots[2], key_slots[3])
+                }
+            }
+
             driver.set_platform_id(platform_id)?;
 
             let temp_dir = tempfile::tempdir()?;
