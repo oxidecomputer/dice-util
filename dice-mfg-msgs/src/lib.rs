@@ -176,7 +176,7 @@ fn validate_pdv2(s: &str) -> Result<(), PlatformIdError> {
                     return Err(PlatformIdError::Invalid { i, c });
                 }
             }
-            17 | 18 | 19 => {
+            17..=19 => {
                 if c != 'R' {
                     return Err(PlatformIdError::Invalid { i, c });
                 }
