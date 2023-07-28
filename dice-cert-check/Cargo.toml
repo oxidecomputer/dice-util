@@ -13,7 +13,7 @@ edition = "2021"
 anyhow = "1.0.68"
 clap = { version = "4.1.4", features = ["derive"] }
 const-oid = { git = "https://github.com/RustCrypto/formats" }
-ecdsa = "0.15.1"
+ecdsa = "0.16"
 env_logger = "0.10.0"
 hex = "0.4.3"
 log = "0.4.17"
