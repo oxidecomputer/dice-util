@@ -11,7 +11,7 @@ chrono = { version = "0.4.24", features = ["std"] }
 clap = { version = "4", features = ["derive", "env"] }
 const-oid = { version = "0.9.2", features = ["std", "db"] }
 dice-mfg-msgs = { path = "../dice-mfg-msgs", features = ["std"] }
-env_logger = "0.9"
+env_logger = "0.10"
 log = "0.4"
 pem = "1"
 rpassword = "7.2.0"
@@ -19,7 +19,7 @@ serde_json = { version = "1.0.96", features = ["std", "alloc"] }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
 sha3 = { version = "0.10.8" }
 string-error = "0.1"
-tempfile = "3.3"
+tempfile = "3"
 x509-cert = { version = "0.2.3", features = ["std"] }
 yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs" }
 zerocopy = "0.6"
