@@ -9,7 +9,8 @@ members = [
 ]
 
 [workspace.dependencies]
-anyhow = { version = "1", features = ["backtrace"] }
+anyhow = { version = "1", default-features = false }
+chrono = { version = "0.4.26", default-features=false }
 clap = { version = "4", default-features = false }
 corncobs = "0.1"
 derive_more = "0.99"
@@ -19,12 +20,18 @@ hubpack = "0.1"
 log = { version = "0.4", features = ["std"] }
 pem = { version = "1", default-features = false }
 ron = "0.8"
+rpassword = "7.2.0"
 salty = { version = "0.2", default-features = false }
 serde = { version = "1", default-features = false }
 serde-big-array = "0.4"
 serde_json = { version = "1", features = ["std", "alloc"] }
+serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
 sha2 = "0.10"
+sha3 = "0.10"
+string-error = "0.1"
 tempfile = { version = "3", default-features = false }
 thiserror = "1.0.40"
+x509-cert = { version = "0.2.4", default-features = false }
 yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs", branch="v0.42.0-with-audit", features = ["default", "usb"] }
 zerocopy = "0.6"
+zeroize = { version = "1.6.0", default-features = false }
