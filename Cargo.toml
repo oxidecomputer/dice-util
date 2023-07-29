@@ -5,4 +5,18 @@ members = [
     "dice-cert-tmpl",
     "dice-mfg",
     "dice-mfg-msgs",
+    "yhsm-audit",
 ]
+
+[workspace.dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
+clap = { version = "4", features = ["derive"] }
+derive_more = "0.99"
+env_logger = "0.10"
+hex = "0.4"
+log = { version = "0.4", features = ["std"] }
+ron = "0.8"
+serde = "1"
+serde_json = { version = "1", features = ["std", "alloc"] }
+sha2 = "0.10"
+yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs", branch="v0.42.0-with-audit", features = ["default", "usb"] }
