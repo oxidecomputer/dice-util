@@ -10,18 +10,21 @@ members = [
 
 [workspace.dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", default-features = false }
 corncobs = "0.1"
 derive_more = "0.99"
 env_logger = "0.10"
 hex = "0.4"
 hubpack = "0.1"
 log = { version = "0.4", features = ["std"] }
+pem = { version = "1", default-features = false }
 ron = "0.8"
+salty = { version = "0.2", default-features = false }
 serde = { version = "1", default-features = false }
 serde-big-array = "0.4"
 serde_json = { version = "1", features = ["std", "alloc"] }
 sha2 = "0.10"
+tempfile = { version = "3", default-features = false }
 thiserror = "1.0.40"
 yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs", branch="v0.42.0-with-audit", features = ["default", "usb"] }
 zerocopy = "0.6"
