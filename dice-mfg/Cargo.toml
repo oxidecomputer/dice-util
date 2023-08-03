@@ -6,7 +6,7 @@ description = "A command line tool for creating and programming device identitie
 license = "MPL-2.0"
 
 [dependencies]
-anyhow.workspace = true
+anyhow = { workspace = true, features = ["std"] }
 chrono = { workspace = true, features = ["clock", "std"] }
 clap = { workspace = true, features = ["derive", "env"] }
 const-oid = { version = "0.9.2", features = ["std", "db"] }

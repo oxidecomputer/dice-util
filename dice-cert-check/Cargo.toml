@@ -3,23 +3,16 @@ name = "dice-cert-check"
 version = "0.1.0"
 edition = "2021"
 
-# NOTE: We're currently using crates from the main development branch of the
-# rust crypto formats git repo. We do this because:
-# - const-oid doesn't have the OIDs from RFC 8410 in a release yet
-# - the latest x509-cert release has a bug that prevents us from consuming
-#   PEM encoded certs. This has been fixed on the development branch but
-#   hasn't made it into a release yet.
 [dependencies]
 anyhow = { workspace = true, default-features = true }
 clap = { workspace = true, default-features = true, features = ["derive"] }
-const-oid = { git = "https://github.com/RustCrypto/formats" }
+const-oid = { version = "0.9.4", features = ["db"] }
 env_logger = { workspace = true, default-features = true }
-ecdsa = { workspace = true, default-features = true }
 hex = { workspace = true, default-features = true }
 log = { workspace = true, default-features = true, features = ["std"] }
 p384 = { workspace = true, default-features = true }
-pem-rfc7468 = { git = "https://github.com/RustCrypto/formats" }
+pem-rfc7468 = { workspace = true, default-features = true }
 ring-compat = { workspace = true, default-features = true, features = ["std"] }
 sha2 = { workspace = true, default-features = true }
 thiserror = { workspace = true, default-features = true }
-x509-cert = { git = "https://github.com/RustCrypto/formats", features = ["pem", "std"] }
+x509-cert = { workspace = true, default-features = true, features = ["pem"] }

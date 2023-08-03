@@ -3,10 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use const_oid::{
-    db::{
-        rfc5912::{ECDSA_WITH_SHA_384, ID_EC_PUBLIC_KEY, SECP_384_R_1},
-        rfc8410::ID_ED_25519,
-    },
+    db::rfc5912::{ECDSA_WITH_SHA_384, ID_EC_PUBLIC_KEY, SECP_384_R_1},
     ObjectIdentifier,
 };
 use hex::ToHex;
@@ -18,10 +15,13 @@ use x509_cert::{
     der::{
         self,
         asn1::{Any, BitString},
-        Encode, Tag, Tagged,
+        Tag, Tagged,
     },
     spki::{AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned},
 };
+
+const ID_ED_25519: crate::ObjectIdentifier =
+    crate::ObjectIdentifier::new_unwrap("1.3.101.112");
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -36,7 +36,7 @@ pub enum Error {
     #[error("Failed to verify signature.")]
     P384VerificationFail {
         #[from]
-        source: ecdsa::Error,
+        source: p384::ecdsa::Error,
     },
     #[error("Public key is not octet aligned")]
     UnalignedPublicKey,
@@ -90,7 +90,7 @@ impl TryFrom<&Any> for ParameterType {
     fn try_from(param: &Any) -> result::Result<Self, Self::Error> {
         match param.tag() {
             Tag::ObjectIdentifier => {
-                let oid: ObjectIdentifier = param.decode_as()?;
+                let oid = param.decode_as()?;
                 match oid {
                     SECP_384_R_1 => Ok(ParameterType::P384),
                     _ => Err(Error::UnsupportedParameter),
@@ -189,15 +189,12 @@ impl TryFrom<&SubjectPublicKeyInfoOwned> for P384Verifier {
             return Err(Error::IncompatibleParams);
         }
 
-        use p384::{ecdsa, pkcs8::DecodePublicKey};
+        use p384::ecdsa::VerifyingKey;
+        use x509_cert::der::referenced::OwnedToRef;
 
-        // the trait `std::error::Error` is not implemented for
-        //   `p384::pkcs8::spki::Error`
-        // what feature do I need to enable?
-        // p384 has std enabled by default ... no clue
-        let verifying_key =
-            ecdsa::VerifyingKey::from_public_key_der(&spki.to_vec()?)
-                .expect("p384 VerifyingKey");
+        // do better error handling
+        let verifying_key = VerifyingKey::try_from(spki.owned_to_ref())
+            .expect("p384 VerifyingKey");
         Ok(Self { verifying_key })
     }
 }
