@@ -118,7 +118,7 @@ fn convert(
 
     // this is a bit weird, but there's a reason ...
     let cert_vec = match encoding {
-        Encoding::DER => cert.to_vec()?,
+        Encoding::DER => cert.to_der()?,
         // If we get the PEM encoded cert by just calling 'to_vec' it will
         // be preceded by 5 bytes of ... something not PEM. We work around
         // this by calling 'as_bytes' first.
@@ -166,7 +166,7 @@ fn verify(cert_chain: &[Certificate]) -> Result<()> {
     )?;
     debug!("Initial signature: {}", signature);
 
-    let message = cert_chain[0].tbs_certificate.to_vec()?;
+    let message = cert_chain[0].tbs_certificate.to_der()?;
     debug!("Initial message: {}", message.encode_hex::<String>());
 
     _verify(&cert_chain[1..], &message, &signature)
@@ -198,7 +198,7 @@ fn _verify(
         &cert_chain[0].signature_algorithm,
         &cert_chain[0].signature,
     )?;
-    let message = cert_chain[0].tbs_certificate.to_vec()?;
+    let message = cert_chain[0].tbs_certificate.to_der()?;
 
     if cert_chain.len() > 1 {
         _verify(&cert_chain[1..], &message, &signature)
