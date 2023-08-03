@@ -10,16 +10,16 @@ edition = "2021"
 #   PEM encoded certs. This has been fixed on the development branch but
 #   hasn't made it into a release yet.
 [dependencies]
-anyhow = "1.0.68"
-clap = { version = "4.1.4", features = ["derive"] }
+anyhow = { workspace = true, default-features = true }
+clap = { workspace = true, default-features = true, features = ["derive"] }
 const-oid = { git = "https://github.com/RustCrypto/formats" }
-ecdsa = "0.16"
-env_logger = "0.10.0"
-hex = "0.4.3"
-log = "0.4.17"
-p384 = "0.12.0"
+env_logger = { workspace = true, default-features = true }
+ecdsa = { workspace = true, default-features = true }
+hex = { workspace = true, default-features = true }
+log = { workspace = true, default-features = true, features = ["std"] }
+p384 = { workspace = true, default-features = true }
 pem-rfc7468 = { git = "https://github.com/RustCrypto/formats" }
-ring-compat = { version = "0.6.0", features = ["std"] }
-sha2 = "0.10.6"
-thiserror = "1.0.38"
+ring-compat = { workspace = true, default-features = true, features = ["std"] }
+sha2 = { workspace = true, default-features = true }
+thiserror = { workspace = true, default-features = true }
 x509-cert = { git = "https://github.com/RustCrypto/formats", features = ["pem", "std"] }
