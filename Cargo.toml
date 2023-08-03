@@ -15,11 +15,14 @@ chrono = { version = "0.4.26", default-features=false }
 clap = { version = "4", default-features = false }
 corncobs = "0.1"
 derive_more = "0.99"
-env_logger = "0.10"
-hex = "0.4"
+ecdsa = { version = "0.16", default-features = false }
+env_logger = { version = "0.10", default-features = false }
+hex = { version = "0.4", default-features = false }
 hubpack = "0.1"
 log = { version = "0.4", features = ["std"] }
+p384 = { version = "0.12.0", default-features = false }
 pem = { version = "1", default-features = false }
+ring-compat = { version = "0.6", default-features = false }
 ron = "0.8"
 rpassword = "7.2.0"
 salty = { version = "0.2", default-features = false }
