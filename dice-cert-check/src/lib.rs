@@ -247,7 +247,7 @@ impl TryFrom<&SubjectPublicKeyInfoOwned> for Ed25519Verifier {
             None => return Err(Error::UnalignedPublicKey),
         };
 
-        let verifying_key = VerifyingKey::new(key_bytes)?;
+        let verifying_key = VerifyingKey::from_slice(key_bytes)?;
         Ok(Self { verifying_key })
     }
 }
