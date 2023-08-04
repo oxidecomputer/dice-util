@@ -623,22 +623,20 @@ fn sized_blob_from_pem_path(p: &PathBuf) -> Result<SizedBlob> {
     let cert = pem::parse(cert)?;
 
     // Error type doesn't implement std Error
-    Ok(SizedBlob::try_from(&cert.contents[..])?)
+    Ok(SizedBlob::try_from(cert.contents())?)
 }
 
 pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
     let size = usize::from(csr.size);
 
     // encode as PEM
-    let pem = pem::Pem {
-        tag: String::from("CERTIFICATE REQUEST"),
-        contents: csr.as_bytes()[..size].to_vec(),
-    };
+    let pem = pem::Pem::new(
+        String::from("CERTIFICATE REQUEST"),
+        csr.as_bytes()[..size].to_vec(),
+    );
     let csr_pem = pem::encode_config(
         &pem,
-        pem::EncodeConfig {
-            line_ending: pem::LineEnding::LF,
-        },
+        pem::EncodeConfig::new().set_line_ending(pem::LineEnding::LF),
     );
 
     Ok(w.write_all(csr_pem.as_bytes())?)

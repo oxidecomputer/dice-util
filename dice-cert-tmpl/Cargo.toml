@@ -7,6 +7,6 @@ license = "MPL-2.0"
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 dice-mfg-msgs = { path = "../dice-mfg-msgs" }
-pem.workspace = true
+pem = { workspace = true, default-features = true }
 salty.workspace = true
 tempfile.workspace = true
