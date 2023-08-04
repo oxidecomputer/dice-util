@@ -71,11 +71,11 @@ fn decode_obj(
             let obj = fs::read_to_string(path)?;
             let parsed = pem::parse(obj)?;
 
-            if parsed.tag != tag {
+            if parsed.tag() != tag {
                 return Err(Box::new(EncodingError::BadTag));
             }
 
-            Ok(parsed.contents)
+            Ok(parsed.into_contents())
         }
         Encoding::DER => Ok(fs::read(path)?),
         Encoding::RAW => Err(Box::new(EncodingError::InvalidEncoding)),
@@ -95,14 +95,14 @@ pub fn decode_key(
             let key_str = fs::read_to_string(path)?;
             let key_pem = pem::parse(key_str)?;
 
-            if key_pem.tag != PRIV_KEY_TAG {
+            if key_pem.tag() != PRIV_KEY_TAG {
                 return Err(Box::new(EncodingError::BadTag));
             }
 
-            if key_pem.contents.len() != 0x30 {
+            if key_pem.contents().len() != 0x30 {
                 return Err(Box::new(EncodingError::InvalidEncoding));
             }
-            Ok(key_pem.contents[0x10..].to_vec())
+            Ok(key_pem.contents()[0x10..].to_vec())
         }
         Encoding::DER => {
             let key_der = fs::read(path)?;
@@ -153,15 +153,10 @@ pub fn write_csr<T: Write>(
 ) -> Result<(), Box<dyn Error>> {
     match encoding {
         Encoding::PEM => {
-            let pem = pem::Pem {
-                tag: String::from(PEM_CSR_TAG),
-                contents: csr.to_vec(),
-            };
+            let pem = pem::Pem::new(String::from(PEM_CSR_TAG), csr.to_vec());
             let csr_pem = pem::encode_config(
                 &pem,
-                pem::EncodeConfig {
-                    line_ending: pem::LineEnding::LF,
-                },
+                pem::EncodeConfig::new().set_line_ending(pem::LineEnding::LF),
             );
             f.write_all(csr_pem.as_bytes())?;
         }
