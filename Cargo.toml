@@ -35,7 +35,7 @@ sha2 = "0.10"
 sha3 = "0.10"
 string-error = "0.1"
 tempfile = { version = "3", default-features = false }
-thiserror = "1.0.44"
+thiserror = "1.0.50"
 x509-cert = { version = "0.2.4", default-features = false }
 yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs", branch="v0.42.0-with-audit", features = ["default", "usb"] }
 zerocopy = "0.6"
