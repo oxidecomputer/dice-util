@@ -398,7 +398,7 @@ impl MfgDriver {
         self.port.write_all(&buf[..size])?;
         self.port.flush()?;
 
-        Ok(self.hash.finalize_fixed_reset().try_into().unwrap())
+        Ok(self.hash.finalize_fixed_reset().into())
     }
 
     /// Receive a message from the RoT.
