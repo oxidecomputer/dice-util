@@ -139,7 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             } => {
                 let key = encoding::decode_key(&key, &key_form)?;
                 let key: &[u8; 32] = &key[..].try_into()?;
-                let keypair: Keypair = key.try_into()?;
+                let keypair: Keypair = key.into();
 
                 let mut cert = encoding::decode_cert(&path, &args.encoding)?;
                 let cert = Cert::from_slice(&mut cert);
