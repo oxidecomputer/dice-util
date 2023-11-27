@@ -11,7 +11,7 @@ resolver = "2"
 
 [workspace.dependencies]
 anyhow = { version = "1", default-features = false }
-chrono = { version = "0.4.26", default-features=false }
+chrono = { version = "0.4.31", default-features=false }
 clap = { version = "4", default-features = false }
 corncobs = "0.1"
 derive_more = "0.99"
