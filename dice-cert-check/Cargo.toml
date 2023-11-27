@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = { workspace = true, default-features = true }
 clap = { workspace = true, default-features = true, features = ["derive"] }
-const-oid = { version = "0.9.4", features = ["db"] }
+const-oid = { version = "0.9.5", features = ["db"] }
 env_logger = { workspace = true, default-features = true }
 hex = { workspace = true, default-features = true }
 log = { workspace = true, default-features = true, features = ["std"] }
