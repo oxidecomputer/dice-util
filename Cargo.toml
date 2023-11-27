@@ -26,7 +26,7 @@ pem-rfc7468 = { version = "0.7.0", default-features = false }
 ring-compat = { version = "0.8", default-features = false }
 ron = "0.8"
 rpassword = "7.3.1"
-salty = { version = "0.2", default-features = false }
+salty = { version = "0.3", default-features = false }
 serde = { version = "1", default-features = false }
 serde-big-array = "0.5"
 serde_json = { version = "1", features = ["std", "alloc"] }

@@ -435,17 +435,8 @@ dependencies = [
  "digest",
  "elliptic-curve",
  "rfc6979",
- "signature 2.0.0",
+ "signature",
  "spki",
-]
-
-[[package]]
-name = "ed25519"
-version = "1.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7"
-dependencies = [
- "signature 1.6.4",
 ]
 
 [[package]]
@@ -455,7 +446,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fb04eee5d9d907f29e80ee6b0e78f7e2c82342c63e3580d8c4f69d9d5aad963"
 dependencies = [
  "pkcs8",
- "signature 2.0.0",
+ "signature",
 ]
 
 [[package]]
@@ -1017,14 +1008,14 @@ dependencies = [
  "aead",
  "digest",
  "ecdsa",
- "ed25519 2.2.1",
+ "ed25519",
  "generic-array",
  "p256",
  "p384",
  "pkcs8",
  "rand_core",
  "ring",
- "signature 2.0.0",
+ "signature",
 ]
 
 [[package]]
@@ -1114,11 +1105,10 @@ checksum = "f91339c0467de62360649f8d3e185ca8de4224ff281f66000de5eb2a77a79041"
 
 [[package]]
 name = "salty"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77cdd38ed8bfe51e53ee991aae0791b94349d0a05cfdecd283835a8a965d4c37"
+checksum = "b947325a585e90733e0e9ec097228f40b637cc346f9bd68f84d5c6297d0fcfef"
 dependencies = [
- "ed25519 1.5.3",
  "subtle",
  "zeroize",
 ]
@@ -1219,12 +1209,6 @@ dependencies = [
  "digest",
  "keccak",
 ]
-
-[[package]]
-name = "signature"
-version = "1.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74233d3b3b2f6d4b006dc19dee745e73e2a6bfb6f93607cd3b02bd5b00797d7c"
 
 [[package]]
 name = "signature"
@@ -1665,7 +1649,7 @@ dependencies = [
  "cbc",
  "cmac",
  "ecdsa",
- "ed25519 2.2.1",
+ "ed25519",
  "hmac",
  "log",
  "p256",
@@ -1676,7 +1660,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "signature 2.0.0",
+ "signature",
  "subtle",
  "thiserror",
  "time",
