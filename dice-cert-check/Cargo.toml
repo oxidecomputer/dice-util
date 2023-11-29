@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = { workspace = true, default-features = true }
-clap = { workspace = true, default-features = true, features = ["derive"] }
+anyhow = { workspace = true, features = ["std"] }
+clap.workspace = true
 const-oid = { version = "0.9.5", features = ["db"] }
 env_logger = { workspace = true, default-features = true }
 hex = { workspace = true, default-features = true }
