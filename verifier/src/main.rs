@@ -59,7 +59,11 @@ enum AttestCommand {
     /// Get an attestation.
     /// NOTE: The nonce is generated from the platform RNG. Future work may
     /// allow providing it as a parameter.
-    Quote,
+    Quote {
+        /// Path to file holding the nonce
+        #[clap(long, env)]
+        nonce: PathBuf,
+    },
     /// Get the length in bytes of attestations.
     QuoteLen,
     /// Report a measurement to the `Attest` task for recording in the
@@ -83,6 +87,36 @@ impl fmt::Display for Interface {
         match self {
             Interface::Rot => write!(f, "Attest"),
             Interface::Sprot => write!(f, "Sprot"),
+        }
+    }
+}
+
+/// Nonce is a newtype around an appropriately sized byte array. The newtype
+/// is convenient way to encapsulate the required conversion functions.
+struct Nonce([u8; 32]);
+
+impl fmt::Display for Nonce {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let mut out: Vec<String> = Vec::new();
+
+        for byte in self.0 {
+            out.push(format!("{}", byte));
+        }
+        let out = out.join(" ");
+
+        write!(f, "[{}]", out)
+    }
+}
+
+impl TryFrom<&Path> for Nonce {
+    type Error = anyhow::Error;
+
+    fn try_from(path: &Path) -> Result<Self> {
+        let nonce = fs::read(path)?;
+
+        match nonce.try_into() {
+            Ok(n) => Ok(Nonce(n)),
+            Err(_) => Err(anyhow!("bad nonce")),
         }
     }
 }
@@ -181,7 +215,8 @@ impl AttestHiffy {
         cmd.arg(format!("--call={}.{}", self.interface, op));
         cmd.arg(format!("--num={}", length));
         cmd.arg(format!("--output={}", output.to_string_lossy()));
-        cmd.arg(format!("--arguments={}", args));
+        cmd.arg("--arguments");
+        cmd.arg(args);
         debug!("executing command: {:?}", cmd);
 
         let output = cmd.output()?;
@@ -277,6 +312,18 @@ impl AttestHiffy {
         self.get_len_cmd("log_len", None)
     }
 
+    fn quote(&self, nonce: Nonce, out: &mut [u8]) -> Result<()> {
+        let mut tmp = tempfile::NamedTempFile::new()?;
+        self.get_chunk(
+            "quote",
+            out.len(),
+            tmp.path(),
+            format!("nonce={}", nonce),
+        )?;
+        tmp.read_exact(&mut out[..])?;
+        Ok(())
+    }
+
     /// Get length of the measurement log in bytes.
     fn quote_len(&self) -> Result<u32> {
         self.get_len_cmd("quote_len", None)
@@ -350,7 +397,15 @@ fn main() -> Result<()> {
             io::stdout().flush()?;
         }
         AttestCommand::LogLen => println!("{}", attest.log_len()?),
-        AttestCommand::Quote => todo!("AttestCommand::Quote"),
+        AttestCommand::Quote { nonce } => {
+            let nonce = Nonce::try_from(nonce.as_path())?;
+            let quote_len = attest.quote_len()?;
+            let mut out = vec![0u8; quote_len as usize];
+            attest.quote(nonce, &mut out)?;
+
+            io::stdout().write_all(&out)?;
+            io::stdout().flush()?;
+        }
         AttestCommand::QuoteLen => println!("{}", attest.quote_len()?),
         AttestCommand::Record { path } => {
             let data = fs::read(path)?;
