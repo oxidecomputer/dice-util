@@ -10,3 +10,4 @@ anyhow = { workspace = true, features = ["std"] }
 clap.workspace = true
 env_logger.workspace = true
 log.workspace = true
+tempfile.workspace = true

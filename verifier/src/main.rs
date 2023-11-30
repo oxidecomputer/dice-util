@@ -8,6 +8,8 @@ use env_logger::Builder;
 use log::{debug, LevelFilter};
 use std::{
     fmt::{self, Debug, Formatter},
+    io::{self, Read, Write},
+    path::Path,
     process::{Command, Output},
 };
 
@@ -88,6 +90,8 @@ struct AttestHiffy {
 }
 
 impl AttestHiffy {
+    const CHUNK_SIZE: usize = 256;
+
     fn new(interface: Interface) -> Self {
         AttestHiffy { interface }
     }
@@ -167,6 +171,60 @@ impl AttestHiffy {
         Self::u32_from_cmd_output(output)
     }
 
+    /// Get a chunk of the measurement log defined by `offset` and `length`.
+    /// The chunk is written to `output` as a byte stream.
+    fn log_cmd(
+        &self,
+        offset: usize,
+        length: usize,
+        output: &Path,
+    ) -> Result<()> {
+        let mut cmd = Command::new("humility");
+
+        cmd.arg("hiffy");
+        cmd.arg(format!("--call={}.log", self.interface));
+        cmd.arg(format!("--num={}", length));
+        cmd.arg("--arguments");
+        cmd.arg(format!("offset={}", offset));
+        cmd.arg(format!("--output={}", output.to_string_lossy()));
+        debug!("executing command: {:?}", cmd);
+
+        let output = cmd.output()?;
+        if output.status.success() {
+            debug!("output: {}", String::from_utf8_lossy(&output.stdout));
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
+
+    /// Get measurement log. This function assumes that the vector provided
+    /// is sufficiently large to hold the log.
+    fn log(&self, out: &mut Vec<u8>) -> Result<()> {
+        for offset in
+            (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
+        {
+            let mut tmp = tempfile::NamedTempFile::new()?;
+            self.log_cmd(offset, Self::CHUNK_SIZE, tmp.path())?;
+            tmp.read_exact(&mut out[offset..Self::CHUNK_SIZE])?;
+        }
+
+        let remain = out.capacity() % Self::CHUNK_SIZE;
+        if remain != 0 {
+            let offset = out.len() - remain;
+            let mut tmp = tempfile::NamedTempFile::new()?;
+            self.log_cmd(offset, remain, tmp.path())?;
+            tmp.read_exact(&mut out[offset..])?;
+        }
+
+        Ok(())
+    }
+
     /// Get length of the measurement log in bytes.
     fn log_len(&self) -> Result<u32> {
         let mut cmd = Command::new("humility");
@@ -216,7 +274,14 @@ fn main() -> Result<()> {
         AttestCommand::CertLen { index } => {
             println!("{}", attest.cert_len(index)?)
         }
-        AttestCommand::Log => todo!("AttestCommand::Log"),
+        AttestCommand::Log => {
+            let log_len = attest.log_len()?;
+            let mut out = vec![0u8; log_len as usize];
+            attest.log(&mut out)?;
+
+            io::stdout().write_all(&out)?;
+            io::stdout().flush()?;
+        }
         AttestCommand::LogLen => println!("{}", attest.log_len()?),
         AttestCommand::Quote => todo!("AttestCommand::Quote"),
         AttestCommand::QuoteLen => println!("{}", attest.quote_len()?),
