@@ -1456,6 +1456,7 @@ dependencies = [
  "clap",
  "env_logger",
  "log",
+ "tempfile",
 ]
 
 [[package]]
