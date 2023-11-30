@@ -139,36 +139,36 @@ impl AttestHiffy {
         }
     }
 
-    /// Get length of the certificate chain from the Attest task. This cert
-    /// chain may be self signed or will terminate at the intermediate before
-    /// the root.
-    fn cert_chain_len(&self) -> Result<u32> {
+    /// This convenience function encapsulates a pattern common to
+    /// the hiffy command line for the `Attest` operations that get the
+    /// lengths of the data returned in leases.
+    fn get_len_cmd(&self, op: &str, args: Option<String>) -> Result<u32> {
         // rely on environment for target & archive?
         // check that they are set before continuing
         let mut cmd = Command::new("humility");
 
         cmd.arg("hiffy");
         cmd.arg("--call");
-        cmd.arg(format!("{}.cert_chain_len", self.interface));
+        cmd.arg(format!("{}.{}", self.interface, op));
+        if let Some(a) = args {
+            cmd.arg(format!("--arguments={}", a));
+        }
         debug!("executing command: {:?}", cmd);
 
         let output = cmd.output()?;
         Self::u32_from_cmd_output(output)
     }
 
+    /// Get length of the certificate chain from the Attest task. This cert
+    /// chain may be self signed or will terminate at the intermediate before
+    /// the root.
+    fn cert_chain_len(&self) -> Result<u32> {
+        self.get_len_cmd("cert_chain_len", None)
+    }
+
     /// Get length of the certificate at the provided index in bytes.
     fn cert_len(&self, index: u32) -> Result<u32> {
-        let mut cmd = Command::new("humility");
-
-        cmd.arg("hiffy");
-        cmd.arg("--call");
-        cmd.arg(format!("{}.cert_len", self.interface));
-        cmd.arg("--arguments");
-        cmd.arg(format!("index={}", index));
-        debug!("executing command: {:?}", cmd);
-
-        let output = cmd.output()?;
-        Self::u32_from_cmd_output(output)
+        self.get_len_cmd("cert_len", Some(format!("index={}", index)))
     }
 
     /// Get a chunk of the measurement log defined by `offset` and `length`.
@@ -227,28 +227,12 @@ impl AttestHiffy {
 
     /// Get length of the measurement log in bytes.
     fn log_len(&self) -> Result<u32> {
-        let mut cmd = Command::new("humility");
-
-        cmd.arg("hiffy");
-        cmd.arg("--call");
-        cmd.arg(format!("{}.log_len", self.interface));
-        debug!("executing command: {:?}", cmd);
-
-        let output = cmd.output()?;
-        Self::u32_from_cmd_output(output)
+        self.get_len_cmd("log_len", None)
     }
 
     /// Get length of the measurement log in bytes.
     fn quote_len(&self) -> Result<u32> {
-        let mut cmd = Command::new("humility");
-
-        cmd.arg("hiffy");
-        cmd.arg("--call");
-        cmd.arg(format!("{}.quote_len", self.interface));
-        debug!("executing command: {:?}", cmd);
-
-        let output = cmd.output()?;
-        Self::u32_from_cmd_output(output)
+        self.get_len_cmd("quote_len", None)
     }
 }
 
