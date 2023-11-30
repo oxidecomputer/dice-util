@@ -48,11 +48,7 @@ enum AttestCommand {
         index: u32,
     },
     /// Get the log of measurements recorded by the RoT.
-    Log {
-        /// Output format for Log structure.
-        #[clap(long, env)]
-        form: Form,
-    },
+    Log,
     /// Get the length in bytes of the Log.
     LogLen,
     /// Get an attestation.
@@ -79,20 +75,6 @@ impl fmt::Display for Interface {
             Interface::Rot => write!(f, "Attest"),
             Interface::Sprot => write!(f, "Sprot"),
         }
-    }
-}
-
-/// An enum of the supported output format for commands that return complex
-/// types.
-#[derive(Clone, Debug, ValueEnum)]
-enum Form {
-    Bin,
-    Text,
-}
-
-impl fmt::Display for Form {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        Debug::fmt(self, f)
     }
 }
 
@@ -256,7 +238,7 @@ fn main() -> Result<()> {
         AttestCommand::CertLen { index } => {
             println!("{}", attest.cert_len(index)?)
         }
-        AttestCommand::Log { form } => todo!("AttestCommand::Log: {}", form),
+        AttestCommand::Log => todo!("AttestCommand::Log"),
         AttestCommand::LogLen => println!("{}", attest.log_len()?),
         AttestCommand::Quote => todo!("AttestCommand::Quote"),
         AttestCommand::QuoteLen => println!("{}", attest.quote_len()?),
