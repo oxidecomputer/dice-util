@@ -159,34 +159,22 @@ impl AttestHiffy {
         Self::u32_from_cmd_output(output)
     }
 
-    /// Get length of the certificate chain from the Attest task. This cert
-    /// chain may be self signed or will terminate at the intermediate before
-    /// the root.
-    fn cert_chain_len(&self) -> Result<u32> {
-        self.get_len_cmd("cert_chain_len", None)
-    }
-
-    /// Get length of the certificate at the provided index in bytes.
-    fn cert_len(&self, index: u32) -> Result<u32> {
-        self.get_len_cmd("cert_len", Some(format!("index={}", index)))
-    }
-
-    /// Get a chunk of the measurement log defined by `offset` and `length`.
-    /// The chunk is written to `output` as a byte stream.
-    fn log_cmd(
+    /// This convenience function encapsulates a pattern common to the hiffy
+    /// command line for the `Attest` operations that return blobs in chunks.
+    fn get_chunk(
         &self,
-        offset: usize,
+        op: &str,
         length: usize,
         output: &Path,
+        args: String,
     ) -> Result<()> {
         let mut cmd = Command::new("humility");
 
         cmd.arg("hiffy");
-        cmd.arg(format!("--call={}.log", self.interface));
+        cmd.arg(format!("--call={}.{}", self.interface, op));
         cmd.arg(format!("--num={}", length));
-        cmd.arg("--arguments");
-        cmd.arg(format!("offset={}", offset));
         cmd.arg(format!("--output={}", output.to_string_lossy()));
+        cmd.arg(format!("--arguments={}", args));
         debug!("executing command: {:?}", cmd);
 
         let output = cmd.output()?;
@@ -203,6 +191,48 @@ impl AttestHiffy {
         }
     }
 
+    /// Get length of the certificate chain from the Attest task. This cert
+    /// chain may be self signed or will terminate at the intermediate before
+    /// the root.
+    fn cert_chain_len(&self) -> Result<u32> {
+        self.get_len_cmd("cert_chain_len", None)
+    }
+
+    /// Get length of the certificate at the provided index in bytes.
+    fn cert_len(&self, index: u32) -> Result<u32> {
+        self.get_len_cmd("cert_len", Some(format!("index={}", index)))
+    }
+
+    fn cert(&self, index: u32, out: &mut Vec<u8>) -> Result<()> {
+        for offset in
+            (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
+        {
+            let mut tmp = tempfile::NamedTempFile::new()?;
+            self.get_chunk(
+                "cert",
+                Self::CHUNK_SIZE,
+                tmp.path(),
+                format!("index={},offset={}", index, offset),
+            )?;
+            tmp.read_exact(&mut out[offset..Self::CHUNK_SIZE])?;
+        }
+
+        let remain = out.len() % Self::CHUNK_SIZE;
+        if remain != 0 {
+            let offset = out.len() - remain;
+            let mut tmp = tempfile::NamedTempFile::new()?;
+            self.get_chunk(
+                "cert",
+                remain,
+                tmp.path(),
+                format!("index={},offset={}", index, offset),
+            )?;
+            tmp.read_exact(&mut out[offset..])?;
+        }
+
+        Ok(())
+    }
+
     /// Get measurement log. This function assumes that the vector provided
     /// is sufficiently large to hold the log.
     fn log(&self, out: &mut Vec<u8>) -> Result<()> {
@@ -210,7 +240,12 @@ impl AttestHiffy {
             (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
         {
             let mut tmp = tempfile::NamedTempFile::new()?;
-            self.log_cmd(offset, Self::CHUNK_SIZE, tmp.path())?;
+            self.get_chunk(
+                "log",
+                Self::CHUNK_SIZE,
+                tmp.path(),
+                format!("offset={}", offset),
+            )?;
             tmp.read_exact(&mut out[offset..Self::CHUNK_SIZE])?;
         }
 
@@ -218,7 +253,12 @@ impl AttestHiffy {
         if remain != 0 {
             let offset = out.len() - remain;
             let mut tmp = tempfile::NamedTempFile::new()?;
-            self.log_cmd(offset, remain, tmp.path())?;
+            self.get_chunk(
+                "log",
+                remain,
+                tmp.path(),
+                format!("offset={}", offset),
+            )?;
             tmp.read_exact(&mut out[offset..])?;
         }
 
@@ -252,7 +292,12 @@ fn main() -> Result<()> {
 
     match args.command {
         AttestCommand::Cert { index } => {
-            todo!("AttestCommand::Cert: index={}", index)
+            let cert_len = attest.cert_len(index)?;
+            let mut out = vec![0u8; cert_len as usize];
+            attest.cert(index, &mut out)?;
+
+            io::stdout().write_all(&out)?;
+            io::stdout().flush()?;
         }
         AttestCommand::CertChainLen => println!("{}", attest.cert_chain_len()?),
         AttestCommand::CertLen { index } => {
