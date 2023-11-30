@@ -8,7 +8,7 @@ use env_logger::Builder;
 use log::{debug, LevelFilter};
 use std::{
     fmt::{self, Debug, Formatter},
-    process::Command,
+    process::{Command, Output},
 };
 
 /// Execute HIF operations exposed by the RoT Attest task.
@@ -98,27 +98,41 @@ impl AttestHiffy {
     /// to be decimal. Currently this function ignores the interface and
     /// operation names from the string. Future work may check that these are
     /// consistent with the operation executed.
-    fn u32_from_stdout(output: &[u8]) -> Result<u32> {
-        // check interface & operation name?
-        let output = String::from_utf8_lossy(output);
-        let output: Vec<&str> = output.trim().split(' ').collect();
-        let output = output[output.len() - 1];
-        debug!("output: {}", output);
+    fn u32_from_cmd_output(output: Output) -> Result<u32> {
+        if output.status.success() {
+            // check interface & operation name?
+            let output = String::from_utf8_lossy(&output.stdout);
+            let output: Vec<&str> = output.trim().split(' ').collect();
+            let output = output[output.len() - 1];
+            debug!("output: {}", output);
 
-        let (output, radix) = match output.strip_prefix("0x") {
-            Some(s) => {
-                debug!("prefix stripped: \"{}\"", s);
-                (s, 16)
-            }
-            None => (output, 10),
-        };
-        let log_len = u32::from_str_radix(output, 16).with_context(|| {
-            format!("Failed to parse \"{}\" as base {} u32", output, radix)
-        })?;
+            let (output, radix) = match output.strip_prefix("0x") {
+                Some(s) => {
+                    debug!("prefix stripped: \"{}\"", s);
+                    (s, 16)
+                }
+                None => (output, 10),
+            };
 
-        debug!("output u32: {}", log_len);
+            let log_len =
+                u32::from_str_radix(output, 16).with_context(|| {
+                    format!(
+                        "Failed to parse \"{}\" as base {} u32",
+                        output, radix
+                    )
+                })?;
 
-        Ok(log_len)
+            debug!("output u32: {}", log_len);
+
+            Ok(log_len)
+        } else {
+            Err(anyhow!(
+                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
     }
 
     /// Get length of the certificate chain from the Attest task. This cert
@@ -135,16 +149,7 @@ impl AttestHiffy {
         debug!("executing command: {:?}", cmd);
 
         let output = cmd.output()?;
-        if output.status.success() {
-            Self::u32_from_stdout(&output.stdout)
-        } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
-        }
+        Self::u32_from_cmd_output(output)
     }
 
     /// Get length of the certificate at the provided index in bytes.
@@ -159,16 +164,7 @@ impl AttestHiffy {
         debug!("executing command: {:?}", cmd);
 
         let output = cmd.output()?;
-        if output.status.success() {
-            Self::u32_from_stdout(&output.stdout)
-        } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
-        }
+        Self::u32_from_cmd_output(output)
     }
 
     /// Get length of the measurement log in bytes.
@@ -181,16 +177,7 @@ impl AttestHiffy {
         debug!("executing command: {:?}", cmd);
 
         let output = cmd.output()?;
-        if output.status.success() {
-            Self::u32_from_stdout(&output.stdout)
-        } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
-        }
+        Self::u32_from_cmd_output(output)
     }
 
     /// Get length of the measurement log in bytes.
@@ -203,16 +190,7 @@ impl AttestHiffy {
         debug!("executing command: {:?}", cmd);
 
         let output = cmd.output()?;
-        if output.status.success() {
-            Self::u32_from_stdout(&output.stdout)
-        } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
-        }
+        Self::u32_from_cmd_output(output)
     }
 }
 
