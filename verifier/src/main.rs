@@ -5,13 +5,16 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use env_logger::Builder;
-use log::{debug, LevelFilter};
+use log::{debug, info, LevelFilter};
+use sha3::{Digest, Sha3_256};
 use std::{
     fmt::{self, Debug, Formatter},
+    fs,
     io::{self, Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Output},
 };
+use tempfile::NamedTempFile;
 
 /// Execute HIF operations exposed by the RoT Attest task.
 #[derive(Debug, Parser)]
@@ -61,7 +64,11 @@ enum AttestCommand {
     QuoteLen,
     /// Report a measurement to the `Attest` task for recording in the
     /// measurement log.
-    Record,
+    Record {
+        /// Path to file holding the data to hash and record
+        #[clap(long, env)]
+        path: PathBuf,
+    },
 }
 
 /// An enum of the possible routes to the `Attest` task.
@@ -274,6 +281,37 @@ impl AttestHiffy {
     fn quote_len(&self) -> Result<u32> {
         self.get_len_cmd("quote_len", None)
     }
+
+    /// Record the sha3 hash of a file.
+    fn record(&self, data: &[u8]) -> Result<()> {
+        let digest = Sha3_256::digest(data);
+        info!("Recording measurement: {:?}", digest);
+        let mut tmp = NamedTempFile::new()?;
+        if digest.as_slice().len() != tmp.write(digest.as_slice())? {
+            return Err(anyhow!("failed to write all data to disk"));
+        }
+
+        let mut cmd = Command::new("humility");
+
+        cmd.arg("hiffy");
+        cmd.arg(format!("--call={}.record", self.interface));
+        cmd.arg(format!("--input={}", tmp.path().to_string_lossy()));
+        cmd.arg("--arguments=algorithm=Sha3_256");
+        debug!("executing command: {:?}", cmd);
+
+        let output = cmd.output()?;
+        if output.status.success() {
+            debug!("output: {}", String::from_utf8_lossy(&output.stdout));
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
 }
 
 fn main() -> Result<()> {
@@ -314,7 +352,10 @@ fn main() -> Result<()> {
         AttestCommand::LogLen => println!("{}", attest.log_len()?),
         AttestCommand::Quote => todo!("AttestCommand::Quote"),
         AttestCommand::QuoteLen => println!("{}", attest.quote_len()?),
-        AttestCommand::Record => todo!("AttestCommand::Record"),
+        AttestCommand::Record { path } => {
+            let data = fs::read(path)?;
+            attest.record(&data)?;
+        }
     }
 
     Ok(())
