@@ -1469,6 +1469,7 @@ dependencies = [
  "const-oid",
  "ed25519-dalek",
  "env_logger",
+ "hubpack",
  "log",
  "p384",
  "pem-rfc7468",
