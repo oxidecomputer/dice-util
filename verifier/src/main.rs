@@ -210,7 +210,7 @@ impl AttestHiffy {
         self.get_len_cmd("cert_len", Some(format!("index={}", index)))
     }
 
-    fn cert(&self, index: u32, out: &mut Vec<u8>) -> Result<()> {
+    fn cert(&self, index: u32, out: &mut [u8]) -> Result<()> {
         for offset in
             (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
         {
@@ -240,9 +240,9 @@ impl AttestHiffy {
         Ok(())
     }
 
-    /// Get measurement log. This function assumes that the vector provided
+    /// Get measurement log. This function assumes that the slice provided
     /// is sufficiently large to hold the log.
-    fn log(&self, out: &mut Vec<u8>) -> Result<()> {
+    fn log(&self, out: &mut [u8]) -> Result<()> {
         for offset in
             (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
         {
@@ -256,7 +256,7 @@ impl AttestHiffy {
             tmp.read_exact(&mut out[offset..Self::CHUNK_SIZE])?;
         }
 
-        let remain = out.capacity() % Self::CHUNK_SIZE;
+        let remain = out.len() % Self::CHUNK_SIZE;
         if remain != 0 {
             let offset = out.len() - remain;
             let mut tmp = tempfile::NamedTempFile::new()?;
