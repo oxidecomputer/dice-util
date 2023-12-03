@@ -5,8 +5,9 @@
 mod pki_path;
 
 use anyhow::{anyhow, Context, Result};
-use attest_data::Nonce;
+use attest_data::{Attestation, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use env_logger::Builder;
 use log::{debug, info, warn, LevelFilter};
 use pem_rfc7468::{LineEnding, PemLabel};
@@ -20,7 +21,10 @@ use std::{
     process::{Command, Output},
 };
 use tempfile::NamedTempFile;
-use x509_cert::{der::DecodePem, Certificate, PkiPath};
+use x509_cert::{
+    der::{Decode, DecodePem},
+    Certificate, PkiPath,
+};
 
 /// Execute HIF operations exposed by the RoT Attest task.
 #[derive(Debug, Parser)]
@@ -84,6 +88,24 @@ enum AttestCommand {
         /// Path to file holding the data to hash and record
         #[clap(long, env)]
         path: PathBuf,
+    },
+    /// Verify signature over Attestation
+    VerifyAttestation {
+        /// Path to file holding the alias cert
+        #[clap(long, env)]
+        alias_cert: PathBuf,
+
+        /// Path to file holding the attestation
+        #[clap(long, env)]
+        attestation: PathBuf,
+
+        /// Path to file holding the log
+        #[clap(long, env)]
+        log: PathBuf,
+
+        /// Path to file holding the nonce
+        #[clap(long, env)]
+        nonce: PathBuf,
     },
     /// Walk the PkiPath formatted certificate chain verifying each link.
     VerifyCertChain {
@@ -451,6 +473,49 @@ fn main() -> Result<()> {
             let data = fs::read(path)?;
             attest.record(&data)?;
         }
+        AttestCommand::VerifyAttestation {
+            alias_cert,
+            attestation,
+            log,
+            nonce,
+        } => {
+            // To verify an attestation we need to extract and construct a few
+            // things before we can verify the attestation:
+            // - signature: the attestation produced by the RoT when
+            //   `alias_priv` is used to sign `message`
+            let attestation = fs::read(attestation)?;
+            let (attestation, _): (Attestation, _) =
+                hubpack::deserialize(&attestation).map_err(|e| {
+                    anyhow!("Failed to deserialize Attestation: {}", e)
+                })?;
+            let signature = Signature::try_from(&attestation)?;
+
+            // - log_data: the hubpack encoded measurement log `hubpack(log)`
+            let log = fs::read(log)?;
+            // - nonce: nonce provided to RoT when the attestation provided
+            //   was collected
+            let nonce = fs::read(nonce)?;
+
+            // - message: the data that's signed by the RoT to produce an
+            //   attestation `sha3_256(log_data | nonce)`
+            let mut message = Sha3_256::new();
+            message.update(log);
+            message.update(nonce);
+            let message = message.finalize();
+
+            // - verifier: public key / `alias_pub` from pair used to sign the attestation
+            let alias = fs::read(alias_cert)?;
+            let alias = Certificate::from_der(&alias)?;
+            let alias = alias
+                .tbs_certificate
+                .subject_public_key_info
+                .subject_public_key
+                .as_bytes()
+                .ok_or_else(|| anyhow!("Invalid / unaligned public key"))?;
+
+            let verifying_key = VerifyingKey::from_bytes(alias.try_into()?)?;
+            verifying_key.verify(message.as_slice(), &signature)?;
+        }
         AttestCommand::VerifyCertChain {
             cert_chain,
             ca_cert,
@@ -473,6 +538,7 @@ fn main() -> Result<()> {
                     None
                 }
             };
+
             let verifier = PkiPathSignatureVerifier::new(root)?;
             verifier.verify(&cert_chain)?;
         }
