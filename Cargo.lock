@@ -1459,6 +1459,7 @@ dependencies = [
  "pem-rfc7468",
  "sha3",
  "tempfile",
+ "x509-cert",
 ]
 
 [[package]]

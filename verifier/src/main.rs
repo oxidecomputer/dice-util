@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use env_logger::Builder;
 use log::{debug, info, LevelFilter};
-use pem_rfc7468::LineEnding;
+use pem_rfc7468::{LineEnding, PemLabel};
 use sha3::{Digest, Sha3_256};
 use std::{
     fmt::{self, Debug, Formatter},
@@ -16,6 +16,7 @@ use std::{
     process::{Command, Output},
 };
 use tempfile::NamedTempFile;
+use x509_cert::Certificate;
 
 /// Execute HIF operations exposed by the RoT Attest task.
 #[derive(Debug, Parser)]
@@ -397,7 +398,7 @@ fn get_cert(
         Encoding::Der => out,
         Encoding::Pem => {
             let pem = pem_rfc7468::encode_string(
-                "CERTIFICATE",
+                Certificate::PEM_LABEL,
                 LineEnding::default(),
                 &out,
             )?;
