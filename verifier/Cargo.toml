@@ -13,3 +13,4 @@ log.workspace = true
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
 sha3.workspace = true
 tempfile.workspace = true
+x509-cert = { workspace = true, features = ["pem"] }
