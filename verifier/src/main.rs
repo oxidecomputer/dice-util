@@ -6,6 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use env_logger::Builder;
 use log::{debug, info, LevelFilter};
+use pem_rfc7468::LineEnding;
 use sha3::{Digest, Sha3_256};
 use std::{
     fmt::{self, Debug, Formatter},
@@ -38,6 +39,10 @@ struct Args {
 enum AttestCommand {
     /// Get a certificate from the Attest task.
     Cert {
+        /// Target encoding for certificate.
+        #[clap(long, env, default_value_t = Encoding::Der)]
+        encoding: Encoding,
+
         /// Index of certificate in certificate chain.
         #[clap(long, env)]
         index: u32,
@@ -87,6 +92,22 @@ impl fmt::Display for Interface {
         match self {
             Interface::Rot => write!(f, "Attest"),
             Interface::Sprot => write!(f, "Sprot"),
+        }
+    }
+}
+
+/// An enum of the possible certificate encodings.
+#[derive(Clone, Debug, ValueEnum)]
+enum Encoding {
+    Der,
+    Pem,
+}
+
+impl fmt::Display for Encoding {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Encoding::Der => write!(f, "der"),
+            Encoding::Pem => write!(f, "pem"),
         }
     }
 }
@@ -376,10 +397,22 @@ fn main() -> Result<()> {
     let attest = AttestHiffy::new(args.interface);
 
     match args.command {
-        AttestCommand::Cert { index } => {
+        AttestCommand::Cert { encoding, index } => {
             let cert_len = attest.cert_len(index)?;
             let mut out = vec![0u8; cert_len as usize];
             attest.cert(index, &mut out)?;
+
+            let out = match encoding {
+                Encoding::Der => out,
+                Encoding::Pem => {
+                    let pem = pem_rfc7468::encode_string(
+                        "CERTIFICATE",
+                        LineEnding::default(),
+                        &out,
+                    )?;
+                    pem.as_bytes().to_vec()
+                }
+            };
 
             io::stdout().write_all(&out)?;
             io::stdout().flush()?;
