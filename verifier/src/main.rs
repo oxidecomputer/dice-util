@@ -47,6 +47,8 @@ enum AttestCommand {
         #[clap(long, env)]
         index: u32,
     },
+    /// Get the full cert chain from the RoT encoded per RFC 6066 (PKI path)
+    CertChain,
     /// Get the length of the certificate chain that ties the key used by the
     /// `Attest` task to sign attestations back to some PKI. This chain may be
     /// self signed or will terminate at the intermediate before the root.
@@ -382,6 +384,28 @@ impl AttestHiffy {
     }
 }
 
+fn get_cert(
+    attest: &AttestHiffy,
+    encoding: Encoding,
+    index: u32,
+) -> Result<Vec<u8>> {
+    let cert_len = attest.cert_len(index)?;
+    let mut out = vec![0u8; cert_len as usize];
+    attest.cert(index, &mut out)?;
+
+    Ok(match encoding {
+        Encoding::Der => out,
+        Encoding::Pem => {
+            let pem = pem_rfc7468::encode_string(
+                "CERTIFICATE",
+                LineEnding::default(),
+                &out,
+            )?;
+            pem.as_bytes().to_vec()
+        }
+    })
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
 
@@ -398,23 +422,17 @@ fn main() -> Result<()> {
 
     match args.command {
         AttestCommand::Cert { encoding, index } => {
-            let cert_len = attest.cert_len(index)?;
-            let mut out = vec![0u8; cert_len as usize];
-            attest.cert(index, &mut out)?;
-
-            let out = match encoding {
-                Encoding::Der => out,
-                Encoding::Pem => {
-                    let pem = pem_rfc7468::encode_string(
-                        "CERTIFICATE",
-                        LineEnding::default(),
-                        &out,
-                    )?;
-                    pem.as_bytes().to_vec()
-                }
-            };
+            let out = get_cert(&attest, encoding, index)?;
 
             io::stdout().write_all(&out)?;
+            io::stdout().flush()?;
+        }
+        AttestCommand::CertChain => {
+            for index in 0..attest.cert_chain_len()? {
+                let out = get_cert(&attest, Encoding::Pem, index)?;
+
+                io::stdout().write_all(&out)?;
+            }
             io::stdout().flush()?;
         }
         AttestCommand::CertChainLen => println!("{}", attest.cert_chain_len()?),
