@@ -1456,6 +1456,7 @@ dependencies = [
  "clap",
  "env_logger",
  "log",
+ "pem-rfc7468",
  "sha3",
  "tempfile",
 ]
