@@ -14,9 +14,11 @@ resolver = "2"
 anyhow = { version = "1", default-features = false }
 chrono = { version = "0.4.31", default-features=false }
 clap = { version = "4.4", features = ["derive", "env"] }
+const-oid = { version = "0.9.5", default-features = false }
 corncobs = "0.1"
 derive_more = "0.99"
 ecdsa = { version = "0.16", default-features = false }
+ed25519-dalek = { version = "2.1", default-features = false }
 env_logger = { version = "0.10", default-features = false }
 hex.version = "0.4"
 hubpack = "0.1"
