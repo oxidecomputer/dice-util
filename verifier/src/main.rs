@@ -2,11 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod pki_path;
+
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use env_logger::Builder;
-use log::{debug, info, LevelFilter};
+use log::{debug, info, warn, LevelFilter};
 use pem_rfc7468::{LineEnding, PemLabel};
+use pki_path::PkiPathSignatureVerifier;
 use sha3::{Digest, Sha3_256};
 use std::{
     fmt::{self, Debug, Formatter},
@@ -16,7 +19,7 @@ use std::{
     process::{Command, Output},
 };
 use tempfile::NamedTempFile;
-use x509_cert::Certificate;
+use x509_cert::{der::DecodePem, Certificate, PkiPath};
 
 /// Execute HIF operations exposed by the RoT Attest task.
 #[derive(Debug, Parser)]
@@ -80,6 +83,19 @@ enum AttestCommand {
         /// Path to file holding the data to hash and record
         #[clap(long, env)]
         path: PathBuf,
+    },
+    /// Walk the PkiPath formatted certificate chain verifying each link.
+    VerifyCertChain {
+        /// Path to file holding trust anchor for the associated PKI.
+        #[clap(long, env, conflicts_with = "self_signed")]
+        ca_cert: Option<PathBuf>,
+
+        /// Verify the final cert in the provided PkiPath against itself.
+        #[clap(long, env, conflicts_with = "ca_cert")]
+        self_signed: bool,
+
+        /// Path to file holding the certificate chain / PkiPath.
+        cert_chain: PathBuf,
     },
 }
 
@@ -462,6 +478,31 @@ fn main() -> Result<()> {
         AttestCommand::Record { path } => {
             let data = fs::read(path)?;
             attest.record(&data)?;
+        }
+        AttestCommand::VerifyCertChain {
+            cert_chain,
+            ca_cert,
+            self_signed,
+        } => {
+            if !self_signed && ca_cert.is_none() {
+                return Err(anyhow!("`ca-cert` or `self-signed` is required"));
+            }
+
+            let cert_chain = fs::read(cert_chain)?;
+            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
+
+            let root = match ca_cert {
+                Some(r) => {
+                    let root = fs::read(r)?;
+                    Some(Certificate::from_pem(root)?)
+                }
+                None => {
+                    warn!("allowing self-signed cert chain");
+                    None
+                }
+            };
+            let verifier = PkiPathSignatureVerifier::new(root)?;
+            verifier.verify(&cert_chain)?;
         }
     }
 
