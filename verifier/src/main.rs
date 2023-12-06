@@ -46,6 +46,15 @@ struct Args {
 /// An enum of the HIF operations supported by the `Attest` interface.
 #[derive(Debug, Subcommand)]
 enum AttestCommand {
+    /// Get an attestation, this is a signature over the serialized measurement log and the
+    /// provided nonce: `sha3_256(log | nonce)`.
+    Attest {
+        /// Path to file holding the nonce
+        #[clap(long, env)]
+        nonce: PathBuf,
+    },
+    /// Get the length in bytes of attestations.
+    AttestLen,
     /// Get a certificate from the Attest task.
     Cert {
         /// Target encoding for certificate.
@@ -72,15 +81,6 @@ enum AttestCommand {
     Log,
     /// Get the length in bytes of the Log.
     LogLen,
-    /// Get an attestation, this is a signature over the serialized measurement log and the
-    /// provided nonce: `sha3_256(log | nonce)`.
-    Quote {
-        /// Path to file holding the nonce
-        #[clap(long, env)]
-        nonce: PathBuf,
-    },
-    /// Get the length in bytes of attestations.
-    QuoteLen,
     /// Report a measurement to the `Attest` task for recording in the
     /// measurement log.
     Record {
@@ -265,6 +265,23 @@ impl AttestHiffy {
         }
     }
 
+    fn attest(&self, nonce: Nonce, out: &mut [u8]) -> Result<()> {
+        let mut tmp = tempfile::NamedTempFile::new()?;
+        self.get_chunk(
+            "quote",
+            out.len(),
+            tmp.path(),
+            format!("nonce={}", nonce),
+        )?;
+        tmp.read_exact(&mut out[..])?;
+        Ok(())
+    }
+
+    /// Get length of the measurement log in bytes.
+    fn attest_len(&self) -> Result<u32> {
+        self.get_len_cmd("quote_len", None)
+    }
+
     /// Get length of the certificate chain from the Attest task. This cert
     /// chain may be self signed or will terminate at the intermediate before
     /// the root.
@@ -344,23 +361,6 @@ impl AttestHiffy {
         self.get_len_cmd("log_len", None)
     }
 
-    fn quote(&self, nonce: Nonce, out: &mut [u8]) -> Result<()> {
-        let mut tmp = tempfile::NamedTempFile::new()?;
-        self.get_chunk(
-            "quote",
-            out.len(),
-            tmp.path(),
-            format!("nonce={}", nonce),
-        )?;
-        tmp.read_exact(&mut out[..])?;
-        Ok(())
-    }
-
-    /// Get length of the measurement log in bytes.
-    fn quote_len(&self) -> Result<u32> {
-        self.get_len_cmd("quote_len", None)
-    }
-
     /// Record the sha3 hash of a file.
     fn record(&self, data: &[u8]) -> Result<()> {
         let digest = Sha3_256::digest(data);
@@ -430,6 +430,17 @@ fn main() -> Result<()> {
     let attest = AttestHiffy::new(args.interface);
 
     match args.command {
+        AttestCommand::Attest { nonce } => {
+            let nonce = fs::read(nonce)?;
+            let nonce = Nonce::try_from(&nonce[..])?;
+            let attest_len = attest.attest_len()?;
+            let mut out = vec![0u8; attest_len as usize];
+            attest.attest(nonce, &mut out)?;
+
+            io::stdout().write_all(&out)?;
+            io::stdout().flush()?;
+        }
+        AttestCommand::AttestLen => println!("{}", attest.attest_len()?),
         AttestCommand::Cert { encoding, index } => {
             let out = get_cert(&attest, encoding, index)?;
 
@@ -457,17 +468,6 @@ fn main() -> Result<()> {
             io::stdout().flush()?;
         }
         AttestCommand::LogLen => println!("{}", attest.log_len()?),
-        AttestCommand::Quote { nonce } => {
-            let nonce = fs::read(nonce)?;
-            let nonce = Nonce::try_from(&nonce[..])?;
-            let quote_len = attest.quote_len()?;
-            let mut out = vec![0u8; quote_len as usize];
-            attest.quote(nonce, &mut out)?;
-
-            io::stdout().write_all(&out)?;
-            io::stdout().flush()?;
-        }
-        AttestCommand::QuoteLen => println!("{}", attest.quote_len()?),
         AttestCommand::Record { path } => {
             let data = fs::read(path)?;
             attest.record(&data)?;
