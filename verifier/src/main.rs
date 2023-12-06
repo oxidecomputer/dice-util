@@ -49,7 +49,7 @@ enum AttestCommand {
     /// Get a certificate from the Attest task.
     Cert {
         /// Target encoding for certificate.
-        #[clap(long, env, default_value_t = Encoding::Der)]
+        #[clap(long, env, default_value_t = Encoding::Pem)]
         encoding: Encoding,
 
         /// Index of certificate in certificate chain.
