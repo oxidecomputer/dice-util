@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "attest-data",
     "dice-cert-tmpl",
     "dice-mfg",
     "dice-mfg-msgs",
@@ -31,9 +32,10 @@ salty = { version = "0.3", default-features = false }
 serde = { version = "1", default-features = false }
 serde-big-array = "0.5"
 serde_json = { version = "1", features = ["std", "alloc"] }
+serde_with = { version = "3.3", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
 sha2 = "0.10"
-sha3 = "0.10"
+sha3 = { version = "0.10", default-features = false }
 string-error = "0.1"
 tempfile = { version = "3", default-features = false }
 thiserror = "1.0.50"
