@@ -72,9 +72,8 @@ enum AttestCommand {
     Log,
     /// Get the length in bytes of the Log.
     LogLen,
-    /// Get an attestation.
-    /// NOTE: The nonce is generated from the platform RNG. Future work may
-    /// allow providing it as a parameter.
+    /// Get an attestation, this is a signature over the serialized measurement log and the
+    /// provided nonce: `sha3_256(log | nonce)`.
     Quote {
         /// Path to file holding the nonce
         #[clap(long, env)]
