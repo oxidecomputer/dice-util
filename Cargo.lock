@@ -1464,6 +1464,7 @@ name = "verifier"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "attest-data",
  "clap",
  "const-oid",
  "ed25519-dalek",
