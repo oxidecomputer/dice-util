@@ -7,6 +7,7 @@ license = "MPL-2.0"
 
 [dependencies]
 anyhow = { workspace = true, features = ["std"] }
+attest-data = { path = "../attest-data", features = ["std"] }
 clap.workspace = true
 const-oid = { workspace = true, features = ["db"] }
 ed25519-dalek = { workspace = true, features = ["std"] }

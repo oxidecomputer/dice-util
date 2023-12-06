@@ -5,6 +5,7 @@
 mod pki_path;
 
 use anyhow::{anyhow, Context, Result};
+use attest_data::Nonce;
 use clap::{Parser, Subcommand, ValueEnum};
 use env_logger::Builder;
 use log::{debug, info, warn, LevelFilter};
@@ -127,36 +128,6 @@ impl fmt::Display for Encoding {
         match self {
             Encoding::Der => write!(f, "der"),
             Encoding::Pem => write!(f, "pem"),
-        }
-    }
-}
-
-/// Nonce is a newtype around an appropriately sized byte array. The newtype
-/// is convenient way to encapsulate the required conversion functions.
-struct Nonce([u8; 32]);
-
-impl fmt::Display for Nonce {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let mut out: Vec<String> = Vec::new();
-
-        for byte in self.0 {
-            out.push(format!("{}", byte));
-        }
-        let out = out.join(" ");
-
-        write!(f, "[{}]", out)
-    }
-}
-
-impl TryFrom<&Path> for Nonce {
-    type Error = anyhow::Error;
-
-    fn try_from(path: &Path) -> Result<Self> {
-        let nonce = fs::read(path)?;
-
-        match nonce.try_into() {
-            Ok(n) => Ok(Nonce(n)),
-            Err(_) => Err(anyhow!("bad nonce")),
         }
     }
 }
@@ -466,7 +437,8 @@ fn main() -> Result<()> {
         }
         AttestCommand::LogLen => println!("{}", attest.log_len()?),
         AttestCommand::Quote { nonce } => {
-            let nonce = Nonce::try_from(nonce.as_path())?;
+            let nonce = fs::read(nonce)?;
+            let nonce = Nonce::try_from(&nonce[..])?;
             let quote_len = attest.quote_len()?;
             let mut out = vec![0u8; quote_len as usize];
             attest.quote(nonce, &mut out)?;
