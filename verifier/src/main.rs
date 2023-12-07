@@ -50,7 +50,7 @@ enum AttestCommand {
     /// provided nonce: `sha3_256(log | nonce)`.
     Attest {
         /// Path to file holding the nonce
-        #[clap(long, env)]
+        #[clap(env)]
         nonce: PathBuf,
     },
     /// Get the length in bytes of attestations.
@@ -62,7 +62,7 @@ enum AttestCommand {
         encoding: Encoding,
 
         /// Index of certificate in certificate chain.
-        #[clap(long, env)]
+        #[clap(env)]
         index: u32,
     },
     /// Get the full cert chain from the RoT encoded per RFC 6066 (PKI path)
@@ -74,7 +74,7 @@ enum AttestCommand {
     /// get the length of the certificate at the provided index.
     CertLen {
         /// Index of certificate in certificate chain.
-        #[clap(long, env)]
+        #[clap(env)]
         index: u32,
     },
     /// Get the log of measurements recorded by the RoT.
@@ -84,9 +84,9 @@ enum AttestCommand {
     /// Report a measurement to the `Attest` task for recording in the
     /// measurement log.
     Record {
-        /// Path to file holding the data to hash and record
-        #[clap(long, env)]
-        path: PathBuf,
+        /// Path to file holding the digest to record
+        #[clap(env)]
+        digest: PathBuf,
     },
     /// Verify signature over Attestation
     VerifyAttestation {
@@ -95,7 +95,7 @@ enum AttestCommand {
         alias_cert: PathBuf,
 
         /// Path to file holding the attestation
-        #[clap(long, env)]
+        #[clap(env)]
         attestation: PathBuf,
 
         /// Path to file holding the log
@@ -117,6 +117,7 @@ enum AttestCommand {
         self_signed: bool,
 
         /// Path to file holding the certificate chain / PkiPath.
+        #[clap(env)]
         cert_chain: PathBuf,
     },
 }
@@ -468,9 +469,9 @@ fn main() -> Result<()> {
             io::stdout().flush()?;
         }
         AttestCommand::LogLen => println!("{}", attest.log_len()?),
-        AttestCommand::Record { path } => {
-            let data = fs::read(path)?;
-            attest.record(&data)?;
+        AttestCommand::Record { digest } => {
+            let digest = fs::read(digest)?;
+            attest.record(&digest)?;
         }
         AttestCommand::VerifyAttestation {
             alias_cert,
