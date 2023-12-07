@@ -27,7 +27,7 @@ past attestations produced using the same nonce.
 
 ```shell
 $ dd if=/dev/urandom of=nonce.bin bs=32 count=1
-$ cargo run --package verifier -- get attestation nonce.bin > attestation.bin
+$ cargo run --package verifier -- attest nonce.bin > attestation.bin
 ```
 
 We prove the attestation includes the nonce using a mechanism described in the
@@ -43,7 +43,7 @@ guarantees and so we cannot trust any analysis of it until we've established a
 basis for trusting its accuracy.
 
 ```shell
-$ cargo run --package verifier -- get log > log.bin
+$ cargo run --package verifier -- log > log.bin
 ```
 
 An attestation is a detached signature over the measurement log. By verifying
@@ -52,8 +52,8 @@ attestation at the same time by including the nonce in the signed data as the
 RoT does:
 
 ```shell
-$ cargo run --package verifier -- get cert --index 0 > alias.pem
-$ cargo run --package verifier -- verify attestation --alias_cert alias.pem --log log.bin --nonce nonce.bin attestation.bin
+$ cargo run --package verifier -- cert --index 0 > alias.pem
+$ cargo run --package verifier -- verify-attestation --alias_cert alias.pem --log log.bin --nonce nonce.bin attestation.bin
 ```
 
 The signature verification boils down to:
@@ -70,6 +70,6 @@ the key used to sign the attestation for the purpose of attestation. We do so
 by first establishing trust in the certificate chain from the RoT:
 
 ```shell
-$ cargo run --package verifier -- get cert-chain > cert-chain.pem
-$ cargo run --package verifier -- verify cert-chain --ca-cert ca-root.pem cert-chain.pem
+$ cargo run --package verifier -- cert-chain > cert-chain.pem
+$ cargo run --package verifier -- verify-cert-chain --ca-cert ca-root.pem cert-chain.pem
 ```
