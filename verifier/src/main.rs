@@ -306,7 +306,7 @@ impl AttestHiffy {
                 tmp.path(),
                 format!("index={},offset={}", index, offset),
             )?;
-            tmp.read_exact(&mut out[offset..Self::CHUNK_SIZE])?;
+            tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
         }
 
         let remain = out.len() % Self::CHUNK_SIZE;
@@ -338,7 +338,7 @@ impl AttestHiffy {
                 tmp.path(),
                 format!("offset={}", offset),
             )?;
-            tmp.read_exact(&mut out[offset..Self::CHUNK_SIZE])?;
+            tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
         }
 
         let remain = out.len() % Self::CHUNK_SIZE;
