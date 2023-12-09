@@ -9,7 +9,7 @@ use attest_data::{Attestation, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use env_logger::Builder;
-use log::{debug, info, warn, LevelFilter};
+use log::{debug, error, info, warn, LevelFilter};
 use pem_rfc7468::{LineEnding, PemLabel};
 use pki_path::PkiPathSignatureVerifier;
 use sha3::{Digest, Sha3_256};
@@ -505,6 +505,20 @@ fn main() -> Result<()> {
 
             // - verifier: public key / `alias_pub` from pair used to sign the attestation
             let alias = fs::read(alias_cert)?;
+            let alias = match pem_rfc7468::decode_vec(&alias) {
+                Ok((l, v)) => {
+                    debug!("decoded pem w/ label: \"{}\"", l);
+                    if l != Certificate::PEM_LABEL {
+                        error!("got cert w/ unsupported pem label");
+                    }
+
+                    v
+                }
+                Err(e) => {
+                    debug!("error decoding PEM: {}", e);
+                    alias
+                }
+            };
             let alias = Certificate::from_der(&alias)?;
             let alias = alias
                 .tbs_certificate
