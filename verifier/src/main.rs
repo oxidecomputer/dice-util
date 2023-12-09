@@ -269,7 +269,7 @@ impl AttestHiffy {
     fn attest(&self, nonce: Nonce, out: &mut [u8]) -> Result<()> {
         let mut tmp = tempfile::NamedTempFile::new()?;
         self.get_chunk(
-            "quote",
+            "attest",
             out.len(),
             tmp.path(),
             format!("nonce={}", nonce),
@@ -280,7 +280,7 @@ impl AttestHiffy {
 
     /// Get length of the measurement log in bytes.
     fn attest_len(&self) -> Result<u32> {
-        self.get_len_cmd("quote_len", None)
+        self.get_len_cmd("attest_len", None)
     }
 
     /// Get length of the certificate chain from the Attest task. This cert
