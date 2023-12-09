@@ -133,7 +133,7 @@ impl fmt::Display for Interface {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Interface::Rot => write!(f, "Attest"),
-            Interface::Sprot => write!(f, "Sprot"),
+            Interface::Sprot => write!(f, "SpRot"),
         }
     }
 }
