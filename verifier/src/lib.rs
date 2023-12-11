@@ -3,7 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use anyhow::{anyhow, Result};
+use attest_data::{Attestation, Nonce};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
+use sha3::{Digest, Sha3_256};
 use x509_cert::{der::Encode, Certificate, PkiPath};
 
 /// Unit-like struct with a single non-member associated function. This
@@ -224,4 +226,39 @@ impl PkiPathSignatureVerifier {
             Ok(())
         }
     }
+}
+
+pub fn verify_attestation(
+    alias: &Certificate,
+    attestation: &Attestation,
+    log: &[u8],
+    nonce: &Nonce,
+) -> Result<()> {
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+
+    // To verify an attestation we need to extract and construct a few
+    // things before we can verify the attestation:
+    // - signature: the attestation produced by the RoT when
+    //   `alias_priv` is used to sign `message`
+    let signature = match attestation {
+        Attestation::Ed25519(s) => Signature::from_bytes(&s.0),
+    };
+
+    // - message: the data that's signed by the RoT to produce an
+    //   attestation `sha3_256(log | nonce)`
+    let mut message = Sha3_256::new();
+    message.update(log);
+    message.update(nonce);
+    let message = message.finalize();
+
+    let alias = alias
+        .tbs_certificate
+        .subject_public_key_info
+        .subject_public_key
+        .as_bytes()
+        .ok_or_else(|| anyhow!("Invalid / unaligned public key"))?;
+
+    let verifying_key = VerifyingKey::from_bytes(alias.try_into()?)?;
+    verifying_key.verify(message.as_slice(), &signature)?;
+    todo!("verify_attestation");
 }
