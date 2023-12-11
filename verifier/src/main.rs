@@ -488,7 +488,9 @@ fn main() -> Result<()> {
                 hubpack::deserialize(&attestation).map_err(|e| {
                     anyhow!("Failed to deserialize Attestation: {}", e)
                 })?;
-            let signature = Signature::try_from(&attestation)?;
+            let signature = match attestation {
+                Attestation::Ed25519(s) => Signature::from_bytes(&s.0),
+            };
 
             // - log_data: the hubpack encoded measurement log `hubpack(log)`
             let log = fs::read(log)?;
