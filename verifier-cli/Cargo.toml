@@ -1,8 +1,8 @@
 [package]
-name = "verifier"
+name = "verifier-cli"
 version = "0.1.0"
 edition = "2021"
-description = "A CLI tool for interacting with the Hubris attest task."
+description = "A CLI tool for getting and verifying attestations from the RoT."
 license = "MPL-2.0"
 
 [dependencies]
