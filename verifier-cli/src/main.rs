@@ -2,16 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-mod pki_path;
-
 use anyhow::{anyhow, Context, Result};
 use attest_data::{Attestation, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use env_logger::Builder;
 use log::{debug, error, info, warn, LevelFilter};
 use pem_rfc7468::{LineEnding, PemLabel};
-use pki_path::PkiPathSignatureVerifier;
 use sha3::{Digest, Sha3_256};
 use std::{
     fmt::{self, Debug, Formatter},
@@ -21,6 +17,7 @@ use std::{
     process::{Command, Output},
 };
 use tempfile::NamedTempFile;
+use verifier::PkiPathSignatureVerifier;
 use x509_cert::{
     der::{Decode, DecodePem},
     Certificate, PkiPath,
@@ -479,33 +476,16 @@ fn main() -> Result<()> {
             log,
             nonce,
         } => {
-            // To verify an attestation we need to extract and construct a few
-            // things before we can verify the attestation:
-            // - signature: the attestation produced by the RoT when
-            //   `alias_priv` is used to sign `message`
             let attestation = fs::read(attestation)?;
             let (attestation, _): (Attestation, _) =
                 hubpack::deserialize(&attestation).map_err(|e| {
                     anyhow!("Failed to deserialize Attestation: {}", e)
                 })?;
-            let signature = match attestation {
-                Attestation::Ed25519(s) => Signature::from_bytes(&s.0),
-            };
 
-            // - log_data: the hubpack encoded measurement log `hubpack(log)`
             let log = fs::read(log)?;
-            // - nonce: nonce provided to RoT when the attestation provided
-            //   was collected
-            let nonce = fs::read(nonce)?;
 
-            // - message: the data that's signed by the RoT to produce an
-            //   attestation `sha3_256(log_data | nonce)`
-            let mut message = Sha3_256::new();
-            message.update(log);
-            message.update(nonce);
-            let message = message.finalize();
+            let nonce: Nonce = fs::read(nonce)?.try_into()?;
 
-            // - verifier: public key / `alias_pub` from pair used to sign the attestation
             let alias = fs::read(alias_cert)?;
             let alias = match pem_rfc7468::decode_vec(&alias) {
                 Ok((l, v)) => {
@@ -521,16 +501,10 @@ fn main() -> Result<()> {
                     alias
                 }
             };
-            let alias = Certificate::from_der(&alias)?;
-            let alias = alias
-                .tbs_certificate
-                .subject_public_key_info
-                .subject_public_key
-                .as_bytes()
-                .ok_or_else(|| anyhow!("Invalid / unaligned public key"))?;
 
-            let verifying_key = VerifyingKey::from_bytes(alias.try_into()?)?;
-            verifying_key.verify(message.as_slice(), &signature)?;
+            let alias = Certificate::from_der(&alias)?;
+
+            verifier::verify_attestation(&alias, &attestation, &log, &nonce)?;
         }
         AttestCommand::VerifyCertChain {
             cert_chain,
