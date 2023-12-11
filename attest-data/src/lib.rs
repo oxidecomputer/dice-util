@@ -4,8 +4,8 @@
 
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
-use ed25519_dalek::{Signature, SignatureError, SIGNATURE_LENGTH};
 use hubpack::SerializedSize;
+use salty::constants::SIGNATURE_SERIALIZED_LENGTH;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sha3::{
@@ -57,7 +57,7 @@ pub const NONCE_SIZE: usize = SHA3_256_DIGEST_SIZE;
 pub type Sha3_256Digest = ArrayBuf<SHA3_256_DIGEST_SIZE>;
 
 /// An array of bytes sized appropriately for a sha3-256 digest.
-pub type Ed25519Signature = ArrayBuf<SIGNATURE_LENGTH>;
+pub type Ed25519Signature = ArrayBuf<SIGNATURE_SERIALIZED_LENGTH>;
 
 /// Nonce is a newtype around an appropriately sized byte array.
 pub type Nonce = ArrayBuf<NONCE_SIZE>;
@@ -127,14 +127,4 @@ impl<const N: usize> Default for Log<N> {
 #[derive(Deserialize, Serialize, SerializedSize)]
 pub enum Attestation {
     Ed25519(Ed25519Signature),
-}
-
-impl TryFrom<&Attestation> for Signature {
-    type Error = SignatureError;
-
-    fn try_from(attestation: &Attestation) -> Result<Self, Self::Error> {
-        match attestation {
-            Attestation::Ed25519(s) => Ok(Signature::from_bytes(&s.0)),
-        }
-    }
 }

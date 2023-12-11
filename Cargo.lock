@@ -116,8 +116,8 @@ checksum = "3b13c32d80ecc7ab747b80c3784bce54ee8a7a0cc4fbda9bf4cda2cf6fe90854"
 name = "attest-data"
 version = "0.1.0"
 dependencies = [
- "ed25519-dalek",
  "hubpack",
+ "salty",
  "serde",
  "serde_with",
  "sha3",

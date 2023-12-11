@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 hubpack.workspace = true
-ed25519-dalek.workspace = true
 thiserror = { workspace = true, optional = true }
+salty.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["macros"] }
 sha3.workspace = true
