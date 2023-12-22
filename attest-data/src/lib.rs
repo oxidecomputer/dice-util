@@ -14,7 +14,18 @@ use sha3::{
 };
 
 #[cfg(feature = "std")]
+use thiserror::Error;
+
+#[cfg(feature = "std")]
 use std::fmt::{self, Display, Formatter};
+
+#[cfg_attr(feature = "std", derive(Debug, Error))]
+pub enum AttestDataError {
+    #[cfg_attr(feature = "std", error("Deserialization failed"))]
+    Deserialize,
+    #[cfg_attr(feature = "std", error("Slice is the wrong length"))]
+    TryFromSliceError,
+}
 
 /// ArrayBuf is the type we use as a base for types that are constant sized
 /// byte buffers.
@@ -39,11 +50,13 @@ impl<const N: usize> From<[u8; N]> for ArrayBuf<N> {
 }
 
 impl<const N: usize> TryFrom<&[u8]> for ArrayBuf<N> {
-    type Error = core::array::TryFromSliceError;
+    type Error = AttestDataError;
 
     /// Attempt to create an ArrayBuf of a given size from the slice provided.
     fn try_from(item: &[u8]) -> Result<Self, Self::Error> {
-        let nonce: [u8; N] = item.try_into()?;
+        let nonce: [u8; N] = item
+            .try_into()
+            .map_err(|_| Self::Error::TryFromSliceError)?;
         Ok(ArrayBuf::<N>(nonce))
     }
 }
@@ -92,14 +105,14 @@ impl Default for Measurement {
 
 /// Log is the collection of measurements recorded
 #[serde_as]
-#[derive(Serialize, SerializedSize)]
-pub struct Log<const N: usize> {
+#[derive(Deserialize, Serialize, SerializedSize)]
+pub struct MeasurementLog<const N: usize> {
     index: u32,
     #[serde_as(as = "[_; N]")]
     measurements: [Measurement; N],
 }
 
-impl<const N: usize> Log<N> {
+impl<const N: usize> MeasurementLog<N> {
     pub fn is_full(&self) -> bool {
         self.index as usize == N
     }
@@ -115,7 +128,7 @@ impl<const N: usize> Log<N> {
     }
 }
 
-impl<const N: usize> Default for Log<N> {
+impl<const N: usize> Default for MeasurementLog<N> {
     fn default() -> Self {
         Self {
             index: 0,
@@ -123,6 +136,20 @@ impl<const N: usize> Default for Log<N> {
         }
     }
 }
+
+impl<const N: usize> TryFrom<&[u8]> for MeasurementLog<N> {
+    type Error = AttestDataError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let (log, _): (Self, _) = hubpack::deserialize(value)
+            .map_err(|_| AttestDataError::Deserialize)?;
+        Ok(log)
+    }
+}
+
+const LOG_CAPACITY: usize = 16;
+
+pub type Log = MeasurementLog<LOG_CAPACITY>;
 
 #[derive(Deserialize, Serialize, SerializedSize)]
 pub enum Attestation {
