@@ -27,53 +27,68 @@ pub enum AttestDataError {
     TryFromSliceError,
 }
 
-/// ArrayBuf is the type we use as a base for types that are constant sized
-/// byte buffers.
+/// Array is the type we use as a base for types that are constant sized byte
+/// buffers.
 #[serde_as]
 #[derive(
     Clone, Copy, Debug, Deserialize, PartialEq, Serialize, SerializedSize,
 )]
-pub struct ArrayBuf<const N: usize>(#[serde_as(as = "[_; N]")] pub [u8; N]);
+pub struct Array<const N: usize>(#[serde_as(as = "[_; N]")] pub [u8; N]);
 
-impl<const N: usize> Default for ArrayBuf<N> {
-    /// Create and initialize an ArrayBuf<N> to 0's.
+impl<const N: usize> Default for Array<N> {
+    /// Create and initialize an Array<N> to 0's.
     fn default() -> Self {
         Self([0u8; N])
     }
 }
 
-impl<const N: usize> From<[u8; N]> for ArrayBuf<N> {
-    /// Create an ArrayBuf from the provided array.
+impl<const N: usize> From<[u8; N]> for Array<N> {
+    /// Create an Array from the provided array.
     fn from(item: [u8; N]) -> Self {
         Self(item)
     }
 }
 
-impl<const N: usize> TryFrom<&[u8]> for ArrayBuf<N> {
+impl<const N: usize> TryFrom<&[u8]> for Array<N> {
     type Error = AttestDataError;
 
-    /// Attempt to create an ArrayBuf of a given size from the slice provided.
+    /// Attempt to create an Array<N> from the slice provided.
     fn try_from(item: &[u8]) -> Result<Self, Self::Error> {
         let nonce: [u8; N] = item
             .try_into()
             .map_err(|_| Self::Error::TryFromSliceError)?;
-        Ok(ArrayBuf::<N>(nonce))
+        Ok(Array::<N>(nonce))
     }
 }
 
-pub const SHA3_256_DIGEST_SIZE: usize =
+impl<const N: usize> TryFrom<Vec<u8>> for Array<N> {
+    type Error = AttestDataError;
+
+    /// Attempt to create an Array<N> from the Vec<u8> provided.
+    fn try_from(item: Vec<u8>) -> Result<Self, Self::Error> {
+        item.try_into()
+    }
+}
+
+impl<const N: usize> AsRef<[u8]> for Array<N> {
+    fn as_ref(&self) -> &[u8] {
+        &self.0[..]
+    }
+}
+
+const SHA3_256_DIGEST_SIZE: usize =
     <Sha3_256Core as OutputSizeUser>::OutputSize::USIZE;
 
-pub const NONCE_SIZE: usize = SHA3_256_DIGEST_SIZE;
+const NONCE_SIZE: usize = SHA3_256_DIGEST_SIZE;
 
 /// An array of bytes sized appropriately for a sha3-256 digest.
-pub type Sha3_256Digest = ArrayBuf<SHA3_256_DIGEST_SIZE>;
+pub type Sha3_256Digest = Array<SHA3_256_DIGEST_SIZE>;
 
 /// An array of bytes sized appropriately for a sha3-256 digest.
-pub type Ed25519Signature = ArrayBuf<SIGNATURE_SERIALIZED_LENGTH>;
+pub type Ed25519Signature = Array<SIGNATURE_SERIALIZED_LENGTH>;
 
 /// Nonce is a newtype around an appropriately sized byte array.
-pub type Nonce = ArrayBuf<NONCE_SIZE>;
+pub type Nonce = Array<NONCE_SIZE>;
 
 #[cfg(feature = "std")]
 impl Display for Nonce {
