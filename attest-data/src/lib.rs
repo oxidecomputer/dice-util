@@ -71,7 +71,7 @@ impl<const N: usize> TryFrom<Vec<u8>> for Array<N> {
 
     /// Attempt to create an Array<N> from the Vec<u8> provided.
     fn try_from(item: Vec<u8>) -> Result<Self, Self::Error> {
-        item.try_into()
+        item[..].try_into()
     }
 }
 
