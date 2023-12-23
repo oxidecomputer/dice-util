@@ -61,6 +61,7 @@ impl<const N: usize> TryFrom<&[u8]> for Array<N> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<const N: usize> TryFrom<Vec<u8>> for Array<N> {
     type Error = AttestDataError;
 
