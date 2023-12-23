@@ -35,6 +35,10 @@ pub enum AttestDataError {
 )]
 pub struct Array<const N: usize>(#[serde_as(as = "[_; N]")] pub [u8; N]);
 
+impl<const N: usize> Array<N> {
+    pub const LENGTH: usize = N;
+}
+
 impl<const N: usize> Default for Array<N> {
     /// Create and initialize an Array<N> to 0's.
     fn default() -> Self {
