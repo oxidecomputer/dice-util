@@ -259,6 +259,5 @@ pub fn verify_attestation(
         .ok_or_else(|| anyhow!("Invalid / unaligned public key"))?;
 
     let verifying_key = VerifyingKey::from_bytes(alias.try_into()?)?;
-    verifying_key.verify(message.as_slice(), &signature)?;
-    todo!("verify_attestation");
+    Ok(verifying_key.verify(message.as_slice(), &signature)?)
 }
