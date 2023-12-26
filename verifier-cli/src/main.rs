@@ -476,35 +476,7 @@ fn main() -> Result<()> {
             log,
             nonce,
         } => {
-            let attestation = fs::read(attestation)?;
-            let (attestation, _): (Attestation, _) =
-                hubpack::deserialize(&attestation).map_err(|e| {
-                    anyhow!("Failed to deserialize Attestation: {}", e)
-                })?;
-
-            let log = fs::read(log)?;
-
-            let nonce: Nonce = fs::read(nonce)?.try_into()?;
-
-            let alias = fs::read(alias_cert)?;
-            let alias = match pem_rfc7468::decode_vec(&alias) {
-                Ok((l, v)) => {
-                    debug!("decoded pem w/ label: \"{}\"", l);
-                    if l != Certificate::PEM_LABEL {
-                        error!("got cert w/ unsupported pem label");
-                    }
-
-                    v
-                }
-                Err(e) => {
-                    debug!("error decoding PEM: {}", e);
-                    alias
-                }
-            };
-
-            let alias = Certificate::from_der(&alias)?;
-
-            verifier::verify_attestation(&alias, &attestation, &log, &nonce)?;
+            verify_attestation(&alias_cert, &attestation, &log, &nonce)?;
         }
         AttestCommand::VerifyCertChain {
             cert_chain,
@@ -535,4 +507,39 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn verify_attestation(
+    alias_cert: &PathBuf,
+    attestation: &PathBuf,
+    log: &PathBuf,
+    nonce: &PathBuf,
+) -> Result<()> {
+    let attestation = fs::read(attestation)?;
+    let (attestation, _): (Attestation, _) = hubpack::deserialize(&attestation)
+        .map_err(|e| anyhow!("Failed to deserialize Attestation: {}", e))?;
+
+    let log = fs::read(log)?;
+
+    let nonce: Nonce = fs::read(nonce)?.try_into()?;
+
+    let alias = fs::read(alias_cert)?;
+    let alias = match pem_rfc7468::decode_vec(&alias) {
+        Ok((l, v)) => {
+            debug!("decoded pem w/ label: \"{}\"", l);
+            if l != Certificate::PEM_LABEL {
+                error!("got cert w/ unsupported pem label");
+            }
+
+            v
+        }
+        Err(e) => {
+            debug!("error decoding PEM: {}", e);
+            alias
+        }
+    };
+
+    let alias = Certificate::from_der(&alias)?;
+
+    verifier::verify_attestation(&alias, &attestation, &log, &nonce)
 }
