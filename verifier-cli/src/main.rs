@@ -483,26 +483,7 @@ fn main() -> Result<()> {
             ca_cert,
             self_signed,
         } => {
-            if !self_signed && ca_cert.is_none() {
-                return Err(anyhow!("`ca-cert` or `self-signed` is required"));
-            }
-
-            let cert_chain = fs::read(cert_chain)?;
-            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
-
-            let root = match ca_cert {
-                Some(r) => {
-                    let root = fs::read(r)?;
-                    Some(Certificate::from_pem(root)?)
-                }
-                None => {
-                    warn!("allowing self-signed cert chain");
-                    None
-                }
-            };
-
-            let verifier = PkiPathSignatureVerifier::new(root)?;
-            verifier.verify(&cert_chain)?;
+            verify_cert_chain(&ca_cert, &cert_chain, self_signed)?;
         }
     }
 
@@ -542,4 +523,31 @@ fn verify_attestation(
     let alias = Certificate::from_der(&alias)?;
 
     verifier::verify_attestation(&alias, &attestation, &log, &nonce)
+}
+
+fn verify_cert_chain(
+    ca_cert: &Option<PathBuf>,
+    cert_chain: &PathBuf,
+    self_signed: bool,
+) -> Result<()> {
+    if !self_signed && ca_cert.is_none() {
+        return Err(anyhow!("`ca-cert` or `self-signed` is required"));
+    }
+
+    let cert_chain = fs::read(cert_chain)?;
+    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
+
+    let root = match ca_cert {
+        Some(r) => {
+            let root = fs::read(r)?;
+            Some(Certificate::from_pem(root)?)
+        }
+        None => {
+            warn!("allowing self-signed cert chain");
+            None
+        }
+    };
+
+    let verifier = PkiPathSignatureVerifier::new(root)?;
+    verifier.verify(&cert_chain)
 }
