@@ -23,6 +23,11 @@ use std::fmt::{self, Display, Formatter};
 pub enum AttestDataError {
     #[cfg_attr(feature = "std", error("Deserialization failed"))]
     Deserialize,
+    #[cfg_attr(
+        feature = "std",
+        error("Failed to get random Nonce from the platform")
+    )]
+    GetRandom,
     #[cfg_attr(feature = "std", error("Slice is the wrong length"))]
     TryFromSliceError,
 }
@@ -106,6 +111,18 @@ impl Display for Nonce {
         let out = out.join(" ");
 
         write!(f, "[{}]", out)
+    }
+}
+
+impl Nonce {
+    #[cfg(feature = "std")]
+    pub fn from_platform_rng() -> Result<Self, AttestDataError> {
+        let mut nonce = [0u8; NONCE_SIZE];
+        getrandom::getrandom(&mut nonce[..])
+            .map_err(|_| AttestDataError::GetRandom)?;
+        let nonce = nonce;
+
+        Ok(Self(nonce))
     }
 }
 
