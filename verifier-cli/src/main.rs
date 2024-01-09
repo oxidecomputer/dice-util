@@ -6,6 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use attest_data::{Attestation, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
 use env_logger::Builder;
+use hubpack::SerializedSize;
 use log::{debug, error, info, warn, LevelFilter};
 use pem_rfc7468::{LineEnding, PemLabel};
 use sha3::{Digest, Sha3_256};
@@ -251,7 +252,8 @@ impl AttestHiffy {
         op: &str,
         length: usize,
         output: &Path,
-        args: String,
+        args: Option<&str>,
+        input: Option<&str>,
     ) -> Result<()> {
         let mut cmd = Command::new("humility");
 
@@ -259,8 +261,13 @@ impl AttestHiffy {
         cmd.arg(format!("--call={}.{}", self.interface, op));
         cmd.arg(format!("--num={}", length));
         cmd.arg(format!("--output={}", output.to_string_lossy()));
-        cmd.arg("--arguments");
-        cmd.arg(args);
+        if let Some(args) = args {
+            cmd.arg("--arguments");
+            cmd.arg(args);
+        }
+        if let Some(i) = input {
+            cmd.arg(format!("--input={}", i));
+        }
         debug!("executing command: {:?}", cmd);
 
         let output = cmd.output()?;
@@ -278,15 +285,22 @@ impl AttestHiffy {
     }
 
     fn attest(&self, nonce: Nonce, out: &mut [u8]) -> Result<()> {
-        let mut tmp = tempfile::NamedTempFile::new()?;
+        let mut attestation_tmp = tempfile::NamedTempFile::new()?;
+        let mut nonce_tmp = tempfile::NamedTempFile::new()?;
+
+        let mut buf = [0u8; Nonce::MAX_SIZE];
+        hubpack::serialize(&mut buf, &nonce)
+            .map_err(|_| anyhow!("failed to serialize Nonce"))?;
+        nonce_tmp.write_all(&buf)?;
+
         self.get_chunk(
             "attest",
             out.len(),
-            tmp.path(),
-            format!("nonce={}", nonce),
+            attestation_tmp.path(),
+            None,
+            Some(&nonce_tmp.path().to_string_lossy()),
         )?;
-        tmp.read_exact(&mut out[..])?;
-        Ok(())
+        Ok(attestation_tmp.read_exact(&mut out[..])?)
     }
 
     /// Get length of the measurement log in bytes.
@@ -315,7 +329,8 @@ impl AttestHiffy {
                 "cert",
                 Self::CHUNK_SIZE,
                 tmp.path(),
-                format!("index={},offset={}", index, offset),
+                Some(&format!("index={},offset={}", index, offset)),
+                None,
             )?;
             tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
         }
@@ -328,7 +343,8 @@ impl AttestHiffy {
                 "cert",
                 remain,
                 tmp.path(),
-                format!("index={},offset={}", index, offset),
+                Some(&format!("index={},offset={}", index, offset)),
+                None,
             )?;
             tmp.read_exact(&mut out[offset..])?;
         }
@@ -347,7 +363,8 @@ impl AttestHiffy {
                 "log",
                 Self::CHUNK_SIZE,
                 tmp.path(),
-                format!("offset={}", offset),
+                Some(&format!("offset={}", offset)),
+                None,
             )?;
             tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
         }
@@ -360,7 +377,8 @@ impl AttestHiffy {
                 "log",
                 remain,
                 tmp.path(),
-                format!("offset={}", offset),
+                Some(&format!("offset={}", offset)),
+                None,
             )?;
             tmp.read_exact(&mut out[offset..])?;
         }
