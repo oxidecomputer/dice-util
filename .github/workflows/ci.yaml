@@ -10,10 +10,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy
-      # This repo is unstable and unnecessary:
-      # https://github.com/microsoft/linux-package-repositories/issues/34
-      - name: Disable packages.microsoft.com repo
-        run: sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list && sudo apt-get update
       - run: sudo apt-get install -y pkg-config libudev-dev
       - run: cargo clippy -- --deny warnings
   test:
@@ -22,9 +18,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      # This repo is unstable and unnecessary:
-      # https://github.com/microsoft/linux-package-repositories/issues/34
-      - name: Disable packages.microsoft.com repo
-        run: sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list && sudo apt-get update
       - run: sudo apt-get install -y pkg-config libudev-dev
       - run: cargo test --all-features
