@@ -17,7 +17,7 @@ task. This interface is how we get attestations and supporting data.
 
 ```shell
 $ dd if=/dev/urandom of=nonce.bin bs=32 count=1
-$ cargo run --package verifier -- attest nonce.bin > attestation.bin
+$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- attest nonce.bin > attestation.bin
 ```
 
 ### Get the cert chain
@@ -25,20 +25,20 @@ $ cargo run --package verifier -- attest nonce.bin > attestation.bin
 Trust always boils down to PKI.
 
 ```shell
-$ cargo run --package verifier -- cert-chain > cert-chain.pem
+$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- cert-chain > cert-chain.pem
 ```
 
 ### Get the Measurement Log
 
 ```shell
-$ cargo run --package verifier -- log > log.bin
+$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- log > log.bin
 ```
 
 ### Verify the Attestation
 
 ```shell
-$ cargo run --package verifier -- cert --index 0 > alias.pem
-$ cargo run --package verifier -- verify-attestation --alias_cert alias.pem --log log.bin --nonce nonce.bin attestation.bin
+$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- cert 0 > alias.pem
+$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- verify-attestation --alias-cert alias.pem --log log.bin --nonce nonce.bin attestation.bin
 ```
 
 ### Verify the cert chain
@@ -48,7 +48,7 @@ $ cargo run --package verifier -- verify-attestation --alias_cert alias.pem --lo
 If your RoT has been manufactured and you've got a root cert:
 
 ```shell
-$ cargo run --package verifier -- verify-cert-chain --ca-cert root.cert.pem cert-chain.pem
+$ cargo run --package verifier-cli -- verify-cert-chain --ca-cert root.cert.pem cert-chain.pem
 ```
 
 #### dice-self
