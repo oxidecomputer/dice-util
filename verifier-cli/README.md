@@ -7,9 +7,29 @@ This crate hosts a command line tool for:
 ## Humility Attest API
 
 All interaction with Hubris is driven by the `humility` `hiffy` command. We use
-hiffy and the `Attest` IDL as a CLI API to the `Attest` task. This API allows
+`hiffy` and the `Attest` IDL as a CLI API to the `Attest` task. This API allows
 us to support communication with the RoT directly or through the SP `Sprot`
 task. This interface is how we get attestations and supporting data.
+
+Since we're using `humility` to drive all of this, the `verifier-cli` needs a
+mechanism to tell `humility` how to find the board / probe we want it to use.
+Similarly, `humility` needs access to the hubris image that's executing on the
+target board in order to invoke `hif` functions. The most direct approach and
+the one implemented in this tool is to rely on the caller to provide this
+information through the environment.
+
+The caller can accomplish this in a number of ways but the approach we
+recommend is to create a `humility` environment file as described here:
+https://github.com/oxidecomputer/humility#environment. Once the environment
+file is setup and exported via `HUMILITY_ENVIRONMENT`, the caller must set the
+intended target and archive using `HUMILITY_TARGET` and `HUMILITY_ARCHIVE`
+environment variables respectively. When executing `verifier-cli` commands
+`humility` will get the required data from the environment transparent to the
+caller.
+
+The remainder of this document assumes the caller has exported these variables
+correctly for the command being invoked as well as the callers hardware
+configuration ... YMMV and all applicable disclaimers.
 
 ## TL;DR
 
@@ -17,7 +37,7 @@ task. This interface is how we get attestations and supporting data.
 
 ```shell
 $ dd if=/dev/urandom of=nonce.bin bs=32 count=1
-$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- attest nonce.bin > attestation.bin
+$ cargo run --package verifier-cli -- attest nonce.bin > attestation.bin
 ```
 
 ### Get the cert chain
@@ -25,20 +45,20 @@ $ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- attest n
 Trust always boils down to PKI.
 
 ```shell
-$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- cert-chain > cert-chain.pem
+$ cargo run --package verifier-cli -- cert-chain > cert-chain.pem
 ```
 
 ### Get the Measurement Log
 
 ```shell
-$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- log > log.bin
+$ cargo run --package verifier-cli -- log > log.bin
 ```
 
 ### Verify the Attestation
 
 ```shell
-$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- cert 0 > alias.pem
-$ HUMILITY_ARCHIVE=/path/to/archive cargo run --package verifier-cli -- verify-attestation --alias-cert alias.pem --log log.bin --nonce nonce.bin attestation.bin
+$ cargo run --package verifier-cli -- cert 0 > alias.pem
+$ cargo run --package verifier-cli -- verify-attestation --alias-cert alias.pem --log log.bin --nonce nonce.bin attestation.bin
 ```
 
 ### Verify the cert chain
