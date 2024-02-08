@@ -34,7 +34,7 @@ salty = { version = "0.3", default-features = false }
 serde = { version = "1", default-features = false }
 serde-big-array = "0.5"
 serde_json = { version = "1", features = ["std", "alloc"] }
-serde_with = { version = "3.5", default-features = false }
+serde_with = { version = "3.6", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
 sha2 = "0.10"
 sha3 = { version = "0.10", default-features = false }
