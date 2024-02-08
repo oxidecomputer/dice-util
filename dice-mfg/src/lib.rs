@@ -619,25 +619,20 @@ impl CertSigner {
 }
 
 fn sized_blob_from_pem_path(p: &PathBuf) -> Result<SizedBlob> {
-    let cert = fs::read_to_string(p)?;
-    let cert = pem::parse(cert)?;
+    let cert = fs::read(p)?;
+    let (_, cert) = pem_rfc7468::decode_vec(&cert)?;
 
-    // Error type doesn't implement std Error
-    Ok(SizedBlob::try_from(cert.contents())?)
+    Ok(SizedBlob::try_from(&cert[..])?)
 }
 
 pub fn save_csr<W: Write>(mut w: W, csr: SizedBlob) -> Result<()> {
     let size = usize::from(csr.size);
 
-    // encode as PEM
-    let pem = pem::Pem::new(
-        String::from("CERTIFICATE REQUEST"),
-        csr.as_bytes()[..size].to_vec(),
-    );
-    let csr_pem = pem::encode_config(
-        &pem,
-        pem::EncodeConfig::new().set_line_ending(pem::LineEnding::LF),
-    );
+    let csr_pem = pem_rfc7468::encode_string(
+        "CERTIFICATE REQUEST",
+        pem_rfc7468::LineEnding::LF,
+        &csr.as_bytes()[..size],
+    )?;
 
     Ok(w.write_all(csr_pem.as_bytes())?)
 }

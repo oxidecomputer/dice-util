@@ -26,7 +26,6 @@ hex.version = "0.4"
 hubpack = "0.1"
 log = { version = "0.4", features = ["std"] }
 p384 = { version = "0.13", default-features = false }
-pem = { version = "3", default-features = false }
 pem-rfc7468 = { version = "0.7.0", default-features = false }
 ron = "0.8"
 rpassword = "7.3.1"
