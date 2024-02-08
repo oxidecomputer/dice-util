@@ -68,14 +68,14 @@ fn decode_obj(
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     match encoding {
         Encoding::PEM => {
-            let obj = fs::read_to_string(path)?;
-            let parsed = pem::parse(obj)?;
+            let obj = fs::read(path)?;
+            let (label, obj) = pem_rfc7468::decode_vec(&obj)?;
 
-            if parsed.tag() != tag {
+            if label != tag {
                 return Err(Box::new(EncodingError::BadTag));
             }
 
-            Ok(parsed.into_contents())
+            Ok(obj)
         }
         Encoding::DER => Ok(fs::read(path)?),
         Encoding::RAW => Err(Box::new(EncodingError::InvalidEncoding)),
@@ -92,17 +92,17 @@ pub fn decode_key(
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     match encoding {
         Encoding::PEM => {
-            let key_str = fs::read_to_string(path)?;
-            let key_pem = pem::parse(key_str)?;
+            let key = fs::read(path)?;
+            let (label, key) = pem_rfc7468::decode_vec(&key)?;
 
-            if key_pem.tag() != PRIV_KEY_TAG {
+            if label != PRIV_KEY_TAG {
                 return Err(Box::new(EncodingError::BadTag));
             }
 
-            if key_pem.contents().len() != 0x30 {
+            if key.len() != 0x30 {
                 return Err(Box::new(EncodingError::InvalidEncoding));
             }
-            Ok(key_pem.contents()[0x10..].to_vec())
+            Ok(key[0x10..].to_vec())
         }
         Encoding::DER => {
             let key_der = fs::read(path)?;
@@ -153,11 +153,11 @@ pub fn write_csr<T: Write>(
 ) -> Result<(), Box<dyn Error>> {
     match encoding {
         Encoding::PEM => {
-            let pem = pem::Pem::new(String::from(PEM_CSR_TAG), csr.to_vec());
-            let csr_pem = pem::encode_config(
-                &pem,
-                pem::EncodeConfig::new().set_line_ending(pem::LineEnding::LF),
-            );
+            let csr_pem = pem_rfc7468::encode_string(
+                PEM_CSR_TAG,
+                pem_rfc7468::LineEnding::LF,
+                csr,
+            )?;
             f.write_all(csr_pem.as_bytes())?;
         }
         Encoding::DER => {
