@@ -13,7 +13,7 @@ resolver = "2"
 [workspace.dependencies]
 anyhow = { version = "1", default-features = false }
 attest.path = "attest"
-chrono = { version = "0.4.33", default-features=false }
+chrono = { version = "0.4.34", default-features=false }
 clap = { version = "4.5", features = ["derive", "env"] }
 const-oid = { version = "0.9.6", default-features = false }
 corncobs = "0.1"
@@ -34,13 +34,13 @@ salty = { version = "0.3", default-features = false }
 serde = { version = "1", default-features = false }
 serde-big-array = "0.5"
 serde_json = { version = "1", features = ["std", "alloc"] }
-serde_with = { version = "3.5", default-features = false }
+serde_with = { version = "3.6", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
 sha2 = "0.10"
 sha3 = { version = "0.10", default-features = false }
 string-error = "0.1"
 tempfile = { version = "3", default-features = false }
-thiserror = "1.0.56"
+thiserror = "1.0.57"
 x509-cert = { version = "0.2.5", default-features = false }
 yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs", branch="v0.42.0-with-audit", features = ["default", "usb"] }
 zerocopy = "0.7"
