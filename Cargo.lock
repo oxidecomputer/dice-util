@@ -248,6 +248,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap-verbosity-flag"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb9b20c0dd58e4c2e991c8d203bbeb76c11304d1011659686b5b644bc29aa478"
+dependencies = [
+ "clap",
+ "log",
+]
+
+[[package]]
 name = "clap_builder"
 version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -645,9 +655,9 @@ checksum = "27573eac26f4dd11e2b1916c3fe1baa56407c83c71a773a8ba17ec0bca03b6b7"
 
 [[package]]
 name = "flagset"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cda653ca797810c02f7ca4b804b40b8b95ae046eb989d356bce17919a8c25499"
+checksum = "d52a7e408202050813e6f1d9addadcaafef3dca7530c7ddfb005d4081cce6779"
 
 [[package]]
 name = "fnv"
@@ -988,6 +998,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 
 [[package]]
+name = "platform-id-certgen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "clap-verbosity-flag",
+ "const-oid",
+ "dice-mfg-msgs",
+ "ed25519-dalek",
+ "env_logger",
+ "flagset",
+ "getrandom",
+ "log",
+ "p384",
+ "pkcs8",
+ "sha1",
+ "x509-cert",
+]
+
+[[package]]
 name = "platforms"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1266,6 +1296,17 @@ dependencies = [
  "nix",
  "regex",
  "winapi",
+]
+
+[[package]]
+name = "sha1"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
 ]
 
 [[package]]
