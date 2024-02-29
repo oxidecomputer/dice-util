@@ -4,7 +4,7 @@
 
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
-use core::{convert::TryFrom, fmt};
+use core::fmt;
 use hubpack::SerializedSize;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
