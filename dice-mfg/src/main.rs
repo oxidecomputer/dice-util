@@ -315,6 +315,13 @@ fn main() -> Result<()> {
 
             let intermediate_cert = intermediate_cert
                 .unwrap_or_else(|| ca_root.join("ca.cert.pem"));
+
+            if intermediate_cert.is_file() {
+                driver.set_intermediate_cert(&intermediate_cert)?;
+            } else {
+                bail!("path provided for intermediate cert is not a file");
+            }
+
             let cert_signer = CertSignerBuilder::new(ca_root)
                 .set_auth_id(auth_id)
                 .set_ca_section(ca_section)
@@ -324,7 +331,6 @@ fn main() -> Result<()> {
                 .build();
             cert_signer.sign(&csr, &cert)?;
             driver.set_platform_id_cert(&cert)?;
-            driver.set_intermediate_cert(&intermediate_cert)?;
             driver.send_break()
         }
         Command::Ping => driver.unwrap().ping(),
