@@ -5,6 +5,7 @@ members = [
     "dice-cert-tmpl",
     "dice-mfg",
     "dice-mfg-msgs",
+    "platform-id-certgen",
     "yhsm-audit",
     "verifier-cli",
 ]
@@ -21,12 +22,14 @@ derive_more = "0.99"
 ecdsa = { version = "0.16", default-features = false }
 ed25519-dalek = { version = "2.1", default-features = false }
 env_logger = { version = "0.11", default-features = false }
+flagset = "0.4.4"
 getrandom = "0.2.12"
 hex.version = "0.4"
 hubpack = "0.1"
 log = { version = "0.4", features = ["std"] }
 p384 = { version = "0.13", default-features = false }
 pem-rfc7468 = { version = "0.7.0", default-features = false }
+pkcs8 = { version = "0.10.2", default-features = false }
 ron = "0.8"
 rpassword = "7.3.1"
 salty = { version = "0.3", default-features = false }
@@ -35,6 +38,7 @@ serde-big-array = "0.5"
 serde_json = { version = "1", features = ["std", "alloc"] }
 serde_with = { version = "3.6", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
+sha1 = "0.10.6"
 sha2 = "0.10"
 sha3 = { version = "0.10", default-features = false }
 string-error = "0.1"

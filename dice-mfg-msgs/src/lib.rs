@@ -156,7 +156,7 @@ fn validate_pdv1(s: &str) -> Result<(), PlatformIdError> {
     validate_0xv2_noprefix(s)
 }
 
-fn validate_pdv2(s: &str) -> Result<(), PlatformIdError> {
+pub fn validate_pdv2(s: &str) -> Result<(), PlatformIdError> {
     if s.len() != PLATFORM_ID_V2_LEN {
         return Err(PlatformIdError::BadSize);
     }
