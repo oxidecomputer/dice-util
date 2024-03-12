@@ -2,14 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use anyhow::{bail, Result};
-use clap::{Parser, Subcommand};
+use anyhow::{anyhow, bail, Context, Result};
+use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::{KeySlotStatus, PlatformId};
 use env_logger::Builder;
 use log::{info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::{
     env::{self, VarError},
+    fmt::{self, Formatter},
     path::PathBuf,
     result, str,
     time::Duration,
@@ -18,6 +19,9 @@ use yubihsm::object::Id;
 use zeroize::Zeroizing;
 
 use dice_mfg::{CertSignerBuilder, MfgDriver, DEFAULT_AUTH_ID, ENV_PASSWD};
+
+use serde::Deserialize;
+use serde_keyvalue::from_key_values;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -68,26 +72,6 @@ enum Command {
         #[clap(long, env = "DICE_MFG_AUTH_ID", default_value_t = DEFAULT_AUTH_ID)]
         auth_id: Id,
 
-        /// Path to openssl.cnf file used for signing operation.
-        #[clap(long, env)]
-        openssl_cnf: Option<PathBuf>,
-
-        /// CA section from openssl.cnf used for signing operation.
-        #[clap(long, env)]
-        ca_section: Option<String>,
-
-        /// x509 v3 extension section from openssl.cnf used for signing operation.
-        #[clap(long, env)]
-        v3_section: Option<String>,
-
-        /// Engine config section from openssl.cnf used for signing operation.
-        #[clap(long, env)]
-        engine_section: Option<String>,
-
-        /// Path to intermediate cert to send.
-        #[clap(long, env)]
-        intermediate_cert: PathBuf,
-
         /// Platform identity string
         #[clap(value_parser = validate_pid, env = "DICE_MFG_PLATFORM_ID")]
         platform_id: PlatformId,
@@ -99,17 +83,21 @@ enum Command {
         #[clap(long, env = "DICE_MFG_WORK_DIR")]
         work_dir: Option<PathBuf>,
 
-        /// Root directory for CA state. If provided the tool will chdir to
-        /// this directory before executing openssl commands. This is
-        /// intended to support openssl.cnf files that use relative paths.
-        #[clap(long, env = "DICE_MFG_CA_ROOT")]
-        ca_root: PathBuf,
-
         /// Whether to enforce release policy.  Release policy requires that a
         /// device have its CMPA locked, release secure boot key slots enabled,
         /// and development secure boot key slots disabled.
         #[clap(long, default_value_t=true, action=clap::ArgAction::Set)]
         require_release_policy: bool,
+
+        /// Backend used for operations that require a certificate authority
+        #[clap(long, env = "DICE_MFG_CA", default_value_t = CertificateAuthority::Openssl)]
+        ca: CertificateAuthority,
+
+        /// Arguments passed through to the CertificateAuthority. This string
+        /// is parsed as a series of name / value pairs. Each name and value
+        /// substring is separated by an '=', each pair is separated by a ','.
+        #[clap(long, env = "DICE_MFG_CA_ARGS")]
+        ca_args: Option<String>,
     },
     /// Send a 'Ping' message to the system being manufactured.
     Ping,
@@ -136,39 +124,30 @@ enum Command {
     /// command and behavior will depend on the openssl.cnf provided by the
     /// caller.
     SignCert {
-        /// Auth ID used w/r YubiHSM.
-        #[clap(long, env = "DICE_MFG_AUTH_ID", default_value = "2")]
-        auth_id: Id,
+        /// Path to input CSR file.
+        #[clap(env)]
+        csr_in: PathBuf,
 
         /// Destination path for Cert.
         #[clap(long, env)]
         cert_out: PathBuf,
 
-        /// Path to openssl.cnf file used for signing operation.
-        #[clap(long, env)]
-        openssl_cnf: Option<PathBuf>,
+        /// Auth ID used w/r YubiHSM.
+        #[clap(long, env = "DICE_MFG_AUTH_ID", default_value = "2")]
+        auth_id: Id,
 
-        /// CA section from openssl.cnf.
-        #[clap(long, env)]
-        ca_section: Option<String>,
+        /// Backend used for operations that require a certificate authority
+        #[clap(long, env = "DICE_MFG_CA", default_value_t = CertificateAuthority::Openssl)]
+        ca: CertificateAuthority,
 
-        /// x509 v3 extension section from openssl.cnf.
-        #[clap(long, env)]
-        v3_section: Option<String>,
-
-        /// Engine section from openssl.cnf.
-        #[clap(long, env)]
-        engine_section: Option<String>,
-
-        /// Path to input CSR file.
-        #[clap(long, env)]
-        csr_in: PathBuf,
-
-        /// Root directory for CA state. If provided the tool will chdir to
-        /// this directory before executing openssl commands. This is
-        /// intended to support openssl.cnf files that use relative paths.
-        #[clap(long, env = "DICE_MFG_CA_ROOT")]
-        ca_root: PathBuf,
+        /// Arguments passed through to the CertificateAuthority. This string
+        /// is parsed as a series of name / value pairs. Each name and value
+        /// substring is separated by an '=', each pair is separated by a ','.
+        /// NOTE: If your name / value strings include a ',' or if a name
+        /// includes an `=` things will probably go wrong.
+        /// TODO: how to get docs for name=value,... string into help output?
+        #[clap(long, env = "DICE_MFG_CA_ARGS")]
+        ca_args: Option<String>,
     },
     DumpLogEntries {
         /// Auth ID used w/r YubiHSM.
@@ -193,6 +172,99 @@ enum Command {
     ///
     /// You can only trust this as far as you trust the firmware, of course.
     GetKeySlotStatus,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum CertificateAuthority {
+    Openssl,
+    PermSlip,
+}
+
+impl fmt::Display for CertificateAuthority {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::Openssl => write!(f, "openssl"),
+            Self::PermSlip => write!(f, "permslip"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Deserialize)]
+struct OpensslCaOptsRaw {
+    /// Path to openssl config file (typically openssl.cnf) used for signing
+    /// operation.
+    config: Option<String>,
+
+    /// CA section from openssl.cnf.
+    ca_section: Option<String>,
+
+    /// x509 v3 extension section from openssl.cnf.
+    v3_section: Option<String>,
+
+    /// Engine section from openssl.cnf.
+    engine_section: Option<String>,
+
+    /// Root directory for CA state. If provided the tool will chdir to
+    /// this directory before executing openssl commands. This is
+    /// intended to support openssl.cnf files that use relative paths.
+    ca_root: String,
+}
+
+#[derive(Debug, PartialEq, Deserialize)]
+struct OpensslCaOpts {
+    /// Path to openssl config file (typically openssl.cnf) used for signing
+    /// operation.
+    config: Option<PathBuf>,
+
+    /// CA section from openssl.cnf.
+    ca_section: Option<String>,
+
+    /// x509 v3 extension section from openssl.cnf.
+    v3_section: Option<String>,
+
+    /// Engine section from openssl.cnf.
+    engine_section: Option<String>,
+
+    /// Root directory for CA state. If provided the tool will chdir to
+    /// this directory before executing openssl commands. This is
+    /// intended to support openssl.cnf files that use relative paths.
+    ca_root: PathBuf,
+}
+
+impl TryFrom<OpensslCaOptsRaw> for OpensslCaOpts {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: OpensslCaOptsRaw) -> Result<Self, Self::Error> {
+        let config = if let Some(config) = &raw.config {
+            let config = shellexpand::tilde(&config);
+            let config = PathBuf::from(config.to_string());
+            if !config.is_file() {
+                return Err(anyhow!(
+                    "the OpenSSL config provided isn't a file"
+                ));
+            }
+            Some(config)
+        } else {
+            None
+        };
+
+        let ca_root = shellexpand::tilde(&raw.ca_root);
+        let ca_root = PathBuf::from(ca_root.to_string());
+        if !ca_root.is_dir() {
+            return Err(anyhow!(
+                "the provided OpenSSL CA root directory isn't \
+            a directory"
+            ));
+        }
+
+        Ok(OpensslCaOpts {
+            config,
+            ca_section: raw.ca_section,
+            v3_section: raw.v3_section,
+            engine_section: raw.engine_section,
+            ca_root,
+        })
+    }
 }
 
 fn open_serial(serial_dev: &str, baud: u32) -> Result<Box<dyn SerialPort>> {
@@ -221,6 +293,60 @@ fn passwd_to_env() -> Result<()> {
     }
 }
 
+fn generate_cert(
+    auth_id: u16,
+    csr: &PathBuf,
+    cert: &PathBuf,
+    ca: CertificateAuthority,
+    ca_args: Option<&str>,
+) -> Result<()> {
+    match ca {
+        CertificateAuthority::Openssl => {
+            let ca_args = ca_args.ok_or(anyhow!(
+                "The OpenSSL CA requires an argument \
+                string"
+            ))?;
+            let cfg: OpensslCaOptsRaw = from_key_values(ca_args).context(
+                "Failed to parse OpenSSL CA arguments from \
+                    key value string",
+            )?;
+
+            let cfg = OpensslCaOpts::try_from(cfg)?;
+            let cert_signer = CertSignerBuilder::new(cfg.ca_root)
+                .set_auth_id(auth_id)
+                .set_ca_section(cfg.ca_section)
+                .set_engine_section(cfg.engine_section)
+                .set_openssl_cnf(cfg.config)
+                .set_v3_section(cfg.v3_section)
+                .build();
+            cert_signer.sign(csr, cert)
+        }
+        CertificateAuthority::PermSlip => todo!("PermSlip"),
+    }
+}
+
+fn get_ca_cert(
+    ca: CertificateAuthority,
+    ca_args: Option<&str>,
+) -> Result<PathBuf> {
+    match ca {
+        CertificateAuthority::Openssl => {
+            let ca_args = ca_args.ok_or(anyhow!(
+                "The OpenSSL CA requires an argument \
+                string"
+            ))?;
+            let cfg: OpensslCaOptsRaw = from_key_values(ca_args).context(
+                "Failed to parse OpenSSL CA arguments from \
+                    key value string",
+            )?;
+
+            let cfg = OpensslCaOpts::try_from(cfg)?;
+            Ok(cfg.ca_root.join("ca.cert.pem"))
+        }
+        CertificateAuthority::PermSlip => todo!("PermSlip"),
+    }
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
 
@@ -236,6 +362,7 @@ fn main() -> Result<()> {
     if args.verbose {
         info!("device: {}, baud: {}", args.serial_dev, args.baud);
     }
+
     let driver = match args.command {
         Command::SignCert { .. }
         | Command::DumpLogEntries { .. }
@@ -253,15 +380,11 @@ fn main() -> Result<()> {
         }
         Command::Manufacture {
             auth_id,
-            openssl_cnf,
-            ca_section,
-            v3_section,
-            engine_section,
             platform_id,
-            intermediate_cert,
-            ca_root,
             work_dir,
             require_release_policy,
+            ca,
+            ca_args,
         } => {
             passwd_to_env()?;
             let mut driver = driver.unwrap();
@@ -313,20 +436,11 @@ fn main() -> Result<()> {
                 bail!("CSR does not meet policy requirements");
             }
 
-            if intermediate_cert.is_file() {
-                driver.set_intermediate_cert(&intermediate_cert)?;
-            } else {
-                bail!("path provided for intermediate cert is not a file");
-            }
+            let intermediate_cert = get_ca_cert(ca, ca_args.as_deref())?;
+            driver.set_intermediate_cert(&intermediate_cert)?;
 
-            let cert_signer = CertSignerBuilder::new(ca_root)
-                .set_auth_id(auth_id)
-                .set_ca_section(ca_section)
-                .set_engine_section(engine_section)
-                .set_openssl_cnf(openssl_cnf)
-                .set_v3_section(v3_section)
-                .build();
-            cert_signer.sign(&csr, &cert)?;
+            generate_cert(auth_id, &csr, &cert, ca, ca_args.as_deref())?;
+
             driver.set_platform_id_cert(&cert)?;
             driver.send_break()
         }
@@ -343,22 +457,12 @@ fn main() -> Result<()> {
         Command::SignCert {
             auth_id,
             cert_out,
-            openssl_cnf,
-            ca_section,
-            v3_section,
-            engine_section,
             csr_in,
-            ca_root,
+            ca,
+            ca_args,
         } => {
             passwd_to_env()?;
-            let cert_signer = CertSignerBuilder::new(ca_root)
-                .set_auth_id(auth_id)
-                .set_ca_section(ca_section)
-                .set_engine_section(engine_section)
-                .set_openssl_cnf(openssl_cnf)
-                .set_v3_section(v3_section)
-                .build();
-            cert_signer.sign(&csr_in, &cert_out)
+            generate_cert(auth_id, &csr_in, &cert_out, ca, ca_args.as_deref())
         }
         Command::DumpLogEntries { auth_id } => {
             passwd_to_env()?;

@@ -532,9 +532,22 @@ impl CertSigner {
             .unwrap_or(DEFAULT_ENGINE_SECTION.to_string());
 
         //canonicalize paths before we chdir
-        let openssl_cnf = fs::canonicalize(&self.openssl_cnf)?;
-        let csr_in = fs::canonicalize(csr_in)?;
-        let cert_out = std::path::absolute(cert_out)?;
+        let openssl_cnf =
+            fs::canonicalize(&self.openssl_cnf).with_context(|| {
+                format!(
+                    "failed to canonicalize path to OpenSSL config: {}",
+                    &self.openssl_cnf.display()
+                )
+            })?;
+        let csr_in = fs::canonicalize(csr_in).with_context(|| {
+            format!("failed to canonicalize path to CSR: {}", csr_in.display())
+        })?;
+        let cert_out = std::path::absolute(cert_out).with_context(|| {
+            format!(
+                "failed to make path to output cert absolute: {}",
+                cert_out.display()
+            )
+        })?;
         let lastpwd = env::current_dir()?;
         info!("setting pwd to: {}", self.ca_root.display());
         env::set_current_dir(&self.ca_root)?;
