@@ -198,7 +198,7 @@ impl<'a> Cert<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{error, result};
+    use std::error;
 
     type Result = result::Result<(), Box<dyn error::Error>>;
 
