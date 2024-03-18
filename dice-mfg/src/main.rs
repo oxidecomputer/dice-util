@@ -86,7 +86,7 @@ enum Command {
 
         /// Path to intermediate cert to send.
         #[clap(long, env)]
-        intermediate_cert: Option<PathBuf>,
+        intermediate_cert: PathBuf,
 
         /// Platform identity string
         #[clap(value_parser = validate_pid, env = "DICE_MFG_PLATFORM_ID")]
@@ -312,9 +312,6 @@ fn main() -> Result<()> {
             if !dice_mfg::check_csr(&csr, &platform_id)? {
                 bail!("CSR does not meet policy requirements");
             }
-
-            let intermediate_cert = intermediate_cert
-                .unwrap_or_else(|| ca_root.join("ca.cert.pem"));
 
             if intermediate_cert.is_file() {
                 driver.set_intermediate_cert(&intermediate_cert)?;
