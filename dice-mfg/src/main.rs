@@ -3,15 +3,15 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use anyhow::{anyhow, bail, Context, Result};
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use dice_mfg_msgs::{KeySlotStatus, PlatformId};
 use env_logger::Builder;
 use log::{info, LevelFilter};
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::{
     env::{self, VarError},
-    fmt::{self, Formatter},
     path::PathBuf,
+    process::Command as Process,
     result, str,
     time::Duration,
 };
@@ -19,9 +19,6 @@ use yubihsm::object::Id;
 use zeroize::Zeroizing;
 
 use dice_mfg::{CertSignerBuilder, MfgDriver, DEFAULT_AUTH_ID, ENV_PASSWD};
-
-use serde::Deserialize;
-use serde_keyvalue::from_key_values;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -90,14 +87,8 @@ enum Command {
         require_release_policy: bool,
 
         /// Backend used for operations that require a certificate authority
-        #[clap(long, env = "DICE_MFG_CA", default_value_t = CertificateAuthority::Openssl)]
+        #[clap(subcommand)]
         ca: CertificateAuthority,
-
-        /// Arguments passed through to the CertificateAuthority. This string
-        /// is parsed as a series of name / value pairs. Each name and value
-        /// substring is separated by an '=', each pair is separated by a ','.
-        #[clap(long, env = "DICE_MFG_CA_ARGS")]
-        ca_args: Option<String>,
     },
     /// Send a 'Ping' message to the system being manufactured.
     Ping,
@@ -120,9 +111,10 @@ enum Command {
         #[clap(value_parser = validate_pid, env = "DICE_MFG_PLATFORM_ID")]
         platform_id: PlatformId,
     },
-    /// Turn a CSR into a cert. This is a thin wrapper around the `openssl ca`
-    /// command and behavior will depend on the openssl.cnf provided by the
-    /// caller.
+    /// Turn a CSR into a cert. This is a thin wrapper around either the
+    /// `openssl ca` command (whose behavior will depend on the openssl.cnf
+    /// provided by the caller), or `permslip sign` (whose behavior will be
+    /// governed by a previously set key context and batch of approvals).
     SignCert {
         /// Path to input CSR file.
         #[clap(env)]
@@ -136,18 +128,9 @@ enum Command {
         #[clap(long, env = "DICE_MFG_AUTH_ID", default_value = "2")]
         auth_id: Id,
 
-        /// Backend used for operations that require a certificate authority
-        #[clap(long, env = "DICE_MFG_CA", default_value_t = CertificateAuthority::Openssl)]
+        /// Backend used for operations that require a certificate authority.
+        #[clap(subcommand)]
         ca: CertificateAuthority,
-
-        /// Arguments passed through to the CertificateAuthority. This string
-        /// is parsed as a series of name / value pairs. Each name and value
-        /// substring is separated by an '=', each pair is separated by a ','.
-        /// NOTE: If your name / value strings include a ',' or if a name
-        /// includes an `=` things will probably go wrong.
-        /// TODO: how to get docs for name=value,... string into help output?
-        #[clap(long, env = "DICE_MFG_CA_ARGS")]
-        ca_args: Option<String>,
     },
     DumpLogEntries {
         /// Auth ID used w/r YubiHSM.
@@ -174,43 +157,39 @@ enum Command {
     GetKeySlotStatus,
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
+#[derive(Clone, Debug, Parser)]
 enum CertificateAuthority {
-    Openssl,
-    PermSlip,
+    Openssl(OpensslCaOptsRaw),
+    Permslip(PermslipSigningOpts),
 }
 
-impl fmt::Display for CertificateAuthority {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Self::Openssl => write!(f, "openssl"),
-            Self::PermSlip => write!(f, "permslip"),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, Parser)]
 struct OpensslCaOptsRaw {
     /// Path to openssl config file (typically openssl.cnf) used for signing
     /// operation.
+    #[clap(long, env)]
     config: Option<String>,
 
     /// CA section from openssl.cnf.
+    #[clap(long, env)]
     ca_section: Option<String>,
 
     /// x509 v3 extension section from openssl.cnf.
+    #[clap(long, env)]
     v3_section: Option<String>,
 
     /// Engine section from openssl.cnf.
+    #[clap(long, env)]
     engine_section: Option<String>,
 
     /// Root directory for CA state. If provided the tool will chdir to
     /// this directory before executing openssl commands. This is
     /// intended to support openssl.cnf files that use relative paths.
+    #[clap(long, env)]
     ca_root: String,
 }
 
-#[derive(Debug, PartialEq, Deserialize)]
+#[derive(Debug)]
 struct OpensslCaOpts {
     /// Path to openssl config file (typically openssl.cnf) used for signing
     /// operation.
@@ -236,7 +215,6 @@ impl TryFrom<OpensslCaOptsRaw> for OpensslCaOpts {
 
     fn try_from(raw: OpensslCaOptsRaw) -> Result<Self, Self::Error> {
         let config = if let Some(config) = &raw.config {
-            let config = shellexpand::tilde(&config);
             let config = PathBuf::from(config.to_string());
             if !config.is_file() {
                 return Err(anyhow!(
@@ -248,8 +226,7 @@ impl TryFrom<OpensslCaOptsRaw> for OpensslCaOpts {
             None
         };
 
-        let ca_root = shellexpand::tilde(&raw.ca_root);
-        let ca_root = PathBuf::from(ca_root.to_string());
+        let ca_root = PathBuf::from(&raw.ca_root.to_string());
         if !ca_root.is_dir() {
             return Err(anyhow!(
                 "the provided OpenSSL CA root directory isn't \
@@ -265,6 +242,12 @@ impl TryFrom<OpensslCaOptsRaw> for OpensslCaOpts {
             ca_root,
         })
     }
+}
+
+#[derive(Clone, Debug, Parser)]
+struct PermslipSigningOpts {
+    /// The name of the signing key.
+    key_name: String,
 }
 
 fn open_serial(serial_dev: &str, baud: u32) -> Result<Box<dyn SerialPort>> {
@@ -298,19 +281,9 @@ fn generate_cert(
     csr: &PathBuf,
     cert: &PathBuf,
     ca: CertificateAuthority,
-    ca_args: Option<&str>,
 ) -> Result<()> {
     match ca {
-        CertificateAuthority::Openssl => {
-            let ca_args = ca_args.ok_or(anyhow!(
-                "The OpenSSL CA requires an argument \
-                string"
-            ))?;
-            let cfg: OpensslCaOptsRaw = from_key_values(ca_args).context(
-                "Failed to parse OpenSSL CA arguments from \
-                    key value string",
-            )?;
-
+        CertificateAuthority::Openssl(cfg) => {
             let cfg = OpensslCaOpts::try_from(cfg)?;
             let cert_signer = CertSignerBuilder::new(cfg.ca_root)
                 .set_auth_id(auth_id)
@@ -321,29 +294,44 @@ fn generate_cert(
                 .build();
             cert_signer.sign(csr, cert)
         }
-        CertificateAuthority::PermSlip => todo!("PermSlip"),
+        CertificateAuthority::Permslip(cfg) => {
+            Process::new("permslip")
+                .arg("sign")
+                .arg(cfg.key_name)
+                .arg(csr)
+                .arg("--batch-approved")
+                .arg("--out")
+                .arg(cert)
+                .spawn()
+                .context("Unable to execute `permslip`, is it in your PATH and executable?")?
+                .wait_with_output()?;
+            Ok(())
+        }
     }
 }
 
 fn get_ca_cert(
     ca: CertificateAuthority,
-    ca_args: Option<&str>,
+    output_dir: PathBuf,
 ) -> Result<PathBuf> {
+    const CA_CERT: &str = "ca.cert.pem";
     match ca {
-        CertificateAuthority::Openssl => {
-            let ca_args = ca_args.ok_or(anyhow!(
-                "The OpenSSL CA requires an argument \
-                string"
-            ))?;
-            let cfg: OpensslCaOptsRaw = from_key_values(ca_args).context(
-                "Failed to parse OpenSSL CA arguments from \
-                    key value string",
-            )?;
-
+        CertificateAuthority::Openssl(cfg) => {
             let cfg = OpensslCaOpts::try_from(cfg)?;
-            Ok(cfg.ca_root.join("ca.cert.pem"))
+            Ok(cfg.ca_root.join(CA_CERT))
         }
-        CertificateAuthority::PermSlip => todo!("PermSlip"),
+        CertificateAuthority::Permslip(cfg) => {
+            let output_file = output_dir.join(CA_CERT);
+            Process::new("permslip")
+                .arg("get-cert")
+                .arg(cfg.key_name)
+                .arg("--out")
+                .arg(&output_file)
+                .spawn()
+                .context("Unable to execute `permslip`, is it in your PATH and executable?")?
+                .wait_with_output()?;
+            Ok(output_file)
+        }
     }
 }
 
@@ -384,7 +372,6 @@ fn main() -> Result<()> {
             work_dir,
             require_release_policy,
             ca,
-            ca_args,
         } => {
             passwd_to_env()?;
             let mut driver = driver.unwrap();
@@ -417,7 +404,7 @@ fn main() -> Result<()> {
 
             let temp_dir = tempfile::tempdir()?;
 
-            let (cert, csr) = if let Some(w) = work_dir {
+            let (cert, csr) = if let Some(ref w) = work_dir {
                 // use workdir to hold CSR if provided
                 let id = platform_id.as_str()?;
                 (
@@ -431,15 +418,17 @@ fn main() -> Result<()> {
                     temp_dir.path().join("csr.pem"),
                 )
             };
+            let output_dir = work_dir.unwrap_or_else(|| temp_dir.into_path());
+
             driver.get_csr(Some(&csr))?;
             if !dice_mfg::check_csr(&csr, &platform_id)? {
                 bail!("CSR does not meet policy requirements");
             }
 
-            let intermediate_cert = get_ca_cert(ca, ca_args.as_deref())?;
+            let intermediate_cert = get_ca_cert(ca.clone(), output_dir)?;
             driver.set_intermediate_cert(&intermediate_cert)?;
 
-            generate_cert(auth_id, &csr, &cert, ca, ca_args.as_deref())?;
+            generate_cert(auth_id, &csr, &cert, ca)?;
 
             driver.set_platform_id_cert(&cert)?;
             driver.send_break()
@@ -459,10 +448,9 @@ fn main() -> Result<()> {
             cert_out,
             csr_in,
             ca,
-            ca_args,
         } => {
             passwd_to_env()?;
-            generate_cert(auth_id, &csr_in, &cert_out, ca, ca_args.as_deref())
+            generate_cert(auth_id, &csr_in, &cert_out, ca)
         }
         Command::DumpLogEntries { auth_id } => {
             passwd_to_env()?;
