@@ -284,6 +284,7 @@ fn generate_cert(
 ) -> Result<()> {
     match ca {
         CertificateAuthority::Openssl(cfg) => {
+            passwd_to_env()?;
             let cfg = OpensslCaOpts::try_from(cfg)?;
             let cert_signer = CertSignerBuilder::new(cfg.ca_root)
                 .set_auth_id(auth_id)
@@ -373,7 +374,6 @@ fn main() -> Result<()> {
             require_release_policy,
             ca,
         } => {
-            passwd_to_env()?;
             let mut driver = driver.unwrap();
 
             driver.ping()?;
@@ -448,10 +448,7 @@ fn main() -> Result<()> {
             cert_out,
             csr_in,
             ca,
-        } => {
-            passwd_to_env()?;
-            generate_cert(auth_id, &csr_in, &cert_out, ca)
-        }
+        } => generate_cert(auth_id, &csr_in, &cert_out, ca),
         Command::DumpLogEntries { auth_id } => {
             passwd_to_env()?;
             let index = dice_mfg::get_log_entries(auth_id)?;
