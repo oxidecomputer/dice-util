@@ -296,7 +296,7 @@ fn generate_cert(
             cert_signer.sign(csr, cert)
         }
         CertificateAuthority::Permslip(cfg) => {
-            Process::new("permslip")
+            let output = Process::new("permslip")
                 .arg("sign")
                 .arg(cfg.key_name)
                 .arg(csr)
@@ -306,8 +306,15 @@ fn generate_cert(
                 .arg(cert)
                 .spawn()
                 .context("Unable to execute `permslip`, is it in your PATH and executable?")?
-                .wait_with_output()?;
-            Ok(())
+                .wait_with_output()
+                .context("Failed to wait on `permslip` process")?;
+
+            if output.status.success() {
+                println!("success");
+                Ok(())
+            } else {
+                Err(anyhow!("failed to get cert from `permslip`"))
+            }
         }
     }
 }
@@ -324,7 +331,7 @@ fn get_ca_cert(
         }
         CertificateAuthority::Permslip(cfg) => {
             let output_file = output_dir.join(CA_CERT);
-            Process::new("permslip")
+            let output = Process::new("permslip")
                 .arg("get-cert")
                 .arg(cfg.key_name)
                 .arg("--sshauth")
@@ -332,8 +339,14 @@ fn get_ca_cert(
                 .arg(&output_file)
                 .spawn()
                 .context("Unable to execute `permslip`, is it in your PATH and executable?")?
-                .wait_with_output()?;
-            Ok(output_file)
+                .wait_with_output()
+                .context("Failed to wait on `permslip` process")?;
+
+            if output.status.success() {
+                Ok(output_file)
+            } else {
+                Err(anyhow!("Failed to get intermediate cert from `permslip`"))
+            }
         }
     }
 }
