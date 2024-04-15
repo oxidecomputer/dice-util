@@ -247,6 +247,7 @@ impl TryFrom<OpensslCaOptsRaw> for OpensslCaOpts {
 #[derive(Clone, Debug, Parser)]
 struct PermslipSigningOpts {
     /// The name of the signing key.
+    #[clap(env = "DICE_MFG_PERMSLIP_KEY")]
     key_name: String,
 }
 
