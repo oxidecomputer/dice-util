@@ -88,7 +88,11 @@ enum AttestCommand {
     },
     Verify {
         /// Path to file holding trust anchor for the associated PKI.
-        #[clap(long, env, conflicts_with = "self_signed")]
+        #[clap(
+            long,
+            env = "VERIFIER_CLI_CA_CERT",
+            conflicts_with = "self_signed"
+        )]
         ca_cert: Option<PathBuf>,
 
         /// Preserve temporary / intermediate files. The path to the
