@@ -442,6 +442,12 @@ fn main() -> Result<()> {
             }
 
             let intermediate_cert = get_ca_cert(ca.clone(), output_dir)?;
+
+            // work-around for flaky usb passthrough to helios
+            std::mem::drop(driver);
+            let serial = open_serial(&args.serial_dev, args.baud)?;
+            let mut driver = MfgDriver::new(serial, args.max_retry);
+
             driver.set_intermediate_cert(&intermediate_cert)?;
 
             generate_cert(auth_id, &csr, &cert, ca)?;
