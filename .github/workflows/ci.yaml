@@ -23,4 +23,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - run: sudo apt-get update
       - run: sudo apt-get install -y pkg-config libudev-dev
-      - run: cargo test --all-features
+      - run: cargo test --all-features --locked
