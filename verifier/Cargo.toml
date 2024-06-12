@@ -1,5 +1,5 @@
 [package]
-name = "verifier"
+name = "dice-verifier"
 version = "0.1.0"
 edition = "2021"
 description = "a library crate implementing the attestation verifier"

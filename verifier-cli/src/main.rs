@@ -5,6 +5,7 @@
 use anyhow::{anyhow, Context, Result};
 use attest_data::{Attestation, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
+use dice_verifier::PkiPathSignatureVerifier;
 use env_logger::Builder;
 use hubpack::SerializedSize;
 use log::{debug, error, info, warn, LevelFilter};
@@ -18,7 +19,6 @@ use std::{
     process::{Command, Output},
 };
 use tempfile::NamedTempFile;
-use verifier::PkiPathSignatureVerifier;
 use x509_cert::{
     der::{Decode, DecodePem},
     Certificate, PkiPath,
@@ -634,7 +634,7 @@ fn verify_attestation(
 
     let alias = Certificate::from_der(&alias)?;
 
-    verifier::verify_attestation(&alias, &attestation, &log, &nonce)
+    dice_verifier::verify_attestation(&alias, &attestation, &log, &nonce)
 }
 
 fn verify_cert_chain(
