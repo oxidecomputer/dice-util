@@ -161,6 +161,7 @@ impl CertVerifier for P384CertVerifier {
 }
 
 /// This struct encapsulates the signature verification process for a PkiPath.
+#[derive(Debug)]
 pub struct PkiPathSignatureVerifier {
     root_cert: Option<Certificate>,
 }
