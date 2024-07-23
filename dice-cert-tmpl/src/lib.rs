@@ -180,7 +180,7 @@ pub fn write_range<T: Write>(
 mod tests {
     use super::*;
 
-    const DATA: &'static [u8] = &[0xca, 0xfe, 0xba, 0xbe, 0xca, 0xfe];
+    const DATA: &[u8] = &[0xca, 0xfe, 0xba, 0xbe, 0xca, 0xfe];
 
     #[test]
     fn get_pattern_offset_none() {

@@ -206,7 +206,7 @@ fn platform_id_from_0xv2(s: &str) -> Result<PlatformId, PlatformIdError> {
     bytes[PLATFORM_ID_V1_PREFIX.len()..16]
         .copy_from_slice(&s[PLATFORM_ID_V2_PREFIX.len()..16]);
 
-    bytes[16..20].copy_from_slice(&[b':', b'R', b'R', b'R']);
+    bytes[16..20].copy_from_slice(b":RRR");
     // copy ':SN'
     bytes[20..32].copy_from_slice(&s[20..32]);
 
@@ -404,14 +404,14 @@ mod tests {
 
     #[test]
     fn rfd308_v2_good() -> Result {
-        assert!(!validate_0xv2(RFD308_V2_GOOD).is_err());
+        assert!(validate_0xv2(RFD308_V2_GOOD).is_ok());
 
         Ok(())
     }
 
     #[test]
     fn pid_v1_good() -> Result {
-        assert!(!validate_pdv1(PID_V1_GOOD).is_err());
+        assert!(validate_pdv1(PID_V1_GOOD).is_ok());
 
         Ok(())
     }
