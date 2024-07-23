@@ -404,14 +404,14 @@ mod tests {
 
     #[test]
     fn rfd308_v2_good() -> Result {
-        assert!(!validate_0xv2(RFD308_V2_GOOD).is_err());
+        assert!(validate_0xv2(RFD308_V2_GOOD).is_ok());
 
         Ok(())
     }
 
     #[test]
     fn pid_v1_good() -> Result {
-        assert!(!validate_pdv1(PID_V1_GOOD).is_err());
+        assert!(validate_pdv1(PID_V1_GOOD).is_ok());
 
         Ok(())
     }

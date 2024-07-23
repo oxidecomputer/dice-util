@@ -166,7 +166,7 @@ mod tests {
     ];
 
     #[rustfmt::skip]
-    const PUB: &'static [u8] = &[
+    const PUB: &[u8] = &[
         0x27, 0xfb, 0x87, 0x77, 0x77, 0x36, 0x54, 0xfb,
         0x78, 0xb3, 0x46, 0x6b, 0x95, 0x0e, 0x15, 0x2b,
         0x8b, 0xcd, 0x0c, 0x9b, 0x8a, 0x08, 0xfc, 0x7a,
@@ -174,7 +174,7 @@ mod tests {
     ];
 
     #[rustfmt::skip]
-    const SIG: &'static [u8] = &[
+    const SIG: &[u8] = &[
         0xf5, 0xf5, 0xcf, 0xde, 0x58, 0x87, 0x6a, 0x0e,
         0xa6, 0xb3, 0x3f, 0x23, 0x98, 0xd6, 0x97, 0x0c,
         0x3a, 0xaa, 0xb2, 0xdf, 0xa0, 0x6e, 0x5b, 0xf7,
@@ -186,7 +186,7 @@ mod tests {
     ];
 
     #[rustfmt::skip]
-    const SIGNDATA: &'static [u8] = &[
+    const SIGNDATA: &[u8] = &[
         0x30, 0x81, 0x90, 0x02, 0x01, 0x00, 0x30, 0x5d,
         0x31, 0x0b, 0x30, 0x09, 0x06, 0x03, 0x55, 0x04,
         0x06, 0x13, 0x02, 0x47, 0x42, 0x31, 0x10, 0x30,
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn get_pub_offsets() -> Result {
-        let mut csr = CSR.clone();
+        let mut csr = CSR;
         let csr = Csr::from_slice(&mut csr);
         let (start, end) = csr.get_pub_offsets()?;
         assert_eq!(&csr.as_bytes()[start..end], PUB);
@@ -219,7 +219,7 @@ mod tests {
 
     #[test]
     fn get_sig_offsets() -> Result {
-        let mut csr = CSR.clone();
+        let mut csr = CSR;
         let csr = Csr::from_slice(&mut csr);
         let (start, end) = csr.get_sig_offsets()?;
         assert_eq!(&csr.as_bytes()[start..end], SIG);
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn get_signdata_offsets() -> Result {
-        let mut csr = CSR.clone();
+        let mut csr = CSR;
         let csr = Csr::from_slice(&mut csr);
         let (start, end) = csr.get_signdata_offsets()?;
         assert_eq!(&csr.as_bytes()[start..end], SIGNDATA);
