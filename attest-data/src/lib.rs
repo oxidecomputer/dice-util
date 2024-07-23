@@ -13,6 +13,8 @@ use sha3::{
     Sha3_256Core,
 };
 
+pub mod messages;
+
 #[cfg(feature = "std")]
 use thiserror::Error;
 
