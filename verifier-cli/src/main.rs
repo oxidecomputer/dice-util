@@ -95,14 +95,16 @@ enum AttestCommand {
         )]
         ca_cert: Option<PathBuf>,
 
-        /// Preserve temporary / intermediate files. The path to the
-        /// temp directory will be written to stderr.
-        #[clap(long, env)]
-        persist: bool,
-
         /// Verify the final cert in the provided PkiPath against itself.
         #[clap(long, env, conflicts_with = "ca_cert")]
         self_signed: bool,
+
+        /// Caller provided directory where artifacts are stored. If this
+        /// option is provided it will be used by this tool to store
+        /// artifacts retrieved from the RoT as part of the attestation
+        /// process. If omitted a temp directory will be used instead.
+        #[clap(long, env = "VERIFIER_CLI_WORK_DIR")]
+        work_dir: Option<PathBuf>,
     },
     /// Verify signature over Attestation
     VerifyAttestation {
@@ -508,78 +510,18 @@ fn main() -> Result<()> {
         }
         AttestCommand::Verify {
             ca_cert,
-            persist,
             self_signed,
+            work_dir,
         } => {
-            // generate nonce from RNG
-            info!("getting Nonce from platform RNG");
-            let nonce = Nonce::from_platform_rng()?;
-
-            // make tempdir, write nonce to temp dir
-            let tmp_dir = tempfile::tempdir()?;
-            let nonce_path = tmp_dir.path().join("nonce.bin");
-            info!("writing nonce to: {}", nonce_path.display());
-            fs::write(&nonce_path, nonce)?;
-
-            // get attestation
-            info!("getting attestation");
-            let mut attestation = vec![0u8; attest.attest_len()? as usize];
-            attest.attest(nonce, &mut attestation)?;
-            let attestation_path = tmp_dir.path().join("attest.bin");
-            info!("writing attestation to: {}", attestation_path.display());
-            fs::write(&attestation_path, &attestation)?;
-
-            // get log
-            info!("getting measurement log");
-            let mut log = vec![0u8; attest.log_len()? as usize];
-            attest.log(&mut log)?;
-            let log_path = tmp_dir.path().join("log.bin");
-            info!("writing measurement log to: {}", log_path.display());
-            fs::write(&log_path, &log)?;
-
-            // get cert chain
-            info!("getting cert chain");
-            let cert_chain_path = tmp_dir.path().join("cert-chain.pem");
-            let mut cert_chain = File::create(&cert_chain_path)?;
-            let alias_cert_path = tmp_dir.path().join("alias.pem");
-            for index in 0..attest.cert_chain_len()? {
-                let encoding = Encoding::Pem;
-                info!("getting cert[{}] encoded as {}", index, encoding);
-                let cert = get_cert(&attest, encoding, index)?;
-
-                // the first cert in the chain / the leaf cert is the one
-                // used to sign attestations
-                if index == 0 {
-                    info!(
-                        "writing alias cert to: {}",
-                        alias_cert_path.display()
-                    );
-                    fs::write(&alias_cert_path, &cert)?;
+            // Use the directory provided by the caller to hold intermediate
+            // files, or fall back to a temp dir.
+            match work_dir {
+                Some(w) => verify(&attest, &ca_cert, self_signed, w)?,
+                None => {
+                    let work_dir = tempfile::tempdir()?;
+                    verify(&attest, &ca_cert, self_signed, work_dir)?
                 }
-
-                info!(
-                    "writing cert[{}] to: {}",
-                    index,
-                    cert_chain_path.display()
-                );
-                cert_chain.write_all(&cert)?;
-            }
-
-            verify_attestation(
-                &alias_cert_path,
-                &attestation_path,
-                &log_path,
-                &nonce_path,
-            )?;
-            info!("attestation verified");
-            verify_cert_chain(&ca_cert, &cert_chain_path, self_signed)?;
-            info!("cert chain verified");
-
-            // persist the temp dir and write path to stderr if requested
-            if persist {
-                let tmp_path = tmp_dir.into_path();
-                eprintln!("{}", tmp_path.display());
-            }
+            };
         }
         AttestCommand::VerifyAttestation {
             alias_cert,
@@ -598,6 +540,70 @@ fn main() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn verify<P: AsRef<Path>>(
+    attest: &AttestHiffy,
+    ca_cert: &Option<PathBuf>,
+    self_signed: bool,
+    work_dir: P,
+) -> Result<()> {
+    // generate nonce from RNG
+    info!("getting Nonce from platform RNG");
+    let nonce = Nonce::from_platform_rng()?;
+
+    // write nonce to temp dir
+    let nonce_path = work_dir.as_ref().join("nonce.bin");
+    info!("writing nonce to: {}", nonce_path.display());
+    fs::write(&nonce_path, nonce)?;
+
+    // get attestation
+    info!("getting attestation");
+    let mut attestation = vec![0u8; attest.attest_len()? as usize];
+    attest.attest(nonce, &mut attestation)?;
+    let attestation_path = work_dir.as_ref().join("attest.bin");
+    info!("writing attestation to: {}", attestation_path.display());
+    fs::write(&attestation_path, &attestation)?;
+
+    // get log
+    info!("getting measurement log");
+    let mut log = vec![0u8; attest.log_len()? as usize];
+    attest.log(&mut log)?;
+    let log_path = work_dir.as_ref().join("log.bin");
+    info!("writing measurement log to: {}", log_path.display());
+    fs::write(&log_path, &log)?;
+
+    // get cert chain
+    info!("getting cert chain");
+    let cert_chain_path = work_dir.as_ref().join("cert-chain.pem");
+    let mut cert_chain = File::create(&cert_chain_path)?;
+    let alias_cert_path = work_dir.as_ref().join("alias.pem");
+    for index in 0..attest.cert_chain_len()? {
+        let encoding = Encoding::Pem;
+        info!("getting cert[{}] encoded as {}", index, encoding);
+        let cert = get_cert(attest, encoding, index)?;
+
+        // the first cert in the chain / the leaf cert is the one
+        // used to sign attestations
+        if index == 0 {
+            info!("writing alias cert to: {}", alias_cert_path.display());
+            fs::write(&alias_cert_path, &cert)?;
+        }
+
+        info!("writing cert[{}] to: {}", index, cert_chain_path.display());
+        cert_chain.write_all(&cert)?;
+    }
+
+    verify_attestation(
+        &alias_cert_path,
+        &attestation_path,
+        &log_path,
+        &nonce_path,
+    )?;
+    info!("attestation verified");
+    verify_cert_chain(ca_cert, &cert_chain_path, self_signed)?;
+    info!("cert chain verified");
     Ok(())
 }
 
