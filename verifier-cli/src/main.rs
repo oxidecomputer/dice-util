@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use anyhow::{anyhow, Context, Result};
-use attest_data::{Attestation, Nonce};
+use attest_data::{Attestation, Log, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_verifier::PkiPathSignatureVerifier;
 use env_logger::Builder;
@@ -554,15 +554,21 @@ fn verify<P: AsRef<Path>>(
     let nonce = Nonce::from_platform_rng()?;
 
     // write nonce to temp dir
-    let nonce_path = work_dir.as_ref().join("nonce.bin");
+    let nonce_path = work_dir.as_ref().join("nonce.json");
     info!("writing nonce to: {}", nonce_path.display());
-    fs::write(&nonce_path, nonce)?;
+    let nonce_str = serde_json::to_string(&nonce)?;
+    fs::write(&nonce_path, nonce_str)?;
 
     // get attestation
     info!("getting attestation");
     let mut attestation = vec![0u8; attest.attest_len()? as usize];
     attest.attest(nonce, &mut attestation)?;
-    let attestation_path = work_dir.as_ref().join("attest.bin");
+    // deserialize hubpack encoded attestation
+    let (attestation, _): (Attestation, _) = hubpack::deserialize(&attestation)
+        .map_err(|e| anyhow!("Failed to deserialize Attestation: {}", e))?;
+    // serialize attestation to json & write to file
+    let attestation = serde_json::to_string(&attestation)?;
+    let attestation_path = work_dir.as_ref().join("attest.json");
     info!("writing attestation to: {}", attestation_path.display());
     fs::write(&attestation_path, &attestation)?;
 
@@ -570,7 +576,10 @@ fn verify<P: AsRef<Path>>(
     info!("getting measurement log");
     let mut log = vec![0u8; attest.log_len()? as usize];
     attest.log(&mut log)?;
-    let log_path = work_dir.as_ref().join("log.bin");
+    let (log, _): (Log, _) = hubpack::deserialize(&log)
+        .map_err(|e| anyhow!("Failed to deserialize Log: {}", e))?;
+    let log = serde_json::to_string(&log)?;
+    let log_path = work_dir.as_ref().join("log.json");
     info!("writing measurement log to: {}", log_path.display());
     fs::write(&log_path, &log)?;
 
@@ -614,13 +623,19 @@ fn verify_attestation(
     nonce: &PathBuf,
 ) -> Result<()> {
     info!("verifying attestation");
-    let attestation = fs::read(attestation)?;
-    let (attestation, _): (Attestation, _) = hubpack::deserialize(&attestation)
-        .map_err(|e| anyhow!("Failed to deserialize Attestation: {}", e))?;
+    let attestation = fs::read_to_string(attestation)?;
+    let attestation: Attestation = serde_json::from_str(&attestation)?;
 
-    let log = fs::read(log)?;
+    // deserialize Log from json & serialize to hubpacked bytes
+    let log = fs::read_to_string(log)?;
+    let log: Log = serde_json::from_str(&log)?;
+    let mut buf = vec![0u8; Log::MAX_SIZE];
+    hubpack::serialize(&mut buf, &log)
+        .map_err(|_| anyhow!("failed to serialize Log"))?;
+    let log = buf;
 
-    let nonce: Nonce = fs::read(nonce)?.try_into()?;
+    let nonce = fs::read_to_string(nonce)?;
+    let nonce: Nonce = serde_json::from_str(&nonce)?;
 
     let alias = fs::read(alias_cert)?;
     let alias = match pem_rfc7468::decode_vec(&alias) {
