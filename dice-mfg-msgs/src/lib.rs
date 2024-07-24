@@ -206,7 +206,7 @@ fn platform_id_from_0xv2(s: &str) -> Result<PlatformId, PlatformIdError> {
     bytes[PLATFORM_ID_V1_PREFIX.len()..16]
         .copy_from_slice(&s[PLATFORM_ID_V2_PREFIX.len()..16]);
 
-    bytes[16..20].copy_from_slice(&[b':', b'R', b'R', b'R']);
+    bytes[16..20].copy_from_slice(b":RRR");
     // copy ':SN'
     bytes[20..32].copy_from_slice(&s[20..32]);
 
