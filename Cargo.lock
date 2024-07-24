@@ -1475,6 +1475,7 @@ dependencies = [
  "log",
  "p384",
  "pem-rfc7468",
+ "serde_json",
  "sha3",
  "tempfile",
  "x509-cert",
