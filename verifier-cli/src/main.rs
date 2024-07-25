@@ -556,7 +556,8 @@ fn verify<P: AsRef<Path>>(
     // write nonce to temp dir
     let nonce_path = work_dir.as_ref().join("nonce.json");
     info!("writing nonce to: {}", nonce_path.display());
-    let nonce_str = serde_json::to_string(&nonce)?;
+    let mut nonce_str = serde_json::to_string(&nonce)?;
+    nonce_str.push('\n');
     fs::write(&nonce_path, nonce_str)?;
 
     // get attestation
@@ -567,7 +568,8 @@ fn verify<P: AsRef<Path>>(
     let (attestation, _): (Attestation, _) = hubpack::deserialize(&attestation)
         .map_err(|e| anyhow!("Failed to deserialize Attestation: {}", e))?;
     // serialize attestation to json & write to file
-    let attestation = serde_json::to_string(&attestation)?;
+    let mut attestation = serde_json::to_string(&attestation)?;
+    attestation.push('\n');
     let attestation_path = work_dir.as_ref().join("attest.json");
     info!("writing attestation to: {}", attestation_path.display());
     fs::write(&attestation_path, &attestation)?;
@@ -578,7 +580,8 @@ fn verify<P: AsRef<Path>>(
     attest.log(&mut log)?;
     let (log, _): (Log, _) = hubpack::deserialize(&log)
         .map_err(|e| anyhow!("Failed to deserialize Log: {}", e))?;
-    let log = serde_json::to_string(&log)?;
+    let mut log = serde_json::to_string(&log)?;
+    log.push('\n');
     let log_path = work_dir.as_ref().join("log.json");
     info!("writing measurement log to: {}", log_path.display());
     fs::write(&log_path, &log)?;
