@@ -1,6 +1,6 @@
 [package]
 name = "attest-data"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [dependencies]
@@ -11,6 +11,7 @@ salty.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["macros"] }
 sha3.workspace = true
+static_assertions.workspace = true
 
 [features]
 std = ["getrandom", "thiserror"]

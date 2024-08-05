@@ -2,17 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::NONCE_SIZE;
+use crate::{NONCE_SIZE, SHA3_256_DIGEST_SIZE};
+use hubpack::error::Error as HubpackError;
 use hubpack::SerializedSize;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
-use hubpack::error::Error as HubpackError;
 
 /// Magic value for [`Header::magic`]
 pub const ATTEST_MAGIC: u32 = 0xA77E5700;
 
-/// Right now `Attest` is the only command that takes data (nonce)
-pub const MAX_DATA_LEN: usize = NONCE_SIZE;
+/// Right now `Attest` and `TqSign` are the only commands that take data
+/// argumenets. They happen to be the same length right now but this also
+/// catches anything silly
+
+const fn const_max(a: usize, b: usize) -> usize {
+    [a, b][(a < b) as usize]
+}
+pub const MAX_DATA_LEN: usize = const_max(NONCE_SIZE, SHA3_256_DIGEST_SIZE);
 
 pub const MAX_REQUEST_SIZE: usize =
     HostRotHeader::MAX_SIZE + HostToRotCommand::MAX_SIZE + MAX_DATA_LEN;
@@ -56,6 +61,10 @@ pub enum HostToRotCommand {
     /// Calculates sign(sha3_256(hubpack(measurement_log) | nonce))
     /// and returns the result.
     Attest,
+    /// Returns the certificate chain associated with TQ
+    GetTqCertificates,
+    /// Signs a 32 byte message with the TQ key
+    TqSign,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -151,6 +160,8 @@ pub enum RotToHost {
     RotCertificates,
     RotMeasurementLog,
     RotAttestation,
+    RotTqCertificates,
+    RotTqSign,
 }
 
 impl From<SprotError> for RotToHost {
@@ -185,13 +196,19 @@ pub fn parse_message(
     match command {
         // These commands don't take data
         HostToRotCommand::GetCertificates
-        | HostToRotCommand::GetMeasurementLog => {
+        | HostToRotCommand::GetMeasurementLog
+        | HostToRotCommand::GetTqCertificates => {
             if !leftover.is_empty() {
                 return Err(HostToRotError::IncorrectDataLen);
             }
         }
         HostToRotCommand::Attest => {
             if leftover.len() != NONCE_SIZE {
+                return Err(HostToRotError::IncorrectDataLen);
+            }
+        }
+        HostToRotCommand::TqSign => {
+            if leftover.len() != SHA3_256_DIGEST_SIZE {
                 return Err(HostToRotError::IncorrectDataLen);
             }
         }
