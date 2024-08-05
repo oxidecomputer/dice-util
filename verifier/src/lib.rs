@@ -229,6 +229,26 @@ impl PkiPathSignatureVerifier {
     }
 }
 
+pub fn verify_signature(
+    cert: &Certificate,
+    hash: &[u8],
+    signature: &[u8],
+) -> Result<()> {
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+
+    let signature = Signature::from_slice(signature)?;
+
+    let cert = cert
+        .tbs_certificate
+        .subject_public_key_info
+        .subject_public_key
+        .as_bytes()
+        .ok_or_else(|| anyhow!("Invalid / unaligned public key"))?;
+
+    let verifying_key = VerifyingKey::from_bytes(cert.try_into()?)?;
+    Ok(verifying_key.verify(hash, &signature)?)
+}
+
 pub fn verify_attestation(
     alias: &Certificate,
     attestation: &Attestation,

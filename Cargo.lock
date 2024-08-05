@@ -114,7 +114,7 @@ checksum = "0952808a6c2afd1aa8947271f3a60f1a6763c7b912d210184c5149b5cf147247"
 
 [[package]]
 name = "attest-data"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "getrandom",
  "hubpack",
@@ -122,6 +122,7 @@ dependencies = [
  "serde",
  "serde_with",
  "sha3",
+ "static_assertions",
  "thiserror",
 ]
 
@@ -518,7 +519,7 @@ dependencies = [
 
 [[package]]
 name = "dice-verifier"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "attest-data",
@@ -1297,6 +1298,12 @@ dependencies = [
  "base64ct",
  "der",
 ]
+
+[[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "string-error"
