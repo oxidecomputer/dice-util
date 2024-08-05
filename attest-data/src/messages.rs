@@ -2,17 +2,20 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::NONCE_SIZE;
+use crate::{NONCE_SIZE, SHA3_256_DIGEST_SIZE};
+use hubpack::error::Error as HubpackError;
 use hubpack::SerializedSize;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
-use hubpack::error::Error as HubpackError;
 
 /// Magic value for [`Header::magic`]
 pub const ATTEST_MAGIC: u32 = 0xA77E5700;
 
-/// Right now `Attest` is the only command that takes data (nonce)
+/// Right now `Attest` and `TqSign` are the only commands that take data
+/// argumenets. They happen to be the same length but to be extra cautious
+/// add a static assertion.
 pub const MAX_DATA_LEN: usize = NONCE_SIZE;
+
+static_assertions::const_assert!(SHA3_256_DIGEST_SIZE == 32);
 
 pub const MAX_REQUEST_SIZE: usize =
     HostRotHeader::MAX_SIZE + HostToRotCommand::MAX_SIZE + MAX_DATA_LEN;
@@ -49,13 +52,17 @@ impl HostRotHeader {
 )]
 #[repr(u32)]
 pub enum HostToRotCommand {
-    /// Returns the certificate chain associated with the RoT
+    /// Returns the certificate chain associated with the RoT-M
     GetCertificates,
     /// Returns the measurement log
     GetMeasurementLog,
     /// Calculates sign(sha3_256(hubpack(measurement_log) | nonce))
     /// and returns the result.
     Attest,
+    /// Returns the certificate chain associated with TQ
+    GetTqCertificates,
+    /// Signs a sha3_256 message with the TQ key
+    TqSign,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -149,6 +156,8 @@ pub enum RotToHost {
     RotCertificates,
     RotMeasurementLog,
     RotAttestation,
+    RotTqCertificates,
+    RotTqSign,
 }
 
 impl From<SprotError> for RotToHost {
@@ -183,13 +192,19 @@ pub fn parse_message(
     match command {
         // These commands don't take data
         HostToRotCommand::GetCertificates
-        | HostToRotCommand::GetMeasurementLog => {
+        | HostToRotCommand::GetMeasurementLog
+        | HostToRotCommand::GetTqCertificates => {
             if !leftover.is_empty() {
                 return Err(HostToRotError::IncorrectDataLen);
             }
         }
         HostToRotCommand::Attest => {
             if leftover.len() != NONCE_SIZE {
+                return Err(HostToRotError::IncorrectDataLen);
+            }
+        }
+        HostToRotCommand::TqSign => {
+            if leftover.len() != SHA3_256_DIGEST_SIZE {
                 return Err(HostToRotError::IncorrectDataLen);
             }
         }
@@ -213,8 +228,13 @@ pub fn parse_response(
         return Err(HostToRotError::VersionMismatch);
     }
 
-    if command != expected {
-        return Err(HostToRotError::UnexpectedCommand);
+    match command {
+        RotToHost::HostToRotError(e) => return Err(e),
+        c => {
+            if c != expected {
+                return Err(HostToRotError::UnexpectedCommand);
+            }
+        }
     }
     Ok(leftover)
 }
