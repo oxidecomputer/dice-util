@@ -135,6 +135,8 @@ pub enum SprotError {
     AttestSerializeLog,
     AttestSerializeSignature,
     AttestSignatureTooBig,
+    // Handle some host-sp-comms errors
+    CommsBufTooSmall,
 }
 
 impl From<HubpackError> for HostToRotError {
