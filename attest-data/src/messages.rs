@@ -215,8 +215,13 @@ pub fn parse_response(
         return Err(HostToRotError::VersionMismatch);
     }
 
-    if command != expected {
-        return Err(HostToRotError::UnexpectedCommand);
+    match command {
+        RotToHost::HostToRotError(e) => return Err(e),
+        c => {
+            if c != expected {
+                return Err(HostToRotError::UnexpectedCommand);
+            }
+        }
     }
     Ok(leftover)
 }
