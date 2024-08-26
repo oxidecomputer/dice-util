@@ -83,6 +83,7 @@ fn decode_obj(
 }
 
 /// Decode the key file at `path` based on provided encoding.
+///
 /// This code doesn't parse the DER, and doesn't validate the key type.
 /// We assume it's an Ed25519 key & use known offsets that we think will work.
 /// Or not.

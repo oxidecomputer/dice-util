@@ -123,6 +123,7 @@ pub fn check_csr(csr: &PathBuf, pid: &PlatformId) -> Result<bool> {
     Ok(false)
 }
 
+#[allow(clippy::too_long_first_doc_paragraph)]
 /// The MfgDriver is used to send commands to the RoT as part of programming
 /// identity credentials. The structure holds SerialPort instance. The
 /// associated functions map 1:1 to members of the MfgMessage enum from
