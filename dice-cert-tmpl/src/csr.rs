@@ -13,7 +13,7 @@ type Result<T> = result::Result<T, MissingFieldError>;
 // Type to expose parsing operations on CSR in underlying slice
 pub struct Csr<'a>(&'a mut [u8]);
 
-impl<'a> fmt::Display for Csr<'a> {
+impl fmt::Display for Csr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         crate::arrayfmt(self.as_bytes(), f)
     }

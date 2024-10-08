@@ -13,7 +13,7 @@ type Result<T> = result::Result<T, MissingFieldError>;
 
 pub struct Cert<'a>(pub &'a mut [u8]);
 
-impl<'a> fmt::Display for Cert<'a> {
+impl fmt::Display for Cert<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         crate::arrayfmt(self.as_bytes(), f)
     }
