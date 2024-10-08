@@ -13,7 +13,6 @@ pub const ATTEST_MAGIC: u32 = 0xA77E5700;
 /// Right now `Attest` and `TqSign` are the only commands that take data
 /// argumenets. They happen to be the same length right now but this also
 /// catches anything silly
-
 const fn const_max(a: usize, b: usize) -> usize {
     [a, b][(a < b) as usize]
 }
@@ -82,13 +81,13 @@ pub enum HostToRotError {
     /// Unexpected command returned
     UnexpectedCommand,
     /// Error return from the sprot command
-    SprotError(SprotError),
+    SprotError(RecvSprotError),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[repr(u32)]
 // Errors returned from the hubris side. This is _so many_
-pub enum SprotError {
+pub enum RecvSprotError {
     // protocol
     /// CRC check failed.
     ProtocolInvalidCrc,
@@ -164,8 +163,8 @@ pub enum RotToHost {
     RotTqSign,
 }
 
-impl From<SprotError> for RotToHost {
-    fn from(e: SprotError) -> Self {
+impl From<RecvSprotError> for RotToHost {
+    fn from(e: RecvSprotError) -> Self {
         RotToHost::HostToRotError(HostToRotError::SprotError(e))
     }
 }
@@ -343,139 +342,155 @@ mod tests {
             (HostToRotError::IncorrectDataLen, [4, 0, 0, 0]),
             (HostToRotError::UnexpectedCommand, [5, 0, 0, 0]),
             (
-                HostToRotError::SprotError(SprotError::ProtocolInvalidCrc),
+                HostToRotError::SprotError(RecvSprotError::ProtocolInvalidCrc),
                 [6, 0, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::ProtocolFlowError),
+                HostToRotError::SprotError(RecvSprotError::ProtocolFlowError),
                 [6, 1, 0, 0],
             ),
             (
                 HostToRotError::SprotError(
-                    SprotError::ProtocolUnsupportedProtocol,
+                    RecvSprotError::ProtocolUnsupportedProtocol,
                 ),
                 [6, 2, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::ProtocolBadMessageType),
+                HostToRotError::SprotError(
+                    RecvSprotError::ProtocolBadMessageType,
+                ),
                 [6, 3, 0, 0],
             ),
             (
                 HostToRotError::SprotError(
-                    SprotError::ProtocolBadMessageLength,
+                    RecvSprotError::ProtocolBadMessageLength,
                 ),
                 [6, 4, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::ProtocolCannotAssertCSn),
+                HostToRotError::SprotError(
+                    RecvSprotError::ProtocolCannotAssertCSn,
+                ),
                 [6, 5, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::ProtocolTimeout),
+                HostToRotError::SprotError(RecvSprotError::ProtocolTimeout),
                 [6, 6, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::ProtocolDeserialization),
+                HostToRotError::SprotError(
+                    RecvSprotError::ProtocolDeserialization,
+                ),
                 [6, 7, 0, 0],
             ),
             (
                 HostToRotError::SprotError(
-                    SprotError::ProtocolRotIrqRemainsAsserted,
+                    RecvSprotError::ProtocolRotIrqRemainsAsserted,
                 ),
                 [6, 8, 0, 0],
             ),
             (
                 HostToRotError::SprotError(
-                    SprotError::ProtocolUnexpectedResponse,
+                    RecvSprotError::ProtocolUnexpectedResponse,
                 ),
                 [6, 9, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::ProtocolBadUpdateStatus),
+                HostToRotError::SprotError(
+                    RecvSprotError::ProtocolBadUpdateStatus,
+                ),
                 [6, 10, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::ProtocolTaskRestarted),
+                HostToRotError::SprotError(
+                    RecvSprotError::ProtocolTaskRestarted,
+                ),
                 [6, 11, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::ProtocolDesynchronized),
+                HostToRotError::SprotError(
+                    RecvSprotError::ProtocolDesynchronized,
+                ),
                 [6, 12, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::SpiBadTransferSize),
+                HostToRotError::SprotError(RecvSprotError::SpiBadTransferSize),
                 [6, 13, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::SpiTaskRestarted),
+                HostToRotError::SprotError(RecvSprotError::SpiTaskRestarted),
                 [6, 14, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::UpdateError),
+                HostToRotError::SprotError(RecvSprotError::UpdateError),
                 [6, 15, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::SprocketsError),
+                HostToRotError::SprotError(RecvSprotError::SprocketsError),
                 [6, 16, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::WatchdogError),
+                HostToRotError::SprotError(RecvSprotError::WatchdogError),
                 [6, 17, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestCertTooBig),
+                HostToRotError::SprotError(RecvSprotError::AttestCertTooBig),
                 [6, 18, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestInvalidCertIndex),
+                HostToRotError::SprotError(
+                    RecvSprotError::AttestInvalidCertIndex,
+                ),
                 [6, 19, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestNoCerts),
+                HostToRotError::SprotError(RecvSprotError::AttestNoCerts),
                 [6, 20, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestOutOfRange),
+                HostToRotError::SprotError(RecvSprotError::AttestOutOfRange),
                 [6, 21, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestLogFull),
+                HostToRotError::SprotError(RecvSprotError::AttestLogFull),
                 [6, 22, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestLogTooBig),
+                HostToRotError::SprotError(RecvSprotError::AttestLogTooBig),
                 [6, 23, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestTaskRestarted),
+                HostToRotError::SprotError(RecvSprotError::AttestTaskRestarted),
                 [6, 24, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestBadLease),
+                HostToRotError::SprotError(RecvSprotError::AttestBadLease),
                 [6, 25, 0, 0],
             ),
             (
                 HostToRotError::SprotError(
-                    SprotError::AttestUnsupportedAlgorithm,
+                    RecvSprotError::AttestUnsupportedAlgorithm,
                 ),
                 [6, 26, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestSerializeLog),
+                HostToRotError::SprotError(RecvSprotError::AttestSerializeLog),
                 [6, 27, 0, 0],
             ),
             (
                 HostToRotError::SprotError(
-                    SprotError::AttestSerializeSignature,
+                    RecvSprotError::AttestSerializeSignature,
                 ),
                 [6, 28, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::AttestSignatureTooBig),
+                HostToRotError::SprotError(
+                    RecvSprotError::AttestSignatureTooBig,
+                ),
                 [6, 29, 0, 0],
             ),
             (
-                HostToRotError::SprotError(SprotError::CommsBufTooSmall),
+                HostToRotError::SprotError(RecvSprotError::CommsBufTooSmall),
                 [6, 30, 0, 0],
             ),
         ];
