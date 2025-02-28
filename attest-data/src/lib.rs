@@ -156,6 +156,14 @@ impl<const N: usize> MeasurementLog<N> {
         self.index as usize == N
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.index == 0
+    }
+
+    pub fn len(&self) -> u32 {
+        self.index
+    }
+
     pub fn push(&mut self, measurement: Measurement) -> bool {
         if !self.is_full() {
             self.measurements[self.index as usize] = measurement;
@@ -164,6 +172,13 @@ impl<const N: usize> MeasurementLog<N> {
         } else {
             false
         }
+    }
+}
+
+impl<const N: usize> core::ops::Index<u32> for MeasurementLog<N> {
+    type Output = Measurement;
+    fn index(&self, i: u32) -> &Self::Output {
+        &self.measurements[i as usize]
     }
 }
 
