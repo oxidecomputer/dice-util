@@ -32,7 +32,7 @@ rpassword = "7.3.1"
 salty = { version = "0.3", default-features = false }
 serde = { version = "1.0.218", default-features = false }
 serde-big-array = "0.5.1"
-serde_json = { version = "1", features = ["std", "alloc"] }
+serde_json = { version = "1.0.140", features = ["std", "alloc"] }
 serde_with = { version = "3.6", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
 sha2 = "0.10"
