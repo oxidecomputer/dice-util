@@ -36,7 +36,7 @@ serde_json = { version = "1.0.140", features = ["std", "alloc"] }
 serde_with = { version = "3.12.0", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
 sha2 = "0.10.8"
-sha3 = { version = "0.10", default-features = false }
+sha3 = { version = "0.10.8", default-features = false }
 static_assertions = { version = "1", default-features = false }
 string-error = "0.1"
 tempfile = { version = "3", default-features = false }
