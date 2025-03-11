@@ -145,6 +145,7 @@ pub enum RecvSprotError {
     AttestSignatureTooBig,
     // Handle some host-sp-comms errors
     CommsBufTooSmall,
+    AttestLogSlotReserved,
 }
 
 impl From<HubpackError> for HostToRotError {
