@@ -120,7 +120,7 @@ impl Nonce {
     #[cfg(feature = "std")]
     pub fn from_platform_rng() -> Result<Self, AttestDataError> {
         let mut nonce = [0u8; NONCE_SIZE];
-        getrandom::getrandom(&mut nonce[..])
+        getrandom::fill(&mut nonce[..])
             .map_err(|_| AttestDataError::GetRandom)?;
         let nonce = nonce;
 
