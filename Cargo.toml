@@ -7,6 +7,7 @@ members = [
     "dice-mfg-msgs",
     "yhsm-audit",
     "verifier-cli",
+    "verifier-ipcc",
 ]
 resolver = "2"
 
@@ -17,6 +18,7 @@ chrono = { version = "0.4.34", default-features=false }
 clap = { version = "4.5", features = ["derive", "env"] }
 const-oid = { version = "0.9.6", default-features = false }
 corncobs = "0.1"
+corim-experiments = { git = "git+ssh://git@github.com/oxidecomputer/rats-corim", branch = "builder" }
 derive_more = "0.99"
 ecdsa = { version = "0.16", default-features = false }
 ed25519-dalek = { version = "2.1", default-features = false }

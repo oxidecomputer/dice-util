@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use anyhow::{anyhow, Result};
-use attest_data::{Attestation, Nonce};
+use attest_data::{Attestation, Log, Measurement, Nonce};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
 use sha3::{Digest, Sha3_256};
 use x509_cert::{der::Encode, Certificate, PkiPath};
@@ -281,4 +281,22 @@ pub fn verify_attestation(
 
     let verifying_key = VerifyingKey::from_bytes(alias.try_into()?)?;
     Ok(verifying_key.verify(message.as_slice(), &signature)?)
+}
+
+pub fn verify_log(
+    log: &Log,
+    measurements: &corim_experiments::Corim,
+) -> Result<()> {
+    for i in log.iter() {
+        match i {
+            Measurement::Sha3_256(s) => {
+                let v = s.as_ref().to_vec();
+                let mut all = measurements.iter_measurements();
+                if !all.find(|x| *x == v).is_none() {
+                    return Err(anyhow!("missing measurement entry"));
+                }
+            }
+        }
+    }
+    Ok(())
 }
