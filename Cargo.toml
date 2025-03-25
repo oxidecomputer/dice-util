@@ -7,6 +7,7 @@ members = [
     "dice-mfg-msgs",
     "yhsm-audit",
     "verifier-cli",
+    "verifier-ipcc",
 ]
 resolver = "2"
 

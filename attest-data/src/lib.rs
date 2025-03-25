@@ -165,6 +165,16 @@ impl<const N: usize> MeasurementLog<N> {
             false
         }
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Measurement> {
+        self.measurements.iter().enumerate().filter_map(|(i, e)| {
+            if i < (self.index as usize) {
+                Some(e)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 impl<const N: usize> Default for MeasurementLog<N> {

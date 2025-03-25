@@ -1,0 +1,24 @@
+[package]
+name = "verifier-ipcc"
+version = "0.1.0"
+edition = "2021"
+description = "A CLI tool for working over IPCC"
+license = "MPL-2.0"
+
+[dependencies]
+anyhow = { workspace = true, features = ["std"] }
+attest-data = { path = "../attest-data", features = ["std"] }
+clap.workspace = true
+const-oid = { workspace = true, features = ["db"] }
+ed25519-dalek = { workspace = true, features = ["std"] }
+env_logger.workspace = true
+hubpack.workspace = true
+libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "524eb8f125003dff50b9703900c6b323f00f9e1b" }
+log.workspace = true
+p384 = { workspace = true, default-features = true }
+pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
+sha3.workspace = true
+tempfile.workspace = true
+dice-verifier.path = "../verifier"
+x509-cert = { workspace = true, default-features = true }
+serde_json.workspace = true
