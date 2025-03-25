@@ -13,7 +13,6 @@ pub const ATTEST_MAGIC: u32 = 0xA77E5700;
 /// Right now `Attest` and `TqSign` are the only commands that take data
 /// argumenets. They happen to be the same length right now but this also
 /// catches anything silly
-
 const fn const_max(a: usize, b: usize) -> usize {
     [a, b][(a < b) as usize]
 }

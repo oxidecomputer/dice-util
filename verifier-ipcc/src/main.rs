@@ -60,16 +60,8 @@ enum Command {
     /// Generates a nonce, attestation and verifies it
     VerifyRoundTrip {
         /// Path to file holding trust anchor for the associated PKI.
-        #[clap(
-            long,
-            env = "VERIFIER_CLI_CA_CERT",
-            conflicts_with = "self_signed"
-        )]
+        #[clap(long, env = "VERIFIER_CLI_CA_CERT")]
         ca_cert: Option<PathBuf>,
-
-        /// Verify the final cert in the provided PkiPath against itself.
-        #[clap(long, env, conflicts_with = "ca_cert")]
-        self_signed: bool,
     },
     /// Verify the log against the given set of measurements
     VerifyLog {
@@ -167,7 +159,7 @@ impl Ipcc {
             &mut rot_message,
             &HostToRotCommand::Attest,
             |buf| {
-                buf[..nonce.len()].copy_from_slice(&nonce);
+                buf[..nonce.len()].copy_from_slice(nonce);
                 32
             },
         )
@@ -185,6 +177,7 @@ impl Ipcc {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
     let handle = Ipcc::new()?;
 
     let args = Args::parse();
@@ -232,7 +225,7 @@ fn main() -> Result<()> {
             let nonce = std::fs::read(nonce)?;
             let nonce = Nonce::try_from(&nonce[..])?;
 
-            let attest = handle.attest(&nonce.as_ref())?;
+            let attest = handle.attest(nonce.as_ref())?;
 
             std::fs::write(&out, &attest)?;
             info!("Wrote attestation to {:?}", out);
@@ -261,6 +254,38 @@ fn main() -> Result<()> {
                 &log,
                 &nonce,
             )?;
+            info!("Attestation succeeded.");
+        }
+        Command::VerifyRoundTrip { ca_cert } => {
+            let nonce = Nonce::from_platform_rng()?;
+
+            let attestation = handle.attest(nonce.as_ref())?;
+            let (attestation, _) = hubpack::deserialize::<Attestation>(
+                &attestation,
+            )
+            .map_err(|e| anyhow!("Failed to deserialize Attestation: {}", e))?;
+
+            let log = handle.get_measurement_log()?;
+
+            let chain = handle.get_certificates()?;
+            let root = match ca_cert {
+                Some(r) => {
+                    let root = std::fs::read(r)?;
+                    Some(Certificate::from_pem(root)?)
+                }
+                None => None,
+            };
+
+            let verifier = PkiPathSignatureVerifier::new(root)?;
+            verifier.verify(&chain)?;
+
+            dice_verifier::verify_attestation(
+                &chain[0],
+                &attestation,
+                &log,
+                &nonce,
+            )?;
+            info!("Success.");
         }
         _ => todo!(),
     }
