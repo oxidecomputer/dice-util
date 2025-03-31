@@ -7,9 +7,8 @@ use crate::{
     PUBLIC_KEY_LEN, SERIAL_NUMBER_LEN, SIGNATURE_LEN, SUBJECT_CN_LEN,
     SUBJECT_SN_LEN,
 };
-use std::{fmt, result};
-
-type Result<T> = result::Result<T, MissingFieldError>;
+use anyhow::Result;
+use std::fmt;
 
 pub struct Cert<'a>(pub &'a mut [u8]);
 
@@ -52,7 +51,7 @@ impl<'a> Cert<'a> {
             &Self::SERIAL_NUMBER_PATTERN,
             SERIAL_NUMBER_LEN,
         )
-        .ok_or(MissingFieldError::SerialNumber)
+        .ok_or(MissingFieldError::SerialNumber.into())
     }
 
     pub fn get_serial_number(&self) -> Result<u8> {
@@ -69,7 +68,7 @@ impl<'a> Cert<'a> {
     // since issuer comes before subject in the structure
     pub fn get_issuer_cn_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::ISSUER_CN_PATTERN, ISSUER_CN_LEN)
-            .ok_or(MissingFieldError::IssuerCn)
+            .ok_or(MissingFieldError::IssuerCn.into())
     }
 
     pub fn get_issuer_cn(&self) -> Result<&[u8]> {
@@ -83,7 +82,7 @@ impl<'a> Cert<'a> {
 
     pub fn get_issuer_sn_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::ISSUER_SN_PATTERN, ISSUER_SN_LEN)
-            .ok_or(MissingFieldError::IssuerSn)
+            .ok_or(MissingFieldError::IssuerSn.into())
     }
 
     pub fn get_issuer_sn(&self) -> Result<&[u8]> {
@@ -95,7 +94,7 @@ impl<'a> Cert<'a> {
 
     pub fn get_notbefore_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::NOTBEFORE_PATTERN, NOTBEFORE_LEN)
-            .ok_or(MissingFieldError::NotBefore)
+            .ok_or(MissingFieldError::NotBefore.into())
     }
 
     pub fn get_notbefore(&self) -> Result<&[u8]> {
@@ -111,7 +110,7 @@ impl<'a> Cert<'a> {
     // since issuer comes before subject in the structure
     pub fn get_subject_cn_offsets(&self) -> Result<(usize, usize)> {
         crate::get_roffsets(self.0, &Self::SUBJECT_CN_PATTERN, SUBJECT_CN_LEN)
-            .ok_or(MissingFieldError::SubjectCn)
+            .ok_or(MissingFieldError::SubjectCn.into())
     }
 
     pub fn get_subject_cn(&self) -> Result<&[u8]> {
@@ -128,7 +127,7 @@ impl<'a> Cert<'a> {
     // since issuer comes before subject in the structure
     pub fn get_subject_sn_offsets(&self) -> Result<(usize, usize)> {
         crate::get_roffsets(self.0, &Self::SUBJECT_SN_PATTERN, SUBJECT_SN_LEN)
-            .ok_or(MissingFieldError::SubjectSn)
+            .ok_or(MissingFieldError::SubjectSn.into())
     }
 
     pub fn get_subject_sn(&self) -> Result<&[u8]> {
@@ -140,7 +139,7 @@ impl<'a> Cert<'a> {
     ];
     pub fn get_pub_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::PUBLIC_KEY_PATTERN, PUBLIC_KEY_LEN)
-            .ok_or(MissingFieldError::PublicKey)
+            .ok_or(MissingFieldError::PublicKey.into())
     }
 
     pub fn get_pub(&self) -> Result<&[u8]> {
@@ -154,7 +153,7 @@ impl<'a> Cert<'a> {
         let start = match self.as_bytes()[1] {
             0x81 => 3,
             0x82 => 4,
-            _ => return Err(MissingFieldError::SignDataStart),
+            _ => return Err(MissingFieldError::SignDataStart.into()),
         };
 
         let end = crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
@@ -169,7 +168,7 @@ impl<'a> Cert<'a> {
 
     pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
         crate::get_roffsets(self.0, &Self::SIGNDATA_PATTERN, SIGNATURE_LEN)
-            .ok_or(MissingFieldError::Signature)
+            .ok_or(MissingFieldError::Signature.into())
     }
 
     pub fn get_sig(&self) -> Result<&[u8]> {
@@ -191,16 +190,13 @@ impl<'a> Cert<'a> {
     ];
     pub fn get_fwid_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::FWID_PATTERN, FWID_LEN)
-            .ok_or(MissingFieldError::Fwid)
+            .ok_or(MissingFieldError::Fwid.into())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::error;
-
-    type Result = result::Result<(), Box<dyn error::Error>>;
 
     // Changes to the file included for each test will break these tests
     // because expected results are hard coded here.
@@ -214,7 +210,7 @@ mod tests {
 
     const SERIAL_NUMBER_EXPECTED: u8 = 0x10;
     #[test]
-    fn cert_get_serial_number_offsets() -> Result {
+    fn cert_get_serial_number_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let (start, end) = cert.get_serial_number_offsets()?;
@@ -228,7 +224,7 @@ mod tests {
 
     const SN_EXPECTED: &str = "00000000000";
     #[test]
-    fn cert_get_issuer_sn_offsets() -> Result {
+    fn cert_get_issuer_sn_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let (start, end) = cert.get_issuer_sn_offsets()?;
@@ -241,7 +237,7 @@ mod tests {
         0x5a,
     ];
     #[test]
-    fn cert_get_notbefore_offsets() -> Result {
+    fn cert_get_notbefore_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let (start, end) = cert.get_notbefore_offsets()?;
@@ -250,7 +246,7 @@ mod tests {
     }
 
     #[test]
-    fn cert_get_subject_sn_offsets() -> Result {
+    fn cert_get_subject_sn_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let (start, end) = cert.get_subject_sn_offsets()?;
@@ -266,7 +262,7 @@ mod tests {
     ];
 
     #[test]
-    fn cert_get_pub_offsets() -> Result {
+    fn cert_get_pub_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let (start, end) = cert.get_pub_offsets()?;
@@ -312,7 +308,7 @@ mod tests {
     ];
 
     #[test]
-    fn cert_get_signdata_offsets() -> Result {
+    fn cert_get_signdata_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let (start, end) = cert
@@ -332,7 +328,7 @@ mod tests {
     ];
 
     #[test]
-    fn cert_get_sig_offsets() -> Result {
+    fn cert_get_sig_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         // I'm not convinced this is better than just an 'unwrap()'
@@ -350,7 +346,7 @@ mod tests {
     ];
     // this test is specific to the alias / leaf cert
     #[test]
-    fn cert_get_fwid_offsets() -> Result {
+    fn cert_get_fwid_offsets() -> Result<()> {
         const TEST_DER: &[u8] = include_bytes!("../test/alias.cert.der");
         let mut der = [0u8; TEST_DER.len()];
         der.copy_from_slice(TEST_DER);
@@ -363,7 +359,7 @@ mod tests {
 
     use salty::signature::{PublicKey, Signature};
     #[test]
-    fn cert_sig_check() -> Result {
+    fn cert_sig_check() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let (start_msg, end_msg) = cert.get_signdata_offsets()?;
