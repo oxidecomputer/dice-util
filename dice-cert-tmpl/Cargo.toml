@@ -11,3 +11,4 @@ dice-mfg-msgs = { path = "../dice-mfg-msgs" }
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
 salty.workspace = true
 tempfile.workspace = true
+x509-cert = { workspace = true, features = ["std"] }
