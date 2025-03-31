@@ -467,6 +467,7 @@ dependencies = [
 name = "dice-cert-tmpl"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
  "dice-mfg-msgs",
  "pem-rfc7468",

@@ -5,6 +5,7 @@ edition = "2021"
 license = "MPL-2.0"
 
 [dependencies]
+anyhow.workspace = true
 clap.workspace = true
 dice-mfg-msgs = { path = "../dice-mfg-msgs" }
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
