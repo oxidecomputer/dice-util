@@ -7,8 +7,9 @@ use crate::{
     PUBLIC_KEY_LEN, SERIAL_NUMBER_LEN, SIGNATURE_LEN, SUBJECT_CN_LEN,
     SUBJECT_SN_LEN,
 };
-use anyhow::Result;
-use std::fmt;
+use anyhow::{anyhow, Context, Result};
+use std::{fmt, ops::Range};
+use x509_cert::der::{Decode, Header, Reader, SliceReader, Tag};
 
 pub struct Cert<'a>(pub &'a mut [u8]);
 
@@ -148,22 +149,34 @@ impl<'a> Cert<'a> {
 
     const SIGNDATA_PATTERN: [u8; 10] =
         [0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03, 0x41, 0x00];
+    pub fn get_signdata_offsets(&self) -> Result<Range<usize>> {
+        let mut reader = SliceReader::new(self.0)?;
 
-    pub fn get_signdata_offsets(&self) -> Result<(usize, usize)> {
-        let start = match self.as_bytes()[1] {
-            0x81 => 3,
-            0x82 => 4,
-            _ => return Err(MissingFieldError::SignDataStart.into()),
-        };
+        // advance the reader past the outer Certificate / `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode certificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
 
-        let end = crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
-            .ok_or(MissingFieldError::SignData)?;
+        // tbsCertificate is a `SEQUENCE`
+        // the full DER encoding of tbsCertificate is signed so we get the
+        // starting offset before reading the header
+        let start = u32::from(reader.offset());
+        let header = Header::decode(&mut reader)?;
 
-        Ok((start, end))
+        let end = start
+            + u32::from(header.length)
+            + (u32::from(reader.offset()) - start);
+
+        Ok(Range {
+            start: start.try_into()?,
+            end: end.try_into()?,
+        })
     }
 
     pub fn get_signdata(&self) -> Result<&[u8]> {
-        Ok(self.get_bytes(self.get_signdata_offsets()?))
+        Ok(&self.as_bytes()[self.get_signdata_offsets()?])
     }
 
     pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
@@ -311,11 +324,8 @@ mod tests {
     fn cert_get_signdata_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert
-            .get_signdata_offsets()
-            .map_err(|e| panic!("{}", e))
-            .unwrap();
-        assert_eq!(&cert.as_bytes()[start..end], &SIGNDATA_EXPECTED);
+        let range = cert.get_signdata_offsets()?;
+        assert_eq!(&cert.as_bytes()[range], &SIGNDATA_EXPECTED);
         Ok(())
     }
     const SIG_EXPECTED: [u8; 64] = [
@@ -362,7 +372,7 @@ mod tests {
     fn cert_sig_check() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start_msg, end_msg) = cert.get_signdata_offsets()?;
+        let msg_range = cert.get_signdata_offsets()?;
         let (start_sig, end_sig) = cert.get_sig_offsets()?;
         let (start_pub, end_pub) = cert.get_pub_offsets()?;
         let pubkey: &[u8; PUBLIC_KEY_LEN] =
@@ -376,7 +386,7 @@ mod tests {
             cert.as_bytes()[start_sig..end_sig].try_into()?;
 
         let sig = Signature::from(sig);
-        let res = pubkey.verify(&cert.as_bytes()[start_msg..end_msg], &sig);
+        let res = pubkey.verify(&cert.as_bytes()[msg_range], &sig);
         assert!(res.is_ok());
         Ok(())
     }

@@ -252,8 +252,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 dice_cert_tmpl::write_range(&mut out, "SIG", start, end)?;
                 cert.clear_range(start, end);
 
-                let (start, end) = cert.get_signdata_offsets()?;
-                dice_cert_tmpl::write_range(&mut out, "SIGNDATA", start, end)?;
+                let range = cert.get_signdata_offsets()?;
+                dice_cert_tmpl::write_range(
+                    &mut out,
+                    "SIGNDATA",
+                    range.start,
+                    range.end,
+                )?;
                 // don't clear signdata, it's the whole cert
 
                 if fwid {

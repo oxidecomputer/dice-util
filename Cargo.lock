@@ -473,6 +473,7 @@ dependencies = [
  "pem-rfc7468",
  "salty",
  "tempfile",
+ "x509-cert",
 ]
 
 [[package]]
