@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use anyhow::anyhow;
 use clap::{Parser, Subcommand};
 use dice_cert_tmpl::{encoding, Cert, Csr, Encoding};
 use salty::{
@@ -201,14 +202,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 cert.clear_range(start, end);
 
                 if issuer_cn {
-                    let (start, end) = cert.get_issuer_cn_offsets()?;
+                    let range = cert.get_issuer_cn_offsets()?.ok_or(
+                        anyhow!("No Issuer or Issuer commonName found"),
+                    )?;
                     dice_cert_tmpl::write_range(
                         &mut out,
                         "ISSUER_CN",
-                        start,
-                        end,
+                        range.start,
+                        range.end,
                     )?;
-                    cert.clear_range(start, end);
+                    cert.clear_range(range.start, range.end);
                 }
 
                 if issuer_sn {

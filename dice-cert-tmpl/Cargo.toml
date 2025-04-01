@@ -7,6 +7,7 @@ license = "MPL-2.0"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+const-oid = { workspace = true, features = ["db"] }
 dice-mfg-msgs = { path = "../dice-mfg-msgs" }
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
 salty.workspace = true
