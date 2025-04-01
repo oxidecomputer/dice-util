@@ -3,13 +3,15 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    MissingFieldError, FWID_LEN, ISSUER_CN_LEN, ISSUER_SN_LEN, NOTBEFORE_LEN,
-    PUBLIC_KEY_LEN, SERIAL_NUMBER_LEN, SIGNATURE_LEN, SUBJECT_CN_LEN,
-    SUBJECT_SN_LEN,
+    MissingFieldError, FWID_LEN, ISSUER_SN_LEN, NOTBEFORE_LEN, PUBLIC_KEY_LEN,
+    SERIAL_NUMBER_LEN, SIGNATURE_LEN, SUBJECT_CN_LEN, SUBJECT_SN_LEN,
 };
 use anyhow::{anyhow, Context, Result};
+use const_oid::db::rfc4519::COMMON_NAME;
 use std::{fmt, ops::Range};
-use x509_cert::der::{Decode, Header, Reader, SliceReader, Tag};
+use x509_cert::der::{
+    asn1::ObjectIdentifier, Decode, Header, Reader, SliceReader, Tag, TagNumber,
+};
 
 pub struct Cert<'a>(pub &'a mut [u8]);
 
@@ -60,20 +62,131 @@ impl<'a> Cert<'a> {
         Ok(sn[0])
     }
 
-    // SET, SEQUENCE, OID (2.5.4.3 / commonName)
-    const ISSUER_CN_PATTERN: [u8; 11] = [
-        0x31, 0x29, 0x30, 0x27, 0x06, 0x03, 0x55, 0x04, 0x03, 0x0C, 0x20,
-    ];
-    // when issuer and subject SN are the same length their identifying
-    // patterns are the same. This function searches backward for the pattern
-    // since issuer comes before subject in the structure
-    pub fn get_issuer_cn_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::ISSUER_CN_PATTERN, ISSUER_CN_LEN)
-            .ok_or(MissingFieldError::IssuerCn.into())
+    // Parse the cert & find the start and end offsets of the Issuer
+    // commonName. If the Issuer SEQUENCE doesn't contain a
+    // RelativeDistinguishedName with the commonName AttributeType (2.5.4.3)
+    // it will return None.
+    pub fn get_issuer_cn_offsets(&self) -> Result<Option<Range<usize>>> {
+        let mut reader =
+            SliceReader::new(self.0).context("SliceReader from cert DER")?;
+
+        // RFC 5280 Certificate is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode Certificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // tbsCertificate is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode tbsCertificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // `version` is a constructed, context specific type numbered 0
+        let header =
+            Header::decode(&mut reader).context("decode version header")?;
+        if header.tag
+            != (Tag::ContextSpecific {
+                constructed: true,
+                number: TagNumber::N0,
+            })
+        {
+            return Err(anyhow!(
+                "Expected constructed, context specific tag [0], got {:?}",
+                header.tag
+            ));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past version")?;
+
+        // `serialNumber` is an `INTEGER`
+        let header = Header::decode(&mut reader)
+            .context("decode serialNumber header")?;
+        if header.tag != Tag::Integer {
+            return Err(anyhow!("Expected INTEGER, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past serialNumber")?;
+
+        // `signature` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode signature header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past signature")?;
+
+        // `issuer` is a `SEQUENCE`
+        // that we will iterate over
+        let header =
+            Header::decode(&mut reader).context("decode issuer header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        // iterating over the issuer `SEQUENCE` ends when the reader has advanced
+        // header.length bytes from the current position
+        let end = (reader.offset() + header.length)
+            .context("calculate end of issuer SEQUENCE")?;
+
+        loop {
+            if end == reader.offset() {
+                break;
+            }
+            if end < reader.offset() {
+                return Err(anyhow!("read past end of issuer SEQUENCE"));
+            }
+
+            // the outer RelativeDistinguishedName `SET`
+            let header = Header::decode(&mut reader)
+                .context("decode RelativeDistinguishedName header")?;
+            if header.tag != Tag::Set {
+                return Err(anyhow!("Expected SET, got {:?}", header.tag));
+            }
+
+            // the outer AttributeTypeAndValue `SEQUENCE`
+            let header = Header::decode(&mut reader)
+                .context("decode AttributeTypeAndValue header")?;
+            if header.tag != Tag::Sequence {
+                return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+            }
+
+            // get the `AttributeType` oid
+            let oid = ObjectIdentifier::decode(&mut reader)
+                .context("decode AttributeType OID")?;
+
+            let header = Header::decode(&mut reader)
+                .context("decode AttributeValue header")?;
+            if oid != COMMON_NAME {
+                // if the AttributeType isn't `COMMON_NAME` advance the reader
+                // to the end of the value & iterate again
+                let _ = reader
+                    .read_slice(header.length)
+                    .context("read past AttributeValue")?;
+            } else {
+                let start = u32::from(reader.offset());
+                let end = start + u32::from(header.length);
+
+                return Ok(Some(Range {
+                    start: start.try_into().context("start offset to usize")?,
+                    end: end.try_into().context("end offset to usize")?,
+                }));
+            }
+        }
+
+        Ok(None)
     }
 
-    pub fn get_issuer_cn(&self) -> Result<&[u8]> {
-        Ok(self.get_bytes(self.get_issuer_cn_offsets()?))
+    pub fn get_issuer_cn(&self) -> Result<Option<&[u8]>> {
+        match self.get_issuer_cn_offsets()? {
+            Some(range) => Ok(Some(&self.as_bytes()[range])),
+            None => Ok(None),
+        }
     }
 
     // ANS.1 TLVs & OID for serialNumber (x.520 DN component)
@@ -210,6 +323,7 @@ impl<'a> Cert<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::anyhow;
 
     // Changes to the file included for each test will break these tests
     // because expected results are hard coded here.
@@ -242,6 +356,18 @@ mod tests {
         let cert = Cert::from_slice(&mut der);
         let (start, end) = cert.get_issuer_sn_offsets()?;
         assert_eq!(&cert.as_bytes()[start..end], SN_EXPECTED.as_bytes());
+        Ok(())
+    }
+
+    const ISSUER_CN_EXPECTED: &str = "identity";
+    #[test]
+    fn cert_get_issuer_cn_offsets() -> Result<()> {
+        let mut der = init();
+        let cert = Cert::from_slice(&mut der);
+        let range = cert
+            .get_issuer_cn_offsets()?
+            .ok_or(anyhow!("No Issuer commonName in cert"))?;
+        assert_eq!(&cert.as_bytes()[range], ISSUER_CN_EXPECTED.as_bytes());
         Ok(())
     }
 

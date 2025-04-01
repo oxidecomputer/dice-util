@@ -469,6 +469,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "const-oid",
  "dice-mfg-msgs",
  "pem-rfc7468",
  "salty",
