@@ -20,7 +20,6 @@ use std::{error, fmt, io::Write, path::Path, process::Command};
 
 // csr / cert field sizes
 // get this from sha3 crate as a const requires const generics
-const FWID_LEN: usize = 32;
 const ISSUER_SN_LEN: usize = 11;
 const NOTBEFORE_LEN: usize = 13;
 const PUBLIC_KEY_LEN: usize = PUBLICKEY_SERIALIZED_LENGTH;

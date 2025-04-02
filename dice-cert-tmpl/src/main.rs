@@ -267,9 +267,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // don't clear signdata, it's the whole cert
 
                 if fwid {
-                    let (start, end) = cert.get_fwid_offsets()?;
-                    dice_cert_tmpl::write_range(&mut out, "FWID", start, end)?;
-                    cert.clear_range(start, end);
+                    let offsets = cert.get_fwids_offsets()?;
+                    if offsets.is_empty() {
+                        return Err(anyhow!(
+                            "FWID offsets requested but none found"
+                        )
+                        .into());
+                    }
+                    if offsets.len() > 1 {
+                        return Err(anyhow!(
+                            "FWID offsets requested but none found"
+                        )
+                        .into());
+                    }
+
+                    dice_cert_tmpl::write_range(
+                        &mut out,
+                        "FWID",
+                        offsets[0].start,
+                        offsets[0].end,
+                    )?;
+                    cert.clear_range(offsets[0].start, offsets[0].end);
                 }
 
                 writeln!(

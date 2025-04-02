@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    MissingFieldError, FWID_LEN, ISSUER_SN_LEN, NOTBEFORE_LEN, PUBLIC_KEY_LEN,
+    MissingFieldError, ISSUER_SN_LEN, NOTBEFORE_LEN, PUBLIC_KEY_LEN,
     SERIAL_NUMBER_LEN, SIGNATURE_LEN, SUBJECT_SN_LEN,
 };
 use anyhow::{anyhow, Context, Result};
@@ -12,6 +12,9 @@ use std::{fmt, ops::Range};
 use x509_cert::der::{
     asn1::ObjectIdentifier, Decode, Header, Reader, SliceReader, Tag, TagNumber,
 };
+
+pub const DICE_TCB_INFO: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("2.23.133.5.4.1");
 
 pub struct Cert<'a>(pub &'a mut [u8]);
 
@@ -435,18 +438,253 @@ impl<'a> Cert<'a> {
         &self.as_bytes()[start..end]
     }
 
-    //06 06 67 81 05 05 04 01 01 01 FF 04 33 30 31
-    //A6 2F 30 2D 06 09 60 86 48 01 65 03 04 02 08
-    //04 20
-    // SHA3_256 length
-    const FWID_PATTERN: [u8; 32] = [
-        0x06, 0x06, 0x67, 0x81, 0x05, 0x05, 0x04, 0x01, 0x01, 0x01, 0xFF, 0x04,
-        0x33, 0x30, 0x31, 0xA6, 0x2F, 0x30, 0x2D, 0x06, 0x09, 0x60, 0x86, 0x48,
-        0x01, 0x65, 0x03, 0x04, 0x02, 0x08, 0x04, 0x20,
-    ];
-    pub fn get_fwid_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::FWID_PATTERN, FWID_LEN)
-            .ok_or(MissingFieldError::Fwid.into())
+    pub fn get_fwids_offsets(&self) -> Result<Vec<Range<usize>>> {
+        let mut reader =
+            SliceReader::new(self.0).context("SliceReader from cert DER")?;
+
+        // RFC 5280 Certificate is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode Certificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // tbsCertificate is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode tbsCertificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // `version` is a constructed, context specific type numbered 0
+        let header =
+            Header::decode(&mut reader).context("decode version header")?;
+        if header.tag
+            != (Tag::ContextSpecific {
+                constructed: true,
+                number: TagNumber::N0,
+            })
+        {
+            return Err(anyhow!(
+                "Expected constructed, context specific tag [0], got {:?}",
+                header.tag
+            ));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past version")?;
+
+        // `serialNumber` is an `INTEGER`
+        let header = Header::decode(&mut reader)
+            .context("decode serialNumber header")?;
+        if header.tag != Tag::Integer {
+            return Err(anyhow!("Expected INTEGER, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past serialNumber")?;
+
+        // `signature` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode signature header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past signature")?;
+
+        // `issuer` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode issuer header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past issuer")?;
+
+        // `validity` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode validity header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past validity")?;
+
+        // `subject` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode subject header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past subject")?;
+
+        // `subjectPublicKeyInfo` is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode subjectPublicKeyInfo header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past subjectPublicKeyInfo")?;
+
+        // `extensions` is a constructed, context specific type with tag [3]
+        let header =
+            Header::decode(&mut reader).context("decode extensions header")?;
+        if header.tag
+            != (Tag::ContextSpecific {
+                constructed: true,
+                number: TagNumber::N3,
+            })
+        {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // `extensions.Extensions` is a `SEQUENCE`
+        // we've descended into
+        let header =
+            Header::decode(&mut reader).context("decode Extensions header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        let end = (reader.offset() + header.length)
+            .context("Offset + length of Extensions SEQUENCE")?;
+
+        // Now we loop over the extensions till we find the DiceTcbInfoExtension
+        let mut fwid_ranges: Vec<Range<usize>> = Vec::new();
+        loop {
+            if end == reader.offset() {
+                break;
+            }
+            if end < reader.offset() {
+                return Err(anyhow!("read past end of Extensions SEQUENCE"));
+            }
+
+            // This is the outer sequence for the extension
+            let header = Header::decode(&mut reader)
+                .context("decode Extension header")?;
+            if header.tag != Tag::Sequence {
+                return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+            }
+
+            // `extnId` is an `OBJECT IDENTIFIER`
+            let oid = ObjectIdentifier::decode(&mut reader)
+                .context("Decode ObjectIdentifier")?;
+
+            // skip the rest of the extension
+            // skipping critical or extnValue if critical is not present
+            let header = Header::decode(&mut reader)
+                .context("decode next header, critical or extnValue?")?;
+            let _ = reader
+                .read_slice(header.length)
+                .context("read past Extension critical")?;
+
+            let header = if header.tag == Tag::Boolean {
+                // if the critical field is present we have to advance the
+                // reader past the associated extnValue
+                Header::decode(&mut reader)
+                    .context("decode extnValue header")?
+            } else {
+                header
+            };
+            if header.tag != Tag::OctetString {
+                return Err(anyhow!(
+                    "Expected OCTET STRING, got {:?}",
+                    header.tag
+                ));
+            }
+
+            if oid != DICE_TCB_INFO {
+                let _ = reader
+                    .read_slice(header.length)
+                    .context("read past Extension critical")?;
+            } else {
+                // descend into the FWIDLIST SEQUENCE
+                let header = Header::decode(&mut reader)
+                    .context("decode Fwids header")?;
+                if header.tag != Tag::Sequence {
+                    return Err(anyhow!(
+                        "Expected SEQUENCE, got {:?}",
+                        header.tag
+                    ));
+                }
+                // get end point for our future iteration over the FWIDLIST
+                let end = (reader.offset() + header.length)
+                    .context("Offset + length of FWIDS SEQUENCE")?;
+
+                let header = Header::decode(&mut reader)
+                    .context("decode Fwids TAG[6] header")?;
+                if header.tag
+                    != (Tag::ContextSpecific {
+                        constructed: true,
+                        number: TagNumber::N6,
+                    })
+                {
+                    return Err(anyhow!(
+                        "Expected constructed, context specific tag [6], got {:?}",
+                        header.tag
+                    ));
+                }
+                loop {
+                    if end == reader.offset() {
+                        break;
+                    }
+                    if end < reader.offset() {
+                        return Err(anyhow!("read past end of FWIDs SEQUENCE"));
+                    }
+
+                    // descend into the FWID SEQUENCE
+                    let header = Header::decode(&mut reader)
+                        .context("decode FWID header")?;
+                    if header.tag != Tag::Sequence {
+                        return Err(anyhow!(
+                            "Expected SEQUENCE, got {:?}",
+                            header.tag
+                        ));
+                    }
+
+                    // get the OID for the digest
+                    let _ = ObjectIdentifier::decode(&mut reader)
+                        .context("Decode ObjectIdentifier")?;
+
+                    // get the header for the OctetString
+                    let header = Header::decode(&mut reader)
+                        .context("decode FWID header")?;
+                    if header.tag != Tag::OctetString {
+                        return Err(anyhow!(
+                            "Expected SEQUENCE, got {:?}",
+                            header.tag
+                        ));
+                    }
+
+                    let start = u32::from(reader.offset());
+                    let end = start + u32::from(header.length);
+                    let range = Range {
+                        start: start
+                            .try_into()
+                            .context("fwid start offset to usize")?,
+                        end: end
+                            .try_into()
+                            .context("fwid end offset to usize")?,
+                    };
+                    fwid_ranges.push(range);
+
+                    // advance the reader past the FWID value
+                    let _ = reader
+                        .read_slice(header.length)
+                        .context("Read FWID value")?;
+                }
+            }
+        }
+
+        Ok(fwid_ranges)
     }
 }
 
@@ -612,14 +850,15 @@ mod tests {
     ];
     // this test is specific to the alias / leaf cert
     #[test]
-    fn cert_get_fwid_offsets() -> Result<()> {
+    fn cert_get_fwids_offsets() -> Result<()> {
         const TEST_DER: &[u8] = include_bytes!("../test/alias.cert.der");
         let mut der = [0u8; TEST_DER.len()];
         der.copy_from_slice(TEST_DER);
 
         let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert.get_fwid_offsets().unwrap();
-        assert_eq!(&cert.as_bytes()[start..end], &FWID_EXPECTED);
+        let offsets = cert.get_fwids_offsets()?;
+        assert_eq!(offsets.len(), 1);
+        assert_eq!(&cert.as_bytes()[offsets[0].clone()], &FWID_EXPECTED);
         Ok(())
     }
 
