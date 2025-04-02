@@ -226,14 +226,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 if subject_cn {
-                    let (start, end) = cert.get_subject_cn_offsets()?;
+                    let range = cert.get_subject_cn_offsets()?.ok_or(
+                        anyhow!("No Subject or Subject commonName found"),
+                    )?;
                     dice_cert_tmpl::write_range(
                         &mut out,
                         "SUBJECT_CN",
-                        start,
-                        end,
+                        range.start,
+                        range.end,
                     )?;
-                    cert.clear_range(start, end);
+                    cert.clear_range(range.start, range.end);
                 }
 
                 if subject_sn {
