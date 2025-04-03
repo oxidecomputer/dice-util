@@ -258,9 +258,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )?;
                 cert.clear_range(range.start, range.end);
 
-                let (start, end) = cert.get_sig_offsets()?;
-                dice_cert_tmpl::write_range(&mut out, "SIG", start, end)?;
-                cert.clear_range(start, end);
+                let range = cert.get_sig_offsets()?;
+                dice_cert_tmpl::write_range(
+                    &mut out,
+                    "SIG",
+                    range.start,
+                    range.end,
+                )?;
+                cert.clear_range(range.start, range.end);
 
                 let range = cert.get_signdata_offsets()?;
                 dice_cert_tmpl::write_range(

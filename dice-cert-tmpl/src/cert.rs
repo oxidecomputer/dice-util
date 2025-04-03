@@ -4,7 +4,7 @@
 
 use crate::{
     MissingFieldError, ISSUER_SN_LEN, NOTBEFORE_LEN, SERIAL_NUMBER_LEN,
-    SIGNATURE_LEN, SUBJECT_SN_LEN,
+    SUBJECT_SN_LEN,
 };
 use anyhow::{anyhow, Context, Result};
 use const_oid::db::rfc4519::COMMON_NAME;
@@ -512,8 +512,6 @@ impl<'a> Cert<'a> {
         Ok(&self.as_bytes()[self.get_pub_offsets()?])
     }
 
-    const SIGNDATA_PATTERN: [u8; 10] =
-        [0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03, 0x41, 0x00];
     pub fn get_signdata_offsets(&self) -> Result<Range<usize>> {
         let mut reader = SliceReader::new(self.0)?;
 
@@ -544,13 +542,63 @@ impl<'a> Cert<'a> {
         Ok(&self.as_bytes()[self.get_signdata_offsets()?])
     }
 
-    pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::SIGNDATA_PATTERN, SIGNATURE_LEN)
-            .ok_or(MissingFieldError::Signature.into())
+    pub fn get_sig_offsets(&self) -> Result<Range<usize>> {
+        let mut reader = SliceReader::new(self.0)?;
+
+        // RFC 5280 Certificate is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode Certificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // tbsCertificate is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode tbsCertificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past version")?;
+
+        // signatureAlgorithm is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode signatureAlgorithm header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // TODO: return OID to caller so they know the algorithm used
+        let _oid = ObjectIdentifier::decode(&mut reader)
+            .context("Decode ObjectIdentifier")?;
+
+        // signature is a `BIT STRING`
+        let header =
+            Header::decode(&mut reader).context("decode signature header")?;
+        if header.tag != Tag::BitString {
+            return Err(anyhow!("Expected BIT STRING, got {:?}", header.tag));
+        }
+
+        // there are no partial bytes in the signature algorithms used
+        let unused = reader
+            .read_byte()
+            .context("read past byte with unused bits")?;
+        if unused != 0 {
+            return Err(anyhow!("signature BIT STRING has unused bits"));
+        }
+
+        let start = u32::from(reader.offset());
+        let end = start + u32::from(header.length) - 1;
+
+        Ok(Range {
+            start: start.try_into()?,
+            end: end.try_into()?,
+        })
     }
 
     pub fn get_sig(&self) -> Result<&[u8]> {
-        Ok(self.get_bytes(self.get_sig_offsets()?))
+        Ok(&self.as_bytes()[self.get_sig_offsets()?])
     }
 
     pub fn get_bytes(&self, (start, end): (usize, usize)) -> &[u8] {
@@ -956,9 +1004,8 @@ mod tests {
         let cert = Cert::from_slice(&mut der);
         // I'm not convinced this is better than just an 'unwrap()'
         // All it gets us is the error string instead of the enum variant
-        let (start, end) =
-            cert.get_sig_offsets().map_err(|e| panic!("{}", e)).unwrap();
-        assert_eq!(&cert.as_bytes()[start..end], &SIG_EXPECTED);
+        let range = cert.get_sig_offsets()?;
+        assert_eq!(&cert.as_bytes()[range], &SIG_EXPECTED);
         Ok(())
     }
 
@@ -982,7 +1029,7 @@ mod tests {
     }
 
     use salty::{
-        constants::PUBLICKEY_SERIALIZED_LENGTH,
+        constants::{PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH},
         signature::{PublicKey, Signature},
     };
     #[test]
@@ -990,7 +1037,7 @@ mod tests {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let msg_range = cert.get_signdata_offsets()?;
-        let (start_sig, end_sig) = cert.get_sig_offsets()?;
+        let sig_range = cert.get_sig_offsets()?;
         let pub_range = cert.get_pub_offsets()?;
         assert_eq!(pub_range.len(), PUBLICKEY_SERIALIZED_LENGTH);
         let pubkey: [u8; PUBLICKEY_SERIALIZED_LENGTH] =
@@ -1000,8 +1047,8 @@ mod tests {
         let pubkey = PublicKey::try_from(&pubkey).expect("pubkey");
 
         // massage bytes from Cert slice representation of sig into sized array
-        let sig: &[u8; SIGNATURE_LEN] =
-            cert.as_bytes()[start_sig..end_sig].try_into()?;
+        let sig: &[u8; SIGNATURE_SERIALIZED_LENGTH] =
+            cert.as_bytes()[sig_range].try_into()?;
 
         let sig = Signature::from(sig);
         let res = pubkey.verify(&cert.as_bytes()[msg_range], &sig);
