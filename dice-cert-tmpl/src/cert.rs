@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    MissingFieldError, ISSUER_SN_LEN, NOTBEFORE_LEN, PUBLIC_KEY_LEN,
-    SERIAL_NUMBER_LEN, SIGNATURE_LEN, SUBJECT_SN_LEN,
+    MissingFieldError, ISSUER_SN_LEN, NOTBEFORE_LEN, SERIAL_NUMBER_LEN,
+    SIGNATURE_LEN, SUBJECT_SN_LEN,
 };
 use anyhow::{anyhow, Context, Result};
 use const_oid::db::rfc4519::COMMON_NAME;
@@ -381,16 +381,135 @@ impl<'a> Cert<'a> {
         Ok(self.get_bytes(self.get_subject_sn_offsets()?))
     }
 
-    const PUBLIC_KEY_PATTERN: [u8; 12] = [
-        0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03, 0x21, 0x00,
-    ];
-    pub fn get_pub_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::PUBLIC_KEY_PATTERN, PUBLIC_KEY_LEN)
-            .ok_or(MissingFieldError::PublicKey.into())
+    pub fn get_pub_offsets(&self) -> Result<Range<usize>> {
+        let mut reader = SliceReader::new(self.0)?;
+
+        // RFC 5280 Certificate is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode Certificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // tbsCertificate is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode tbsCertificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // `version` is a constructed, context specific type numbered 0
+        let header =
+            Header::decode(&mut reader).context("decode version header")?;
+        if header.tag
+            != (Tag::ContextSpecific {
+                constructed: true,
+                number: TagNumber::N0,
+            })
+        {
+            return Err(anyhow!(
+                "Expected constructed, context specific tag [0], got {:?}",
+                header.tag
+            ));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past version")?;
+
+        // `serialNumber` is an `INTEGER`
+        let header = Header::decode(&mut reader)
+            .context("decode serialNumber header")?;
+        if header.tag != Tag::Integer {
+            return Err(anyhow!("Expected INTEGER, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past serialNumber")?;
+
+        // `signature` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode signature header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past signature")?;
+
+        // `issuer` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode issuer header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past issuer")?;
+
+        // `validity` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode validity header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past validity")?;
+
+        // `subject` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode subject header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past subject")?;
+
+        // `subjectPublicKeyInfo` is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode subjectPublicKeyInfo header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // algorithm is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode subjectPublicKeyInfo header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        // TODO: ensure the subjectPublicKey is an ed25519
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past subjectPublicKeyInfo")?;
+
+        // `subjectPublicKey` is a `BIT STRING`
+        let header = Header::decode(&mut reader)
+            .context("decode subjectPublicKey header")?;
+        if header.tag != Tag::BitString {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // there are no partial bytes in the signature algorithms used
+        let unused = reader
+            .read_byte()
+            .context("read past byte with unused bits")?;
+        if unused != 0 {
+            return Err(anyhow!("signature BIT STRING has unused bits"));
+        }
+
+        let start = u32::from(reader.offset());
+        let end = start + u32::from(header.length) - 1;
+
+        Ok(Range {
+            start: start.try_into().context("start offset to usize")?,
+            end: end.try_into().context("end offset to usize")?,
+        })
     }
 
     pub fn get_pub(&self) -> Result<&[u8]> {
-        Ok(self.get_bytes(self.get_pub_offsets()?))
+        Ok(&self.as_bytes()[self.get_pub_offsets()?])
     }
 
     const SIGNDATA_PATTERN: [u8; 10] =
@@ -772,8 +891,8 @@ mod tests {
     fn cert_get_pub_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert.get_pub_offsets()?;
-        assert_eq!(&cert.as_bytes()[start..end], &PUB_EXPECTED);
+        let range = cert.get_pub_offsets()?;
+        assert_eq!(&cert.as_bytes()[range], &PUB_EXPECTED);
         Ok(())
     }
 
@@ -862,19 +981,23 @@ mod tests {
         Ok(())
     }
 
-    use salty::signature::{PublicKey, Signature};
+    use salty::{
+        constants::PUBLICKEY_SERIALIZED_LENGTH,
+        signature::{PublicKey, Signature},
+    };
     #[test]
     fn cert_sig_check() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
         let msg_range = cert.get_signdata_offsets()?;
         let (start_sig, end_sig) = cert.get_sig_offsets()?;
-        let (start_pub, end_pub) = cert.get_pub_offsets()?;
-        let pubkey: &[u8; PUBLIC_KEY_LEN] =
-            &cert.as_bytes()[start_pub..end_pub].try_into()?;
+        let pub_range = cert.get_pub_offsets()?;
+        assert_eq!(pub_range.len(), PUBLICKEY_SERIALIZED_LENGTH);
+        let pubkey: [u8; PUBLICKEY_SERIALIZED_LENGTH] =
+            cert.as_bytes()[pub_range].try_into()?;
 
         // none of the salty error simplement Error trait
-        let pubkey = PublicKey::try_from(pubkey).expect("pubkey");
+        let pubkey = PublicKey::try_from(&pubkey).expect("pubkey");
 
         // massage bytes from Cert slice representation of sig into sized array
         let sig: &[u8; SIGNATURE_LEN] =
