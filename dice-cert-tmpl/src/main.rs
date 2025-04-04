@@ -429,8 +429,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )?;
                 csr.clear_range(range.start, range.end);
 
-                let (start, end) = csr.get_signdata_offsets()?;
-                dice_cert_tmpl::write_range(&mut out, "SIGNDATA", start, end)?;
+                let range = csr.get_signdata_offsets()?;
+                dice_cert_tmpl::write_range(
+                    &mut out,
+                    "SIGNDATA",
+                    range.start,
+                    range.end,
+                )?;
                 // don't clear sign data
 
                 writeln!(

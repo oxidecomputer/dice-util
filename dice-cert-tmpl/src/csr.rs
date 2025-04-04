@@ -292,30 +292,35 @@ impl<'a> Csr<'a> {
         Ok(&self.0[self.get_sig_offsets()?])
     }
 
-    #[rustfmt::skip]
-    const SIGNDATA_PATTERN: [u8; 7] = [
-        0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70,
-    ];
+    pub fn get_signdata_offsets(&self) -> Result<Range<usize>> {
+        let mut reader =
+            SliceReader::new(self.0).context("SliceReader from csr DER")?;
 
-    pub fn get_signdata_offsets(&self) -> Result<(usize, usize)> {
-        // CSR data to sign is the CertificationRequestInfo field in the
-        // CertificationRequest structure (RFC 2986).
-        let start = match self.as_bytes()[1] {
-            0x81 => 3,
-            0x82 => 4,
-            _ => return Err(MissingFieldError::SignData.into()),
-        };
+        // advance reader past the outer CertificationRequest / `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode certificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
 
-        let end = crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
-            .ok_or(MissingFieldError::SignData)?;
+        // certificationRequestInfo is a `SEQUENCE`
+        // the full DER encoding of it is signed so we get the starting offset
+        // before reading the header
+        let start = u32::from(reader.offset());
+        let header = Header::decode(&mut reader)?;
 
-        Ok((start, end))
+        let end = start
+            + u32::from(header.length)
+            + (u32::from(reader.offset()) - start);
+
+        Ok(Range {
+            start: start.try_into()?,
+            end: end.try_into()?,
+        })
     }
 
     pub fn get_signdata(&self) -> Result<&[u8]> {
-        let (start, end) = self.get_signdata_offsets()?;
-
-        Ok(&self.0[start..end])
+        Ok(&self.0[self.get_signdata_offsets()?])
     }
 }
 
@@ -421,8 +426,8 @@ mod tests {
     fn get_signdata_offsets() -> Result<()> {
         let mut csr = CSR;
         let csr = Csr::from_slice(&mut csr);
-        let (start, end) = csr.get_signdata_offsets()?;
-        assert_eq!(&csr.as_bytes()[start..end], SIGNDATA);
+        let range = csr.get_signdata_offsets()?;
+        assert_eq!(&csr.as_bytes()[range], SIGNDATA);
         Ok(())
     }
 
