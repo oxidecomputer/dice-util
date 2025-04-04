@@ -6,9 +6,8 @@ use crate::{
     MissingFieldError, PUBLIC_KEY_LEN, SIGNATURE_LEN, SUBJECT_CN_LEN,
     SUBJECT_SN_LEN,
 };
-use std::{fmt, result};
-
-type Result<T> = result::Result<T, MissingFieldError>;
+use anyhow::Result;
+use std::fmt;
 
 // Type to expose parsing operations on CSR in underlying slice
 pub struct Csr<'a>(&'a mut [u8]);
@@ -47,7 +46,7 @@ impl<'a> Csr<'a> {
     ];
     pub fn get_pub_offsets(&self) -> Result<(usize, usize)> {
         crate::get_offsets(self.0, &Self::PUB_PATTERN, PUBLIC_KEY_LEN)
-            .ok_or(MissingFieldError::PublicKey)
+            .ok_or(MissingFieldError::PublicKey.into())
     }
 
     pub fn get_pub(&self) -> Result<&[u8]> {
@@ -64,7 +63,7 @@ impl<'a> Csr<'a> {
     // since issuer comes before subject in the structure
     pub fn get_subject_cn_offsets(&self) -> Result<(usize, usize)> {
         crate::get_roffsets(self.0, &Self::SUBJECT_CN_PATTERN, SUBJECT_CN_LEN)
-            .ok_or(MissingFieldError::SubjectCn)
+            .ok_or(MissingFieldError::SubjectCn.into())
     }
 
     // ASN.1 TLVs & OID for serialNumber (x.520 DN component)
@@ -79,7 +78,7 @@ impl<'a> Csr<'a> {
     // since issuer comes before subject in the structure
     pub fn get_subject_sn_offsets(&self) -> Result<(usize, usize)> {
         crate::get_roffsets(self.0, &Self::SUBJECT_SN_PATTERN, SUBJECT_SN_LEN)
-            .ok_or(MissingFieldError::SubjectSn)
+            .ok_or(MissingFieldError::SubjectSn.into())
     }
 
     #[rustfmt::skip]
@@ -89,7 +88,7 @@ impl<'a> Csr<'a> {
     ];
     pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
         crate::get_roffsets(self.0, &Self::SIG_PATTERN, SIGNATURE_LEN)
-            .ok_or(MissingFieldError::Signature)
+            .ok_or(MissingFieldError::Signature.into())
     }
 
     pub fn get_sig(&self) -> Result<&[u8]> {
@@ -109,7 +108,7 @@ impl<'a> Csr<'a> {
         let start = match self.as_bytes()[1] {
             0x81 => 3,
             0x82 => 4,
-            _ => return Err(MissingFieldError::SignData),
+            _ => return Err(MissingFieldError::SignData.into()),
         };
 
         let end = crate::get_pattern_roffset(self.0, &Self::SIGNDATA_PATTERN)
@@ -128,9 +127,6 @@ impl<'a> Csr<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::error;
-
-    type Result = result::Result<(), Box<dyn error::Error>>;
 
     // TODO: include_bytes! from file
     #[rustfmt::skip]
@@ -209,7 +205,7 @@ mod tests {
     ];
 
     #[test]
-    fn get_pub_offsets() -> Result {
+    fn get_pub_offsets() -> Result<()> {
         let mut csr = CSR;
         let csr = Csr::from_slice(&mut csr);
         let (start, end) = csr.get_pub_offsets()?;
@@ -218,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn get_sig_offsets() -> Result {
+    fn get_sig_offsets() -> Result<()> {
         let mut csr = CSR;
         let csr = Csr::from_slice(&mut csr);
         let (start, end) = csr.get_sig_offsets()?;
@@ -227,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn get_signdata_offsets() -> Result {
+    fn get_signdata_offsets() -> Result<()> {
         let mut csr = CSR;
         let csr = Csr::from_slice(&mut csr);
         let (start, end) = csr.get_signdata_offsets()?;
@@ -239,9 +235,6 @@ mod tests {
     fn get_signdata_offsets_bad() {
         let mut csr = [0u8; 10];
         let csr = Csr::from_slice(&mut csr);
-        assert_eq!(
-            csr.get_signdata_offsets(),
-            Err(MissingFieldError::SignData)
-        );
+        assert!(csr.get_signdata_offsets().is_err());
     }
 }
