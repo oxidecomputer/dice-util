@@ -5,6 +5,7 @@
 use anyhow::anyhow;
 use clap::{Parser, Subcommand};
 use dice_cert_tmpl::{encoding, Cert, Csr, Encoding};
+use dice_mfg_msgs::PLATFORM_ID_MAX_LEN;
 use salty::{
     constants::{PUBLICKEY_SERIALIZED_LENGTH, SIGNATURE_SERIALIZED_LENGTH},
     signature::Signature,
@@ -384,14 +385,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 csr.clear_range(range.start, range.end);
 
                 if subject_cn {
-                    let (start, end) = csr.get_subject_cn_offsets()?;
+                    let range = csr.get_subject_cn_offsets()?.ok_or(
+                        anyhow!("No Subject or Subject commonName found"),
+                    )?;
                     dice_cert_tmpl::write_range(
                         &mut out,
                         "SUBJECT_CN",
-                        start,
-                        end,
+                        range.start,
+                        range.end,
                     )?;
-                    csr.clear_range(start, end);
+                    csr.clear_range(range.start, range.end);
+                    if range.len() > PLATFORM_ID_MAX_LEN {
+                        return Err(anyhow!("The Subject commonName exceeds PLATFORM_ID_MAX_LEN").into());
+                    }
                 }
 
                 if subject_sn {
