@@ -374,9 +374,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 writeln!(out, "use core::ops::Range;\n")?;
                 writeln!(out, "pub const SIZE: usize = {};", csr.len())?;
 
-                let (start, end) = csr.get_pub_offsets()?;
-                dice_cert_tmpl::write_range(&mut out, "PUB", start, end)?;
-                csr.clear_range(start, end);
+                let range = csr.get_pub_offsets()?;
+                dice_cert_tmpl::write_range(
+                    &mut out,
+                    "PUB",
+                    range.start,
+                    range.end,
+                )?;
+                csr.clear_range(range.start, range.end);
 
                 if subject_cn {
                     let (start, end) = csr.get_subject_cn_offsets()?;
