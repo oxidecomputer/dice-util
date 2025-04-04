@@ -2,12 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{
-    MissingFieldError, PUBLIC_KEY_LEN, SIGNATURE_LEN, SUBJECT_CN_LEN,
-    SUBJECT_SN_LEN,
-};
-use anyhow::Result;
-use std::fmt;
+use crate::{MissingFieldError, SIGNATURE_LEN, SUBJECT_CN_LEN, SUBJECT_SN_LEN};
+use anyhow::{anyhow, Context, Result};
+use std::{fmt, ops::Range};
+use x509_cert::der::{Decode, Header, Reader, SliceReader, Tag};
 
 // Type to expose parsing operations on CSR in underlying slice
 pub struct Csr<'a>(&'a mut [u8]);
@@ -39,19 +37,91 @@ impl<'a> Csr<'a> {
         self.as_bytes().len() == 0
     }
 
-    #[rustfmt::skip]
-    const PUB_PATTERN: [u8; 12] = [
-        0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65,
-        0x70, 0x03, 0x21, 0x00,
-    ];
-    pub fn get_pub_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::PUB_PATTERN, PUBLIC_KEY_LEN)
-            .ok_or(MissingFieldError::PublicKey.into())
+    pub fn get_pub_offsets(&self) -> Result<Range<usize>> {
+        let mut reader =
+            SliceReader::new(self.0).context("SliceReader from cert DER")?;
+
+        // RFC 5280 Certificate is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode Certificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // certificateRequestInfo is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode tbsCertificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // `version` is a constructed, context specific type numbered 0
+        let header =
+            Header::decode(&mut reader).context("decode version header")?;
+        if header.tag != Tag::Integer {
+            return Err(anyhow!(
+                "Expected version INTEGER, got {:?}",
+                header.tag
+            ));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past version")?;
+
+        // `subject` is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode subject header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past subject")?;
+
+        // `subjectPKInfo` is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode subjectPublicKeyInfo header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // algorithm is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode subjectPublicKeyInfo header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        // TODO: ensure the subjectPublicKey is an ed25519
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past subjectPublicKeyInfo")?;
+
+        // `subjectPublicKey` is a `BIT STRING`
+        let header = Header::decode(&mut reader)
+            .context("decode subjectPublicKey header")?;
+        if header.tag != Tag::BitString {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // there are no partial bytes in the signature algorithms used
+        let unused = reader
+            .read_byte()
+            .context("read past byte with unused bits")?;
+        if unused != 0 {
+            return Err(anyhow!("signature BIT STRING has unused bits"));
+        }
+
+        let start = u32::from(reader.offset());
+        let end = start + u32::from(header.length) - 1;
+
+        Ok(Range {
+            start: start.try_into().context("start offset to usize")?,
+            end: end.try_into().context("end offset to usize")?,
+        })
     }
 
     pub fn get_pub(&self) -> Result<&[u8]> {
-        let (start, end) = self.get_pub_offsets()?;
-        Ok(&self.0[start..end])
+        Ok(&self.0[self.get_pub_offsets()?])
     }
 
     // SET, SEQUENCE, OID (2.5.4.3 / commonName)
@@ -208,8 +278,8 @@ mod tests {
     fn get_pub_offsets() -> Result<()> {
         let mut csr = CSR;
         let csr = Csr::from_slice(&mut csr);
-        let (start, end) = csr.get_pub_offsets()?;
-        assert_eq!(&csr.as_bytes()[start..end], PUB);
+        let range = csr.get_pub_offsets()?;
+        assert_eq!(&csr.as_bytes()[range], PUB);
         Ok(())
     }
 
