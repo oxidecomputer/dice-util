@@ -10,15 +10,12 @@ pub use crate::cert::Cert;
 pub use crate::csr::Csr;
 pub use crate::encoding::{Encoding, EncodingError};
 
-use salty::constants::SIGNATURE_SERIALIZED_LENGTH;
-
 use std::{error, fmt, io::Write, path::Path, process::Command};
 
 // csr / cert field sizes
 // get this from sha3 crate as a const requires const generics
 const ISSUER_SN_LEN: usize = 11;
 const NOTBEFORE_LEN: usize = 13;
-const SIGNATURE_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
 const SUBJECT_SN_LEN: usize = ISSUER_SN_LEN;
 
 #[derive(Debug, PartialEq)]
