@@ -2,10 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{
-    MissingFieldError, ISSUER_SN_LEN, NOTBEFORE_LEN, SERIAL_NUMBER_LEN,
-    SUBJECT_SN_LEN,
-};
+use crate::{MissingFieldError, ISSUER_SN_LEN, NOTBEFORE_LEN, SUBJECT_SN_LEN};
 use anyhow::{anyhow, Context, Result};
 use const_oid::db::rfc4519::COMMON_NAME;
 use std::{fmt, ops::Range};
@@ -47,21 +44,61 @@ impl<'a> Cert<'a> {
         self.0[start..end].copy_from_slice(data)
     }
 
-    const SERIAL_NUMBER_PATTERN: [u8; 7] =
-        [0xa0, 0x03, 0x02, 0x01, 0x02, 0x02, 0x01];
-    // the SN can be up to 20 bytes (per rfd5280), but we only mint a few certs
-    // so a single byte is plenty
-    pub fn get_serial_number_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(
-            self.0,
-            &Self::SERIAL_NUMBER_PATTERN,
-            SERIAL_NUMBER_LEN,
-        )
-        .ok_or(MissingFieldError::SerialNumber.into())
+    pub fn get_serial_number_offsets(&self) -> Result<Range<usize>> {
+        let mut reader =
+            SliceReader::new(self.0).context("SliceReader from cert DER")?;
+
+        // RFC 5280 Certificate is a `SEQUENCE`
+        let header =
+            Header::decode(&mut reader).context("decode Certificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // tbsCertificate is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode tbsCertificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // `version` is a constructed, context specific type numbered 0
+        let header =
+            Header::decode(&mut reader).context("decode version header")?;
+        if header.tag
+            != (Tag::ContextSpecific {
+                constructed: true,
+                number: TagNumber::N0,
+            })
+        {
+            return Err(anyhow!(
+                "Expected constructed, context specific tag [0], got {:?}",
+                header.tag
+            ));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past version")?;
+
+        // `serialNumber` is an `INTEGER`
+        let header = Header::decode(&mut reader)
+            .context("decode serialNumber header")?;
+        if header.tag != Tag::Integer {
+            return Err(anyhow!("Expected INTEGER, got {:?}", header.tag));
+        }
+        let start = u32::from(reader.offset());
+        let end = start + u32::from(header.length);
+
+        Ok(Range {
+            start: start.try_into().context("start offset to usize")?,
+            end: end.try_into().context("end offset to usize")?,
+        })
     }
 
+    // the SN can be up to 20 bytes (per rfd5280), but we only mint a few certs
+    // so a single byte is plenty
     pub fn get_serial_number(&self) -> Result<u8> {
-        let sn = self.get_bytes(self.get_serial_number_offsets()?);
+        let sn = &self.as_bytes()[self.get_serial_number_offsets()?];
         Ok(sn[0])
     }
 
@@ -875,9 +912,9 @@ mod tests {
     fn cert_get_serial_number_offsets() -> Result<()> {
         let mut der = init();
         let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert.get_serial_number_offsets()?;
+        let range = cert.get_serial_number_offsets()?;
         assert_eq!(
-            &cert.as_bytes()[start..end],
+            &cert.as_bytes()[range],
             // SN appears to be big endian?
             SERIAL_NUMBER_EXPECTED.to_be_bytes()
         );
