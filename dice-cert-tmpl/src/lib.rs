@@ -23,7 +23,6 @@ use std::{error, fmt, io::Write, path::Path, process::Command};
 const ISSUER_SN_LEN: usize = 11;
 const NOTBEFORE_LEN: usize = 13;
 const PUBLIC_KEY_LEN: usize = PUBLICKEY_SERIALIZED_LENGTH;
-const SERIAL_NUMBER_LEN: usize = 1;
 const SIGNATURE_LEN: usize = SIGNATURE_SERIALIZED_LENGTH;
 const SUBJECT_CN_LEN: usize = PLATFORM_ID_MAX_LEN;
 const SUBJECT_SN_LEN: usize = ISSUER_SN_LEN;

@@ -192,14 +192,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 writeln!(out, "{}\n", ORIGIN_TEXT)?;
                 writeln!(out, "pub const SIZE: usize = {};", cert.len())?;
 
-                let (start, end) = cert.get_serial_number_offsets()?;
+                let range = cert.get_serial_number_offsets()?;
                 dice_cert_tmpl::write_range(
                     &mut out,
                     "SERIAL_NUMBER",
-                    start,
-                    end,
+                    range.start,
+                    range.end,
                 )?;
-                cert.clear_range(start, end);
+                cert.clear_range(range.start, range.end);
 
                 if issuer_cn {
                     let range = cert.get_issuer_cn_offsets()?.ok_or(
