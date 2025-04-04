@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{MissingFieldError, SIGNATURE_LEN, SUBJECT_SN_LEN};
+use crate::{MissingFieldError, SUBJECT_SN_LEN};
 use anyhow::{anyhow, Context, Result};
 use const_oid::db::rfc4519::COMMON_NAME;
 use std::{fmt, ops::Range};
@@ -232,20 +232,64 @@ impl<'a> Csr<'a> {
             .ok_or(MissingFieldError::SubjectSn.into())
     }
 
-    #[rustfmt::skip]
-    const SIG_PATTERN: [u8; 10] = [
-        0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03,
-        0x41, 0x00,
-    ];
-    pub fn get_sig_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::SIG_PATTERN, SIGNATURE_LEN)
-            .ok_or(MissingFieldError::Signature.into())
+    pub fn get_sig_offsets(&self) -> Result<Range<usize>> {
+        let mut reader =
+            SliceReader::new(self.0).context("SliceReader from csr DER")?;
+
+        // RFC 2986 CertificationRequest is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode CertificationRequest header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // certificationRequestInfo is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode tbsCertificate header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+        let _ = reader
+            .read_slice(header.length)
+            .context("read past version")?;
+
+        // signatureAlgorithm is a `SEQUENCE`
+        let header = Header::decode(&mut reader)
+            .context("decode signatureAlgorithm header")?;
+        if header.tag != Tag::Sequence {
+            return Err(anyhow!("Expected SEQUENCE, got {:?}", header.tag));
+        }
+
+        // TODO: return OID to caller so they know the algorithm used
+        let _oid = ObjectIdentifier::decode(&mut reader)
+            .context("Decode ObjectIdentifier")?;
+
+        // signature is a `BIT STRING`
+        let header =
+            Header::decode(&mut reader).context("decode signature header")?;
+        if header.tag != Tag::BitString {
+            return Err(anyhow!("Expected BIT STRING, got {:?}", header.tag));
+        }
+
+        // there are no partial bytes in the signature algorithms used
+        let unused = reader
+            .read_byte()
+            .context("read past byte with unused bits")?;
+        if unused != 0 {
+            return Err(anyhow!("signature BIT STRING has unused bits"));
+        }
+
+        let start = u32::from(reader.offset());
+        let end = start + u32::from(header.length) - 1;
+
+        Ok(Range {
+            start: start.try_into()?,
+            end: end.try_into()?,
+        })
     }
 
     pub fn get_sig(&self) -> Result<&[u8]> {
-        let (start, end) = self.get_sig_offsets()?;
-
-        Ok(&self.0[start..end])
+        Ok(&self.0[self.get_sig_offsets()?])
     }
 
     #[rustfmt::skip]
@@ -368,8 +412,8 @@ mod tests {
     fn get_sig_offsets() -> Result<()> {
         let mut csr = CSR;
         let csr = Csr::from_slice(&mut csr);
-        let (start, end) = csr.get_sig_offsets()?;
-        assert_eq!(&csr.as_bytes()[start..end], SIG);
+        let range = csr.get_sig_offsets()?;
+        assert_eq!(&csr.as_bytes()[range], SIG);
         Ok(())
     }
 

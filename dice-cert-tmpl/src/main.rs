@@ -411,9 +411,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     csr.clear_range(start, end);
                 }
 
-                let (start, end) = csr.get_sig_offsets()?;
-                dice_cert_tmpl::write_range(&mut out, "SIG", start, end)?;
-                csr.clear_range(start, end);
+                let range = csr.get_sig_offsets()?;
+                if range.len() != SIGNATURE_SERIALIZED_LENGTH {
+                    return Err(anyhow!(
+                        "Unexpected length for Signature in CSR,
+                            expecting:{}, got: {}",
+                        SIGNATURE_SERIALIZED_LENGTH,
+                        range.len()
+                    )
+                    .into());
+                }
+                dice_cert_tmpl::write_range(
+                    &mut out,
+                    "SIG",
+                    range.start,
+                    range.end,
+                )?;
+                csr.clear_range(range.start, range.end);
 
                 let (start, end) = csr.get_signdata_offsets()?;
                 dice_cert_tmpl::write_range(&mut out, "SIGNDATA", start, end)?;
