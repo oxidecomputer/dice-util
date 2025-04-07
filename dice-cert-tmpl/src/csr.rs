@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{MissingFieldError, SUBJECT_SN_LEN};
 use anyhow::{anyhow, Context, Result};
 use const_oid::db::rfc4519::COMMON_NAME;
 use std::{fmt, ops::Range};
@@ -215,21 +214,6 @@ impl<'a> Csr<'a> {
         }
 
         Ok(None)
-    }
-
-    // ASN.1 TLVs & OID for serialNumber (x.520 DN component)
-    #[rustfmt::skip]
-    const SUBJECT_SN_PATTERN: [u8; 11] = [
-        0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04,
-        0x05, 0x13, 0x0B,
-    ];
-
-    // when issuer and subject SN are the same length their identifying
-    // patterns are the same. This function searches backward for the pattern
-    // since issuer comes before subject in the structure
-    pub fn get_subject_sn_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::SUBJECT_SN_PATTERN, SUBJECT_SN_LEN)
-            .ok_or(MissingFieldError::SubjectSn.into())
     }
 
     pub fn get_sig_offsets(&self) -> Result<Range<usize>> {
