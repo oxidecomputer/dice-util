@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{MissingFieldError, ISSUER_SN_LEN, NOTBEFORE_LEN, SUBJECT_SN_LEN};
 use anyhow::{anyhow, Context, Result};
 use const_oid::db::rfc4519::COMMON_NAME;
 use std::{fmt, ops::Range};
@@ -229,32 +228,6 @@ impl<'a> Cert<'a> {
         }
     }
 
-    // ANS.1 TLVs & OID for serialNumber (x.520 DN component)
-    const ISSUER_SN_PATTERN: [u8; 11] = [
-        0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0B,
-    ];
-
-    pub fn get_issuer_sn_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::ISSUER_SN_PATTERN, ISSUER_SN_LEN)
-            .ok_or(MissingFieldError::IssuerSn.into())
-    }
-
-    pub fn get_issuer_sn(&self) -> Result<&[u8]> {
-        Ok(self.get_bytes(self.get_issuer_sn_offsets()?))
-    }
-
-    // ASN.1 TLVs & for Sequence & UTCTime
-    const NOTBEFORE_PATTERN: [u8; 4] = [0x30, 0x20, 0x17, 0x0D];
-
-    pub fn get_notbefore_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_offsets(self.0, &Self::NOTBEFORE_PATTERN, NOTBEFORE_LEN)
-            .ok_or(MissingFieldError::NotBefore.into())
-    }
-
-    pub fn get_notbefore(&self) -> Result<&[u8]> {
-        Ok(self.get_bytes(self.get_notbefore_offsets()?))
-    }
-
     // when issuer and subject SN are the same length their identifying
     // patterns are the same. This function searches backward for the pattern
     // since issuer comes before subject in the structure
@@ -399,23 +372,6 @@ impl<'a> Cert<'a> {
             Some(range) => Ok(Some(&self.as_bytes()[range])),
             None => Ok(None),
         }
-    }
-
-    // ASN.1 TLVs & OID for serialNumber (x.520 DN component)
-    const SUBJECT_SN_PATTERN: [u8; 11] = [
-        0x31, 0x14, 0x30, 0x12, 0x06, 0x03, 0x55, 0x04, 0x05, 0x13, 0x0B,
-    ];
-
-    // when issuer and subject SN are the same length their identifying
-    // patterns are the same. This function searches backward for the pattern
-    // since issuer comes before subject in the structure
-    pub fn get_subject_sn_offsets(&self) -> Result<(usize, usize)> {
-        crate::get_roffsets(self.0, &Self::SUBJECT_SN_PATTERN, SUBJECT_SN_LEN)
-            .ok_or(MissingFieldError::SubjectSn.into())
-    }
-
-    pub fn get_subject_sn(&self) -> Result<&[u8]> {
-        Ok(self.get_bytes(self.get_subject_sn_offsets()?))
     }
 
     pub fn get_pub_offsets(&self) -> Result<Range<usize>> {
@@ -921,16 +877,6 @@ mod tests {
         Ok(())
     }
 
-    const SN_EXPECTED: &str = "00000000000";
-    #[test]
-    fn cert_get_issuer_sn_offsets() -> Result<()> {
-        let mut der = init();
-        let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert.get_issuer_sn_offsets()?;
-        assert_eq!(&cert.as_bytes()[start..end], SN_EXPECTED.as_bytes());
-        Ok(())
-    }
-
     const ISSUER_CN_EXPECTED: &str = "identity";
     #[test]
     fn cert_get_issuer_cn_offsets() -> Result<()> {
@@ -940,28 +886,6 @@ mod tests {
             .get_issuer_cn_offsets()?
             .ok_or(anyhow!("No Issuer commonName in cert"))?;
         assert_eq!(&cert.as_bytes()[range], ISSUER_CN_EXPECTED.as_bytes());
-        Ok(())
-    }
-
-    const NOTBEFORE_EXPECTED: [u8; 13] = [
-        0x32, 0x33, 0x30, 0x31, 0x30, 0x34, 0x32, 0x33, 0x34, 0x38, 0x34, 0x36,
-        0x5a,
-    ];
-    #[test]
-    fn cert_get_notbefore_offsets() -> Result<()> {
-        let mut der = init();
-        let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert.get_notbefore_offsets()?;
-        assert_eq!(&cert.as_bytes()[start..end], NOTBEFORE_EXPECTED);
-        Ok(())
-    }
-
-    #[test]
-    fn cert_get_subject_sn_offsets() -> Result<()> {
-        let mut der = init();
-        let cert = Cert::from_slice(&mut der);
-        let (start, end) = cert.get_subject_sn_offsets()?;
-        assert_eq!(&cert.as_bytes()[start..end], SN_EXPECTED.as_bytes());
         Ok(())
     }
 
