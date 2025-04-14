@@ -9,18 +9,35 @@ use dice_mfg_msgs::PlatformId;
 use dice_verifier::PkiPathSignatureVerifier;
 use env_logger::Builder;
 use hubpack::SerializedSize;
-use log::{debug, info, warn, LevelFilter};
+use log::{info, warn, LevelFilter};
 use pem_rfc7468::{LineEnding, PemLabel};
-use sha3::{Digest, Sha3_256};
 use std::{
-    fmt::{self, Debug, Formatter},
+    fmt::{self, Debug},
     fs::{self, File},
-    io::{self, Read, Write},
+    io::{self, Write},
     path::{Path, PathBuf},
-    process::{Command, Output},
 };
-use tempfile::NamedTempFile;
-use x509_cert::{der::DecodePem, Certificate, PkiPath};
+use x509_cert::{
+    der::{Decode, DecodePem, EncodePem},
+    Certificate, PkiPath,
+};
+
+pub mod hiffy;
+
+use hiffy::AttestHiffy;
+
+/// This trait implements the hubris attestation API exposed by the `attest`
+/// task in the RoT and proxied through the `sprot` task in the SP.
+pub trait AttestSprot {
+    fn attest_len(&self) -> Result<u32>;
+    fn attest(&self, nonce: &Nonce, out: &mut [u8]) -> Result<()>;
+    fn cert_chain_len(&self) -> Result<u32>;
+    fn cert_len(&self, index: u32) -> Result<u32>;
+    fn cert(&self, index: u32, out: &mut [u8]) -> Result<()>;
+    fn log(&self, out: &mut [u8]) -> Result<()>;
+    fn log_len(&self) -> Result<u32>;
+    fn record(&self, data: &[u8]) -> Result<()>;
+}
 
 /// Execute HIF operations exposed by the RoT Attest task.
 #[derive(Debug, Parser)]
@@ -146,13 +163,13 @@ enum AttestCommand {
 
 /// An enum of the possible routes to the `Attest` task.
 #[derive(Clone, Debug, ValueEnum)]
-enum Interface {
+pub enum Interface {
     Rot,
     Sprot,
 }
 
 impl fmt::Display for Interface {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Interface::Rot => write!(f, "Attest"),
             Interface::Sprot => write!(f, "SpRot"),
@@ -168,288 +185,12 @@ enum Encoding {
 }
 
 impl fmt::Display for Encoding {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Encoding::Der => write!(f, "der"),
             Encoding::Pem => write!(f, "pem"),
         }
     }
-}
-
-/// A type to simplify the execution of the HIF operations exposed by the RoT
-/// Attest task.
-struct AttestHiffy {
-    /// The Attest task can be reached either directly through the `hiffy`
-    /// task in the RoT or through the `Sprot` task in the Sp. This member
-    /// determins which is used.
-    interface: Interface,
-}
-
-impl AttestHiffy {
-    const CHUNK_SIZE: usize = 256;
-
-    fn new(interface: Interface) -> Self {
-        AttestHiffy { interface }
-    }
-
-    /// `humility` returns u32s as hex strings prefixed with "0x". This
-    /// function expects a string formatted like an output string from hiffy
-    /// returning a u32. If the string is not prefixed with "0x" it is assumed
-    /// to be decimal. Currently this function ignores the interface and
-    /// operation names from the string. Future work may check that these are
-    /// consistent with the operation executed.
-    fn u32_from_cmd_output(output: Output) -> Result<u32> {
-        if output.status.success() {
-            // check interface & operation name?
-            let output = String::from_utf8_lossy(&output.stdout);
-            let output: Vec<&str> = output.trim().split(' ').collect();
-            let output = output[output.len() - 1];
-            debug!("output: {}", output);
-
-            let (output, radix) = match output.strip_prefix("0x") {
-                Some(s) => {
-                    debug!("prefix stripped: \"{}\"", s);
-                    (s, 16)
-                }
-                None => (output, 10),
-            };
-
-            let log_len =
-                u32::from_str_radix(output, 16).with_context(|| {
-                    format!("Failed to parse \"{output}\" as base {radix} u32")
-                })?;
-
-            debug!("output u32: {}", log_len);
-
-            Ok(log_len)
-        } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
-        }
-    }
-
-    /// This convenience function encapsulates a pattern common to
-    /// the hiffy command line for the `Attest` operations that get the
-    /// lengths of the data returned in leases.
-    fn get_len_cmd(&self, op: &str, args: Option<String>) -> Result<u32> {
-        // rely on environment for target & archive?
-        // check that they are set before continuing
-        let mut cmd = Command::new("humility");
-
-        cmd.arg("hiffy");
-        cmd.arg("--call");
-        cmd.arg(format!("{}.{}", self.interface, op));
-        if let Some(a) = args {
-            cmd.arg(format!("--arguments={a}"));
-        }
-        debug!("executing command: {:?}", cmd);
-
-        let output = cmd.output()?;
-        Self::u32_from_cmd_output(output)
-    }
-
-    /// This convenience function encapsulates a pattern common to the hiffy
-    /// command line for the `Attest` operations that return blobs in chunks.
-    fn get_chunk(
-        &self,
-        op: &str,
-        length: usize,
-        output: &Path,
-        args: Option<&str>,
-        input: Option<&str>,
-    ) -> Result<()> {
-        let mut cmd = Command::new("humility");
-
-        cmd.arg("hiffy");
-        cmd.arg(format!("--call={}.{}", self.interface, op));
-        cmd.arg(format!("--num={length}"));
-        cmd.arg(format!("--output={}", output.to_string_lossy()));
-        if let Some(args) = args {
-            cmd.arg("--arguments");
-            cmd.arg(args);
-        }
-        if let Some(i) = input {
-            cmd.arg(format!("--input={i}"));
-        }
-        debug!("executing command: {:?}", cmd);
-
-        let output = cmd.output()?;
-        if output.status.success() {
-            debug!("output: {}", String::from_utf8_lossy(&output.stdout));
-            Ok(())
-        } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
-        }
-    }
-
-    fn attest(&self, nonce: Nonce, out: &mut [u8]) -> Result<()> {
-        let mut attestation_tmp = tempfile::NamedTempFile::new()?;
-        let mut nonce_tmp = tempfile::NamedTempFile::new()?;
-
-        let mut buf = [0u8; Nonce::MAX_SIZE];
-        hubpack::serialize(&mut buf, &nonce)
-            .map_err(|_| anyhow!("failed to serialize Nonce"))?;
-        nonce_tmp.write_all(&buf)?;
-
-        self.get_chunk(
-            "attest",
-            out.len(),
-            attestation_tmp.path(),
-            None,
-            Some(&nonce_tmp.path().to_string_lossy()),
-        )?;
-        Ok(attestation_tmp.read_exact(&mut out[..])?)
-    }
-
-    /// Get length of the measurement log in bytes.
-    fn attest_len(&self) -> Result<u32> {
-        self.get_len_cmd("attest_len", None)
-    }
-
-    /// Get length of the certificate chain from the Attest task. This cert
-    /// chain may be self signed or will terminate at the intermediate before
-    /// the root.
-    fn cert_chain_len(&self) -> Result<u32> {
-        self.get_len_cmd("cert_chain_len", None)
-    }
-
-    /// Get length of the certificate at the provided index in bytes.
-    fn cert_len(&self, index: u32) -> Result<u32> {
-        self.get_len_cmd("cert_len", Some(format!("index={index}")))
-    }
-
-    fn cert(&self, index: u32, out: &mut [u8]) -> Result<()> {
-        for offset in
-            (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
-        {
-            let mut tmp = tempfile::NamedTempFile::new()?;
-            self.get_chunk(
-                "cert",
-                Self::CHUNK_SIZE,
-                tmp.path(),
-                Some(&format!("index={index},offset={offset}")),
-                None,
-            )?;
-            tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
-        }
-
-        let remain = out.len() % Self::CHUNK_SIZE;
-        if remain != 0 {
-            let offset = out.len() - remain;
-            let mut tmp = tempfile::NamedTempFile::new()?;
-            self.get_chunk(
-                "cert",
-                remain,
-                tmp.path(),
-                Some(&format!("index={index},offset={offset}")),
-                None,
-            )?;
-            tmp.read_exact(&mut out[offset..])?;
-        }
-
-        Ok(())
-    }
-
-    /// Get measurement log. This function assumes that the slice provided
-    /// is sufficiently large to hold the log.
-    fn log(&self, out: &mut [u8]) -> Result<()> {
-        for offset in
-            (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
-        {
-            let mut tmp = tempfile::NamedTempFile::new()?;
-            self.get_chunk(
-                "log",
-                Self::CHUNK_SIZE,
-                tmp.path(),
-                Some(&format!("offset={offset}")),
-                None,
-            )?;
-            tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
-        }
-
-        let remain = out.len() % Self::CHUNK_SIZE;
-        if remain != 0 {
-            let offset = out.len() - remain;
-            let mut tmp = tempfile::NamedTempFile::new()?;
-            self.get_chunk(
-                "log",
-                remain,
-                tmp.path(),
-                Some(&format!("offset={offset}")),
-                None,
-            )?;
-            tmp.read_exact(&mut out[offset..])?;
-        }
-
-        Ok(())
-    }
-
-    /// Get length of the measurement log in bytes.
-    fn log_len(&self) -> Result<u32> {
-        self.get_len_cmd("log_len", None)
-    }
-
-    /// Record the sha3 hash of a file.
-    fn record(&self, data: &[u8]) -> Result<()> {
-        let digest = Sha3_256::digest(data);
-        info!("Recording measurement: {:?}", digest);
-        let mut tmp = NamedTempFile::new()?;
-        if digest.as_slice().len() != tmp.write(digest.as_slice())? {
-            return Err(anyhow!("failed to write all data to disk"));
-        }
-
-        let mut cmd = Command::new("humility");
-
-        cmd.arg("hiffy");
-        cmd.arg(format!("--call={}.record", self.interface));
-        cmd.arg(format!("--input={}", tmp.path().to_string_lossy()));
-        cmd.arg("--arguments=algorithm=Sha3_256");
-        debug!("executing command: {:?}", cmd);
-
-        let output = cmd.output()?;
-        if output.status.success() {
-            debug!("output: {}", String::from_utf8_lossy(&output.stdout));
-            Ok(())
-        } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
-        }
-    }
-}
-
-fn get_cert(
-    attest: &AttestHiffy,
-    encoding: Encoding,
-    index: u32,
-) -> Result<Vec<u8>> {
-    let cert_len = attest.cert_len(index)?;
-    let mut out = vec![0u8; cert_len as usize];
-    attest.cert(index, &mut out)?;
-
-    Ok(match encoding {
-        Encoding::Der => out,
-        Encoding::Pem => {
-            let pem = pem_rfc7468::encode_string(
-                Certificate::PEM_LABEL,
-                LineEnding::default(),
-                &out,
-            )?;
-            pem.as_bytes().to_vec()
-        }
-    })
 }
 
 fn main() -> Result<()> {
@@ -469,14 +210,14 @@ fn main() -> Result<()> {
     match args.command {
         AttestCommand::Attest { nonce } => {
             let nonce = fs::read(nonce)?;
-            let nonce = Nonce::try_from(&nonce[..])?;
-            let attest_len = attest.attest_len()?;
-            let mut attestation = vec![0u8; attest_len as usize];
-            attest.attest(nonce, &mut attestation)?;
+            let nonce = Nonce::try_from(nonce)?;
 
-            // deserialize hubpack encoded attestation
-            let (attestation, _): (Attestation, _) =
-                hubpack::deserialize(&attestation).map_err(|e| {
+            let attest_len = attest.attest_len()?;
+            let mut out = vec![0u8; attest_len as usize];
+            attest.attest(&nonce, &mut out)?;
+
+            let (attestation, _): (Attestation, _) = hubpack::deserialize(&out)
+                .map_err(|e| {
                     anyhow!("Failed to deserialize Attestation: {}", e)
                 })?;
 
@@ -489,16 +230,41 @@ fn main() -> Result<()> {
         }
         AttestCommand::AttestLen => println!("{}", attest.attest_len()?),
         AttestCommand::Cert { encoding, index } => {
-            let out = get_cert(&attest, encoding, index)?;
+            let cert_len = attest.cert_len(index)?;
+            let mut out = vec![0u8; cert_len as usize];
+            attest.cert(index, &mut out)?;
+
+            let out = match encoding {
+                Encoding::Der => out,
+                Encoding::Pem => {
+                    let pem = pem_rfc7468::encode_string(
+                        Certificate::PEM_LABEL,
+                        LineEnding::default(),
+                        &out,
+                    )?;
+                    pem.as_bytes().to_vec()
+                }
+            };
 
             io::stdout().write_all(&out)?;
             io::stdout().flush()?;
         }
         AttestCommand::CertChain => {
-            for index in 0..attest.cert_chain_len()? {
-                let out = get_cert(&attest, Encoding::Pem, index)?;
+            let mut cert_chain = PkiPath::new();
 
-                io::stdout().write_all(&out)?;
+            for index in 0..attest.cert_chain_len()? {
+                let cert_len = attest.cert_len(index)?;
+                let mut out = vec![0u8; cert_len as usize];
+                attest.cert(index, &mut out)?;
+
+                let cert = Certificate::from_der(&out)?;
+                cert_chain.push(cert);
+            }
+
+            for cert in cert_chain {
+                let cert = cert.to_pem(LineEnding::default())?;
+
+                io::stdout().write_all(cert.as_bytes())?;
             }
             io::stdout().flush()?;
         }
@@ -507,11 +273,12 @@ fn main() -> Result<()> {
             println!("{}", attest.cert_len(index)?)
         }
         AttestCommand::Log => {
-            let mut log = vec![0u8; attest.log_len()? as usize];
+            let log_len = attest.log_len()?;
+            let mut log = vec![0u8; log_len as usize];
             attest.log(&mut log)?;
-
             let (log, _): (Log, _) = hubpack::deserialize(&log)
-                .map_err(|e| anyhow!("Failed to deserialize Log: {e}"))?;
+                .map_err(|e| anyhow!("Failed to deserialize Log: {}", e))?;
+
             let mut log = serde_json::to_string(&log)?;
             log.push('\n');
 
@@ -587,11 +354,13 @@ fn verify<P: AsRef<Path>>(
 
     // get attestation
     info!("getting attestation");
-    let mut attestation = vec![0u8; attest.attest_len()? as usize];
-    attest.attest(nonce, &mut attestation)?;
-    // deserialize hubpack encoded attestation
-    let (attestation, _): (Attestation, _) = hubpack::deserialize(&attestation)
+    let attest_len = attest.attest_len()?;
+    let mut out = vec![0u8; attest_len as usize];
+    attest.attest(&nonce, &mut out)?;
+
+    let (attestation, _): (Attestation, _) = hubpack::deserialize(&out)
         .map_err(|e| anyhow!("Failed to deserialize Attestation: {}", e))?;
+
     // serialize attestation to json & write to file
     let mut attestation = serde_json::to_string(&attestation)?;
     attestation.push('\n');
@@ -601,12 +370,15 @@ fn verify<P: AsRef<Path>>(
 
     // get log
     info!("getting measurement log");
-    let mut log = vec![0u8; attest.log_len()? as usize];
+    let log_len = attest.log_len()?;
+    let mut log = vec![0u8; log_len as usize];
     attest.log(&mut log)?;
+
     let (log, _): (Log, _) = hubpack::deserialize(&log)
         .map_err(|e| anyhow!("Failed to deserialize Log: {}", e))?;
     let mut log = serde_json::to_string(&log)?;
     log.push('\n');
+
     let log_path = work_dir.as_ref().join("log.json");
     info!("writing measurement log to: {}", log_path.display());
     fs::write(&log_path, &log)?;
@@ -616,20 +388,27 @@ fn verify<P: AsRef<Path>>(
     let cert_chain_path = work_dir.as_ref().join("cert-chain.pem");
     let mut cert_chain = File::create(&cert_chain_path)?;
     let alias_cert_path = work_dir.as_ref().join("alias.pem");
+
+    let mut certs = PkiPath::new();
     for index in 0..attest.cert_chain_len()? {
-        let encoding = Encoding::Pem;
-        info!("getting cert[{}] encoded as {}", index, encoding);
-        let cert = get_cert(attest, encoding, index)?;
+        let cert_len = attest.cert_len(index)?;
+        let mut out = vec![0u8; cert_len as usize];
+        attest.cert(index, &mut out)?;
 
-        // the first cert in the chain / the leaf cert is the one
-        // used to sign attestations
-        if index == 0 {
-            info!("writing alias cert to: {}", alias_cert_path.display());
-            fs::write(&alias_cert_path, &cert)?;
-        }
+        let cert = Certificate::from_der(&out)?;
+        certs.push(cert);
+    }
 
+    // the first cert in the chain / the leaf cert is the one
+    // used to sign attestations
+    info!("writing alias cert to: {}", alias_cert_path.display());
+    let pem = certs[0].to_pem(LineEnding::default())?;
+    fs::write(&alias_cert_path, pem)?;
+
+    for (index, cert) in certs.iter().enumerate() {
         info!("writing cert[{}] to: {}", index, cert_chain_path.display());
-        cert_chain.write_all(&cert)?;
+        let pem = cert.to_pem(LineEnding::default())?;
+        cert_chain.write_all(pem.as_bytes())?;
     }
 
     verify_attestation(
