@@ -51,14 +51,14 @@ $ cargo run --package verifier-cli -- cert-chain > cert-chain.pem
 ### Get the Measurement Log
 
 ```shell
-$ cargo run --package verifier-cli -- log > log.bin
+$ cargo run --package verifier-cli -- log > log.json
 ```
 
 ### Verify the Attestation
 
 ```shell
 $ cargo run --package verifier-cli -- cert 0 > alias.pem
-$ cargo run --package verifier-cli -- verify-attestation --alias-cert alias.pem --log log.bin --nonce nonce.bin attestation.json
+$ cargo run --package verifier-cli -- verify-attestation --alias-cert alias.pem --log log.json --nonce nonce.bin attestation.json
 ```
 
 ### Verify the cert chain
