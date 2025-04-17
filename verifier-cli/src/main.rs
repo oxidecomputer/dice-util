@@ -470,10 +470,20 @@ fn main() -> Result<()> {
             let nonce = fs::read(nonce)?;
             let nonce = Nonce::try_from(&nonce[..])?;
             let attest_len = attest.attest_len()?;
-            let mut out = vec![0u8; attest_len as usize];
-            attest.attest(nonce, &mut out)?;
+            let mut attestation = vec![0u8; attest_len as usize];
+            attest.attest(nonce, &mut attestation)?;
 
-            io::stdout().write_all(&out)?;
+            // deserialize hubpack encoded attestation
+            let (attestation, _): (Attestation, _) =
+                hubpack::deserialize(&attestation).map_err(|e| {
+                    anyhow!("Failed to deserialize Attestation: {}", e)
+                })?;
+
+            // serialize attestation to json & write to file
+            let mut attestation = serde_json::to_string(&attestation)?;
+            attestation.push('\n');
+
+            io::stdout().write_all(attestation.as_bytes())?;
             io::stdout().flush()?;
         }
         AttestCommand::AttestLen => println!("{}", attest.attest_len()?),

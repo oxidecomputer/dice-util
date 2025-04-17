@@ -37,7 +37,7 @@ configuration ... YMMV and all applicable disclaimers.
 
 ```shell
 $ dd if=/dev/urandom of=nonce.bin bs=32 count=1
-$ cargo run --package verifier-cli -- attest nonce.bin > attestation.bin
+$ cargo run --package verifier-cli -- attest nonce.bin > attestation.json
 ```
 
 ### Get the cert chain
@@ -58,7 +58,7 @@ $ cargo run --package verifier-cli -- log > log.bin
 
 ```shell
 $ cargo run --package verifier-cli -- cert 0 > alias.pem
-$ cargo run --package verifier-cli -- verify-attestation --alias-cert alias.pem --log log.bin --nonce nonce.bin attestation.bin
+$ cargo run --package verifier-cli -- verify-attestation --alias-cert alias.pem --log log.bin --nonce nonce.bin attestation.json
 ```
 
 ### Verify the cert chain
