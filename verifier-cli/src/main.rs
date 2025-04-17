@@ -506,11 +506,15 @@ fn main() -> Result<()> {
             println!("{}", attest.cert_len(index)?)
         }
         AttestCommand::Log => {
-            let log_len = attest.log_len()?;
-            let mut out = vec![0u8; log_len as usize];
-            attest.log(&mut out)?;
+            let mut log = vec![0u8; attest.log_len()? as usize];
+            attest.log(&mut log)?;
 
-            io::stdout().write_all(&out)?;
+            let (log, _): (Log, _) = hubpack::deserialize(&log)
+                .map_err(|e| anyhow!("Failed to deserialize Log: {}", e))?;
+            let mut log = serde_json::to_string(&log)?;
+            log.push('\n');
+
+            io::stdout().write_all(log.as_bytes())?;
             io::stdout().flush()?;
         }
         AttestCommand::LogLen => println!("{}", attest.log_len()?),
