@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use dice_verifier::PkiPathSignatureVerifier;
 use env_logger::Builder;
 use hubpack::SerializedSize;
-use log::{debug, error, info, warn, LevelFilter};
+use log::{debug, info, warn, LevelFilter};
 use pem_rfc7468::{LineEnding, PemLabel};
 use sha3::{Digest, Sha3_256};
 use std::{
@@ -19,10 +19,7 @@ use std::{
     process::{Command, Output},
 };
 use tempfile::NamedTempFile;
-use x509_cert::{
-    der::{Decode, DecodePem},
-    Certificate, PkiPath,
-};
+use x509_cert::{der::DecodePem, Certificate, PkiPath};
 
 /// Execute HIF operations exposed by the RoT Attest task.
 #[derive(Debug, Parser)]
@@ -653,22 +650,7 @@ fn verify_attestation(
     let nonce = Nonce::try_from(nonce)?;
 
     let alias = fs::read(alias_cert)?;
-    let alias = match pem_rfc7468::decode_vec(&alias) {
-        Ok((l, v)) => {
-            debug!("decoded pem w/ label: \"{}\"", l);
-            if l != Certificate::PEM_LABEL {
-                error!("got cert w/ unsupported pem label");
-            }
-
-            v
-        }
-        Err(e) => {
-            debug!("error decoding PEM: {}", e);
-            alias
-        }
-    };
-
-    let alias = Certificate::from_der(&alias)?;
+    let alias = Certificate::from_pem(&alias)?;
 
     dice_verifier::verify_attestation(&alias, &attestation, &log, &nonce)
 }
