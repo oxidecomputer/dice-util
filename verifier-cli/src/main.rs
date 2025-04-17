@@ -564,11 +564,9 @@ fn verify<P: AsRef<Path>>(
     let nonce = Nonce::from_platform_rng()?;
 
     // write nonce to temp dir
-    let nonce_path = work_dir.as_ref().join("nonce.json");
+    let nonce_path = work_dir.as_ref().join("nonce.bin");
     info!("writing nonce to: {}", nonce_path.display());
-    let mut nonce_str = serde_json::to_string(&nonce)?;
-    nonce_str.push('\n');
-    fs::write(&nonce_path, nonce_str)?;
+    fs::write(&nonce_path, nonce)?;
 
     // get attestation
     info!("getting attestation");
@@ -647,8 +645,8 @@ fn verify_attestation(
         .map_err(|_| anyhow!("failed to serialize Log"))?;
     let log = buf;
 
-    let nonce = fs::read_to_string(nonce)?;
-    let nonce: Nonce = serde_json::from_str(&nonce)?;
+    let nonce = fs::read(nonce)?;
+    let nonce = Nonce::try_from(nonce)?;
 
     let alias = fs::read(alias_cert)?;
     let alias = match pem_rfc7468::decode_vec(&alias) {
