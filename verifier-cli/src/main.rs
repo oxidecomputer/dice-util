@@ -3,7 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use anyhow::{anyhow, Context, Result};
-use attest_data::{Attestation, Log, Nonce};
+use attest_data::{
+    Attestation, DiceTcbInfo, Log, Measurement, Nonce, DICE_TCB_INFO,
+};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
 use dice_verifier::PkiPathSignatureVerifier;
@@ -12,13 +14,14 @@ use hubpack::SerializedSize;
 use log::{info, warn, LevelFilter};
 use pem_rfc7468::LineEnding;
 use std::{
+    collections::HashSet,
     fmt::{self, Debug},
     fs::{self, File},
     io::{self, Write},
     path::{Path, PathBuf},
 };
 use x509_cert::{
-    der::{DecodePem, EncodePem},
+    der::{Decode, DecodePem, DecodeValue, EncodePem, Header, SliceReader},
     Certificate, PkiPath,
 };
 
@@ -29,6 +32,8 @@ pub mod ipcc;
 use hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
 use ipcc::AttestIpcc;
+
+type MeasurementCorpus = HashSet<Measurement>;
 
 pub trait Attest {
     fn get_measurement_log(&self) -> Result<Log>;
@@ -137,6 +142,21 @@ enum AttestCommand {
         /// Path to file holding the certificate chain / PkiPath.
         #[clap(env)]
         cert_chain: PathBuf,
+    },
+    /// Verify the measurements from the log and cert chain against the
+    /// provided measurement corpus.
+    VerifyMeasurements {
+        /// Path to file holding the certificate chain / PkiPath.
+        #[clap(env)]
+        cert_chain: PathBuf,
+
+        /// Path to file holding the log
+        #[clap(env)]
+        log: PathBuf,
+
+        /// Path to file holding the reference measurement corpus
+        #[clap(env)]
+        corpus: PathBuf,
     },
 }
 
@@ -251,9 +271,97 @@ fn main() -> Result<()> {
         } => {
             verify_cert_chain(&ca_cert, &cert_chain, self_signed)?;
         }
+        AttestCommand::VerifyMeasurements {
+            cert_chain,
+            log,
+            corpus,
+        } => {
+            verify_measurements(&cert_chain, &log, &corpus)?;
+        }
     }
 
     Ok(())
+}
+
+type MeasurementSet = HashSet<Measurement>;
+
+trait FromArtifacts {
+    fn from_artifacts(pki_path: &PkiPath, log: &Log) -> Result<Self>
+    where
+        Self: Sized;
+}
+
+impl FromArtifacts for MeasurementSet {
+    fn from_artifacts(pki_path: &PkiPath, log: &Log) -> Result<Self> {
+        let mut measurements = Self::new();
+
+        for cert in pki_path {
+            if let Some(extensions) = &cert.tbs_certificate.extensions {
+                for ext in extensions {
+                    if ext.extn_id == DICE_TCB_INFO {
+                        if !ext.critical {
+                            warn!("DiceTcbInfo extension is non-critical");
+                        }
+
+                        let mut reader =
+                            SliceReader::new(ext.extn_value.as_bytes())?;
+                        let header = Header::decode(&mut reader)
+                            .context("decode Extension header")?;
+
+                        let tcb_info =
+                            DiceTcbInfo::decode_value(&mut reader, header)
+                                .context(
+                                    "Decode DiceTcbInfo from DER reader",
+                                )?;
+                        if let Some(fwid_vec) = &tcb_info.fwids {
+                            for fwid in fwid_vec {
+                                let measurement = Measurement::try_from(fwid)
+                                    .context(
+                                    "Measurement from DiceTcbInfo Fwid",
+                                )?;
+                                measurements.insert(measurement);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for measurement in log.iter() {
+            measurements.insert(*measurement);
+        }
+
+        Ok(measurements)
+    }
+}
+
+// Check that the measurments in `cert_chain` and `log` are all present in
+// the `corpus`. If an unexpected measurement is encountered it is returned
+// to the caller in an error.
+// NOTE: The output of this function is only as trustworthy as its inputs.
+// These must be verified independently.
+fn verify_measurements<P: AsRef<Path>>(
+    cert_chain: P,
+    log: P,
+    corpus: P,
+) -> Result<()> {
+    let corpus = fs::read_to_string(corpus)?;
+    let corpus: MeasurementCorpus = serde_json::from_str(&corpus)?;
+
+    let cert_chain = fs::read(cert_chain)?;
+    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
+
+    let log = fs::read_to_string(log)?;
+    let log: Log = serde_json::from_str(&log)?;
+
+    let measurements = MeasurementSet::from_artifacts(&cert_chain, &log)
+        .context("MeasurementSet from PkiPath")?;
+
+    if measurements.is_subset(&corpus) {
+        Ok(())
+    } else {
+        Err(anyhow!("Measurements are NOT a subset of Corpus"))
+    }
 }
 
 fn verify<P: AsRef<Path>>(
