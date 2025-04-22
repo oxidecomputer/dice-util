@@ -109,6 +109,10 @@ enum AttestCommand {
         /// process. If omitted a temp directory will be used instead.
         #[clap(long, env = "VERIFIER_CLI_WORK_DIR")]
         work_dir: Option<PathBuf>,
+
+        /// Path to file holding the reference measurement corpus
+        #[clap(env, env = "VERIFIER_CLI_CORPUS")]
+        corpus: PathBuf,
     },
     /// Verify signature over Attestation
     VerifyAttestation {
@@ -253,18 +257,32 @@ fn main() -> Result<()> {
         }
         AttestCommand::Verify {
             ca_cert,
+            corpus,
             self_signed,
             work_dir,
         } => {
             // Use the directory provided by the caller to hold intermediate
             // files, or fall back to a temp dir.
-            match work_dir {
-                Some(w) => verify(attest.as_ref(), &ca_cert, self_signed, w)?,
+            let platform_id = match work_dir {
+                Some(w) => {
+                    verify(attest.as_ref(), &ca_cert, &corpus, self_signed, &w)?
+                }
                 None => {
                     let work_dir = tempfile::tempdir()?;
-                    verify(attest.as_ref(), &ca_cert, self_signed, work_dir)?
+                    verify(
+                        attest.as_ref(),
+                        &ca_cert,
+                        corpus.as_ref(),
+                        self_signed,
+                        work_dir.as_ref(),
+                    )?
                 }
             };
+            let platform_id = platform_id
+                .as_str()
+                .map_err(|_| anyhow!("Invalid PlatformId"))?;
+
+            println!("{platform_id}");
         }
         AttestCommand::VerifyAttestation {
             alias_cert,
@@ -350,10 +368,10 @@ impl FromArtifacts for MeasurementSet {
 // to the caller in an error.
 // NOTE: The output of this function is only as trustworthy as its inputs.
 // These must be verified independently.
-fn verify_measurements<P: AsRef<Path>>(
+fn verify_measurements<P: AsRef<Path>, Q: AsRef<Path>, R: AsRef<Path>>(
     cert_chain: P,
-    log: P,
-    corpus: P,
+    log: Q,
+    corpus: R,
 ) -> Result<()> {
     let corpus = fs::read_to_string(corpus)?;
     let corpus: MeasurementCorpus = serde_json::from_str(&corpus)?;
@@ -377,9 +395,10 @@ fn verify_measurements<P: AsRef<Path>>(
 fn verify<P: AsRef<Path>>(
     attest: &dyn Attest,
     ca_cert: &Option<PathBuf>,
+    corpus: P,
     self_signed: bool,
     work_dir: P,
-) -> Result<()> {
+) -> Result<PlatformId> {
     // generate nonce from RNG
     info!("getting Nonce from platform RNG");
     let nonce = Nonce::from_platform_rng()?;
@@ -431,6 +450,9 @@ fn verify<P: AsRef<Path>>(
         cert_chain.write_all(pem.as_bytes())?;
     }
 
+    verify_cert_chain(ca_cert, &cert_chain_path, self_signed)?;
+    info!("cert chain verified");
+
     verify_attestation(
         &alias_cert_path,
         &attestation_path,
@@ -438,9 +460,17 @@ fn verify<P: AsRef<Path>>(
         &nonce_path,
     )?;
     info!("attestation verified");
-    verify_cert_chain(ca_cert, &cert_chain_path, self_signed)?;
-    info!("cert chain verified");
-    Ok(())
+
+    verify_measurements(&cert_chain_path, &log_path, &corpus)?;
+    info!("measurements verified");
+
+    let cert_chain = fs::read(&cert_chain_path)?;
+    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
+
+    let platform_id = PlatformId::try_from(&cert_chain)
+        .context("PlatformId from attestation cert chain")?;
+
+    Ok(platform_id)
 }
 
 fn verify_attestation(
