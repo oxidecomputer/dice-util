@@ -2,6 +2,16 @@ name: test suite
 on: [push, pull_request]
 
 jobs:
+  build:
+    name: cargo build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y pkg-config libudev-dev
+      - run: cargo build --workspace
+      - run: cargo build --package attest-data --package dice-mfg-msgs
   clippy:
     name: cargo clippy
     runs-on: ubuntu-latest
