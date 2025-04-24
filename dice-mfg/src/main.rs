@@ -424,8 +424,8 @@ fn main() -> Result<()> {
                 // use workdir to hold CSR if provided
                 let id = platform_id.as_str()?;
                 (
-                    w.join(format!("{}.cert.pem", id)),
-                    w.join(format!("{}.csr.pem", id)),
+                    w.join(format!("{id}.cert.pem")),
+                    w.join(format!("{id}.csr.pem")),
                 )
             } else {
                 // otherwise use a tempdir
@@ -494,7 +494,7 @@ fn main() -> Result<()> {
                 .into_iter()
                 .enumerate()
             {
-                println!("Slot {}: {:?}", slot, status);
+                println!("Slot {slot}: {status:?}");
             }
 
             Ok(())
@@ -503,5 +503,5 @@ fn main() -> Result<()> {
 }
 
 pub fn validate_pid(s: &str) -> result::Result<PlatformId, String> {
-    PlatformId::try_from(s).map_err(|e| format!("Invalid PlatformId: {:?}", e))
+    PlatformId::try_from(s).map_err(|e| format!("Invalid PlatformId: {e:?}"))
 }

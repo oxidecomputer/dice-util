@@ -209,10 +209,7 @@ impl AttestHiffy {
 
             let log_len =
                 u32::from_str_radix(output, 16).with_context(|| {
-                    format!(
-                        "Failed to parse \"{}\" as base {} u32",
-                        output, radix
-                    )
+                    format!("Failed to parse \"{output}\" as base {radix} u32")
                 })?;
 
             debug!("output u32: {}", log_len);
@@ -240,7 +237,7 @@ impl AttestHiffy {
         cmd.arg("--call");
         cmd.arg(format!("{}.{}", self.interface, op));
         if let Some(a) = args {
-            cmd.arg(format!("--arguments={}", a));
+            cmd.arg(format!("--arguments={a}"));
         }
         debug!("executing command: {:?}", cmd);
 
@@ -262,14 +259,14 @@ impl AttestHiffy {
 
         cmd.arg("hiffy");
         cmd.arg(format!("--call={}.{}", self.interface, op));
-        cmd.arg(format!("--num={}", length));
+        cmd.arg(format!("--num={length}"));
         cmd.arg(format!("--output={}", output.to_string_lossy()));
         if let Some(args) = args {
             cmd.arg("--arguments");
             cmd.arg(args);
         }
         if let Some(i) = input {
-            cmd.arg(format!("--input={}", i));
+            cmd.arg(format!("--input={i}"));
         }
         debug!("executing command: {:?}", cmd);
 
@@ -320,7 +317,7 @@ impl AttestHiffy {
 
     /// Get length of the certificate at the provided index in bytes.
     fn cert_len(&self, index: u32) -> Result<u32> {
-        self.get_len_cmd("cert_len", Some(format!("index={}", index)))
+        self.get_len_cmd("cert_len", Some(format!("index={index}")))
     }
 
     fn cert(&self, index: u32, out: &mut [u8]) -> Result<()> {
@@ -332,7 +329,7 @@ impl AttestHiffy {
                 "cert",
                 Self::CHUNK_SIZE,
                 tmp.path(),
-                Some(&format!("index={},offset={}", index, offset)),
+                Some(&format!("index={index},offset={offset}")),
                 None,
             )?;
             tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
@@ -346,7 +343,7 @@ impl AttestHiffy {
                 "cert",
                 remain,
                 tmp.path(),
-                Some(&format!("index={},offset={}", index, offset)),
+                Some(&format!("index={index},offset={offset}")),
                 None,
             )?;
             tmp.read_exact(&mut out[offset..])?;
@@ -366,7 +363,7 @@ impl AttestHiffy {
                 "log",
                 Self::CHUNK_SIZE,
                 tmp.path(),
-                Some(&format!("offset={}", offset)),
+                Some(&format!("offset={offset}")),
                 None,
             )?;
             tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
@@ -380,7 +377,7 @@ impl AttestHiffy {
                 "log",
                 remain,
                 tmp.path(),
-                Some(&format!("offset={}", offset)),
+                Some(&format!("offset={offset}")),
                 None,
             )?;
             tmp.read_exact(&mut out[offset..])?;
@@ -507,7 +504,7 @@ fn main() -> Result<()> {
             attest.log(&mut log)?;
 
             let (log, _): (Log, _) = hubpack::deserialize(&log)
-                .map_err(|e| anyhow!("Failed to deserialize Log: {}", e))?;
+                .map_err(|e| anyhow!("Failed to deserialize Log: {e}"))?;
             let mut log = serde_json::to_string(&log)?;
             log.push('\n');
 

@@ -30,7 +30,7 @@ pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn error::Error>> {
 
     let fmt_status = Command::new(out_str).arg(path.as_ref()).status()?;
     if !fmt_status.success() {
-        return Err(format!("rustfmt returned status {}", fmt_status).into());
+        return Err(format!("rustfmt returned status {fmt_status}").into());
     }
     Ok(())
 }
@@ -40,7 +40,7 @@ pub fn rustfmt(path: impl AsRef<Path>) -> Result<(), Box<dyn error::Error>> {
 pub fn arrayfmt(data: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "[ ")?;
     for &byte in data {
-        write!(f, "{:#04x}, ", byte)?;
+        write!(f, "{byte:#04x}, ")?;
     }
     write!(f, "]")?;
 
@@ -57,8 +57,7 @@ pub fn write_range<T: Write>(
 ) -> Result<(), Box<dyn error::Error>> {
     writeln!(
         f,
-        "pub const {}_RANGE: Range<usize> = {}..{};",
-        prefix, start, end
+        "pub const {prefix}_RANGE: Range<usize> = {start}..{end};"
     )?;
     Ok(())
 }

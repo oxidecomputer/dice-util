@@ -131,12 +131,12 @@ pub fn buf_out_fmt<F: Write>(
     writeln!(out, "\nconst {}: [u8; {}] = [", name, slice.len())?;
     for (i, elm) in slice.iter().enumerate() {
         if i % 8 == 0 {
-            write!(out, "    {:#04x}, ", elm)?;
+            write!(out, "    {elm:#04x}, ")?;
         } else if i % 8 == 7 {
             #[allow(clippy::write_with_newline)]
-            write!(out, "{:#04x},\n", elm)?;
+            write!(out, "{elm:#04x},\n")?;
         } else {
-            write!(out, "{:#04x}, ", elm)?;
+            write!(out, "{elm:#04x}, ")?;
         }
     }
     if slice.len() % 8 != 0 {

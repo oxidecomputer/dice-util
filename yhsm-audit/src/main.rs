@@ -142,7 +142,7 @@ fn do_hash<R: Read>(reader: &mut R, inform: Encoding) -> Result<()> {
     // get hash string for truncated sha256 sum
     let digest = hex::encode(hasher.finalize());
 
-    println!("{}", digest);
+    println!("{digest}");
 
     Ok(())
 }
