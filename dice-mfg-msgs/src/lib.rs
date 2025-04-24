@@ -337,7 +337,7 @@ pub enum MfgMessage {
 impl fmt::Display for MfgMessage {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MfgMessage::Ack(hash) => write!(f, "MfgMessage::Ack: {:?}", hash),
+            MfgMessage::Ack(hash) => write!(f, "MfgMessage::Ack: {hash:?}"),
             MfgMessage::Break => write!(f, "MfgMessage::Break"),
             MfgMessage::Csr(_) => write!(f, "MfgMessage::Csr"),
             MfgMessage::CsrPlz => write!(f, "MfgMessage::CsrPlz"),

@@ -108,11 +108,11 @@ impl Display for Nonce {
         let mut out: Vec<String> = Vec::new();
 
         for byte in self.0 {
-            out.push(format!("{}", byte));
+            out.push(format!("{byte}"));
         }
         let out = out.join(" ");
 
-        write!(f, "[{}]", out)
+        write!(f, "[{out}]")
     }
 }
 

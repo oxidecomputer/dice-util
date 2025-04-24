@@ -70,7 +70,7 @@ impl fmt::Display for Error {
             Error::CertGenFail => write!(f, "Cert generation failed."),
             Error::Recv => write!(f, "Recv failed."),
             Error::WrongMsg(s) => {
-                write!(f, "Unexpected message received: {}.", s)
+                write!(f, "Unexpected message received: {s}.")
             }
             Error::PingRange => write!(f, "Ping-pong sync failed."),
             Error::NoPlatformId => {
@@ -86,7 +86,7 @@ impl fmt::Display for Error {
                 write!(f, "Response Ack contained invalid digest")
             }
             Error::InvalidPlatformId(e) => {
-                write!(f, "PlatformId is invalid: {:?}", e)
+                write!(f, "PlatformId is invalid: {e:?}")
             }
         }
     }
@@ -203,7 +203,7 @@ impl MfgDriver {
         let mut retry = self.max_retry;
         loop {
             match pid.as_str() {
-                Ok(s) => print!("setting platform id to: \"{}\" ... ", s),
+                Ok(s) => print!("setting platform id to: \"{s}\" ... "),
                 Err(e) => return Err(Error::InvalidPlatformId(e).into()),
             }
             io::stdout().flush()?;
@@ -611,7 +611,7 @@ impl CertSigner {
         let now = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
         info!("now: {}", now);
         fs::write(
-            format!("{}.audit.json", now),
+            format!("{now}.audit.json"),
             serde_json::to_string(&entries)?,
         )?;
 

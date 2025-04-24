@@ -174,9 +174,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let mut cert = Cert::from_slice(&mut cert);
 
-                writeln!(out, "{}\n", LICENSE_TEXT)?;
+                writeln!(out, "{LICENSE_TEXT}\n")?;
                 writeln!(out, "use core::ops::Range;\n")?;
-                writeln!(out, "{}\n", ORIGIN_TEXT)?;
+                writeln!(out, "{ORIGIN_TEXT}\n")?;
                 writeln!(out, "pub const SIZE: usize = {};", cert.len())?;
 
                 let range = cert.get_serial_number_offsets()?;
@@ -275,7 +275,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 dice_cert_tmpl::rustfmt(out.path())?;
                 let data = fs::read_to_string(out.path())?;
 
-                print!("{}", data);
+                print!("{data}");
 
                 Ok(())
             }
@@ -331,7 +331,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let mut csr = Csr::from_slice(&mut csr);
 
-                writeln!(out, "{}", LICENSE_TEXT)?;
+                writeln!(out, "{LICENSE_TEXT}")?;
                 writeln!(out, "use core::ops::Range;\n")?;
                 writeln!(out, "pub const SIZE: usize = {};", csr.len())?;
 
@@ -397,7 +397,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 dice_cert_tmpl::rustfmt(out.path())?;
                 let data = fs::read_to_string(out.path())?;
 
-                println!("{}", data);
+                println!("{data}");
 
                 Ok(())
             }
