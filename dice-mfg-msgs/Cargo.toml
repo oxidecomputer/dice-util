@@ -4,12 +4,17 @@ version = "0.2.1"
 edition = "2021"
 
 [dependencies]
+const-oid = { workspace = true, optional = true }
 corncobs.workspace = true
 hubpack.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde-big-array.workspace = true
 thiserror = { workspace = true, optional = true }
+x509-cert = { workspace = true, optional = true }
 zerocopy.workspace = true
 
+[dev-dependencies]
+anyhow.workspace = true
+
 [features]
-std = ["thiserror"]
+std = ["const-oid/db", "thiserror", "x509-cert/pem", "x509-cert/std"]

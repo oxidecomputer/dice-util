@@ -4,10 +4,17 @@
 
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
+#[cfg(feature = "std")]
+use const_oid::db::rfc4519::COMMON_NAME;
 use core::fmt;
 use hubpack::SerializedSize;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+#[cfg(feature = "std")]
+use x509_cert::{
+    der::{asn1::Utf8StringRef, Error as DerError},
+    PkiPath,
+};
 
 pub type MessageHash = [u8; 32];
 pub const NULL_HASH: MessageHash = [0u8; 32];
@@ -231,6 +238,9 @@ impl TryFrom<&str> for PlatformId {
 
     /// Construct a PlatformId enum variant appropriate for the supplied &str.
     fn try_from(s: &str) -> Result<Self, Self::Error> {
+        if s.len() != PLATFORM_ID_MAX_LEN {
+            return Err(PlatformIdError::BadSize);
+        }
         match &s[..PREFIX_LEN] {
             RFD308_V2_PREFIX => platform_id_from_0xv2(s),
             PLATFORM_ID_V1_PREFIX => platform_id_from_pdv1(s),
@@ -250,6 +260,58 @@ impl TryFrom<&[u8]> for PlatformId {
         let pid = pid.trim_end_matches('\0');
 
         Self::try_from(pid)
+    }
+}
+
+#[cfg(feature = "std")]
+#[cfg_attr(any(test, feature = "std"), derive(thiserror::Error))]
+#[derive(Debug, PartialEq)]
+pub enum PlatformIdPkiPathError {
+    #[error("Failed to decode CountryName")]
+    CountryNameDecode(DerError),
+    #[error("Expected CountryName \"US\", got {0}")]
+    InvalidCountryName(String),
+    #[error("Failed to decode OrganizationName")]
+    OrganizationNameDecode(DerError),
+    #[error("Expected CountryName \"US\", got {0}")]
+    InvalidOrganizationName(String),
+    #[error("Failed to decode OrganizationName")]
+    CommonNameDecode(DerError),
+    #[error("More than one PlatformId found in PkiPath")]
+    MultiplePlatformIds,
+    #[error("No PlatformId found in PkiPath")]
+    NoPlatformId,
+}
+
+#[cfg(feature = "std")]
+impl TryFrom<&PkiPath> for PlatformId {
+    type Error = PlatformIdPkiPathError;
+    // Find the PlatformId in the provided cert chain. This value is stored
+    // in cert's `Subject` field. The PlatformId string is stored in the
+    // Subject CN / commonName. A PkiPath with more than one PlatformId in
+    // it produces an error.
+    fn try_from(pki_path: &PkiPath) -> Result<Self, Self::Error> {
+        let mut platform_id: Option<PlatformId> = None;
+        for cert in pki_path {
+            for elm in &cert.tbs_certificate.subject.0 {
+                for atav in elm.0.iter() {
+                    if atav.oid == COMMON_NAME {
+                        let common = Utf8StringRef::try_from(&atav.value)
+                            .map_err(Self::Error::CommonNameDecode)?;
+                        let common: &str = common.as_ref();
+                        if let Ok(id) = PlatformId::try_from(common) {
+                            if platform_id.is_none() {
+                                platform_id = Some(id);
+                            } else {
+                                return Err(Self::Error::MultiplePlatformIds);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        platform_id.ok_or(Self::Error::NoPlatformId)
     }
 }
 
@@ -378,35 +440,38 @@ impl MfgMessage {
 mod tests {
     use super::*;
 
-    type Result = std::result::Result<(), PlatformIdError>;
+    #[cfg(feature = "std")]
+    use anyhow::Context;
+    #[cfg(feature = "std")]
+    use x509_cert::{Certificate, PkiPath};
 
     const RFD308_V2_GOOD: &str = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
     const PID_V1_GOOD: &str = "PDV1:PPP-PPPPPPP:000:SSSSSSSSSSS";
     const PID_V2_GOOD: &str = "PDV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
 
     #[test]
-    fn rfd308_v2_good() -> Result {
+    fn rfd308_v2_good() -> Result<(), PlatformIdError> {
         assert!(validate_0xv2(RFD308_V2_GOOD).is_ok());
 
         Ok(())
     }
 
     #[test]
-    fn pid_v1_good() -> Result {
+    fn pid_v1_good() -> Result<(), PlatformIdError> {
         assert!(validate_pdv1(PID_V1_GOOD).is_ok());
 
         Ok(())
     }
 
     #[test]
-    fn pid_v2_good() -> Result {
+    fn pid_v2_good() -> Result<(), PlatformIdError> {
         assert!(validate_pdv2(PID_V2_GOOD).is_ok());
 
         Ok(())
     }
 
     #[test]
-    fn rfd308_v2_bad_length() -> Result {
+    fn rfd308_v2_bad_length() -> Result<(), PlatformIdError> {
         // missing an 'S'
         let pid = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSS";
         let pid = PlatformId::try_from(pid);
@@ -416,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    fn rfd308_v2_bad_prefix_part_sep() -> Result {
+    fn rfd308_v2_bad_prefix_part_sep() -> Result<(), PlatformIdError> {
         let pid = "0XV2SPPP-PPPPPPP:RRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -425,7 +490,7 @@ mod tests {
     }
 
     #[test]
-    fn rfd308_v2_bad_part_rev_sep() -> Result {
+    fn rfd308_v2_bad_part_rev_sep() -> Result<(), PlatformIdError> {
         let pid = "0XV2:PPP-PPPPPPPERRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -434,7 +499,7 @@ mod tests {
     }
 
     #[test]
-    fn rfd308_v2_bad_rev_sn_sep() -> Result {
+    fn rfd308_v2_bad_rev_sn_sep() -> Result<(), PlatformIdError> {
         let pid = "0XV2:PPP-PPPPPPP:RRRPSSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -443,7 +508,7 @@ mod tests {
     }
 
     #[test]
-    fn rfd308_v2_bad_part() -> Result {
+    fn rfd308_v2_bad_part() -> Result<(), PlatformIdError> {
         let pid = "0XV2:pPP-PPPPPPP:RRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -452,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    fn rfd308_v2_bad_revision() -> Result {
+    fn rfd308_v2_bad_revision() -> Result<(), PlatformIdError> {
         let pid = "0XV2:PPP-PPPPPPP:rRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -461,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn rfd308_v2_bad_serial() -> Result {
+    fn rfd308_v2_bad_serial() -> Result<(), PlatformIdError> {
         let pid = "0XV2:PPP-PPPPPPP:RRR:sSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -471,7 +536,7 @@ mod tests {
     // malformed UTF-8 from:
     // https://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt
     #[test]
-    fn rfd308_v2_malformed() -> Result {
+    fn rfd308_v2_malformed() -> Result<(), PlatformIdError> {
         let mut bytes = [0u8; RFD308_V2_LEN];
         bytes[0] = 0xed;
         bytes[1] = 0xa0;
@@ -484,7 +549,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v1_bad_length() -> Result {
+    fn pid_v1_bad_length() -> Result<(), PlatformIdError> {
         // missing an 'S'
         let pid = "PDV1:PPP-PPPPPPP:RRR:SSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
@@ -494,7 +559,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v1_bad_prefix_part_sep() -> Result {
+    fn pid_v1_bad_prefix_part_sep() -> Result<(), PlatformIdError> {
         let pid = "PDV1SPPP-PPPPPPP:RRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -503,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v1_bad_part_rev_sep() -> Result {
+    fn pid_v1_bad_part_rev_sep() -> Result<(), PlatformIdError> {
         let pid = "PDV1:PPP-PPPPPPPERRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -512,7 +577,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v1_bad_rev_sn_sep() -> Result {
+    fn pid_v1_bad_rev_sn_sep() -> Result<(), PlatformIdError> {
         let pid = "PDV1:PPP-PPPPPPP:RRRPSSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -521,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v1_bad_part() -> Result {
+    fn pid_v1_bad_part() -> Result<(), PlatformIdError> {
         let pid = "PDV1:pPP-PPPPPPP:RRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -530,7 +595,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v1_bad_revision() -> Result {
+    fn pid_v1_bad_revision() -> Result<(), PlatformIdError> {
         let pid = "PDV1:PPP-PPPPPPP:rRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -539,7 +604,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v1_bad_serial() -> Result {
+    fn pid_v1_bad_serial() -> Result<(), PlatformIdError> {
         let pid = "PDV1:PPP-PPPPPPP:RRR:sSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
@@ -548,7 +613,7 @@ mod tests {
     }
 
     #[test]
-    fn rfd308_v2_copy_to_template() -> Result {
+    fn rfd308_v2_copy_to_template() -> Result<(), PlatformIdError> {
         let pid = RFD308_V2_GOOD;
         let pid = PlatformId::try_from(pid)?;
         let mut dest = [0u8; PLATFORM_ID_MAX_LEN];
@@ -563,7 +628,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v1_from_template() -> Result {
+    fn pid_v1_from_template() -> Result<(), PlatformIdError> {
         let pid = PlatformId::try_from(PID_V1_GOOD)?;
         let mut dest = [0u8; PLATFORM_ID_MAX_LEN];
 
@@ -580,7 +645,7 @@ mod tests {
     }
 
     #[test]
-    fn pid_v2_from_template() -> Result {
+    fn pid_v2_from_template() -> Result<(), PlatformIdError> {
         let pid = PlatformId::try_from(RFD308_V2_GOOD)?;
         let mut dest = [0u8; PLATFORM_ID_MAX_LEN];
 
@@ -594,5 +659,80 @@ mod tests {
         assert_eq!(pid.as_str()?, PID_V2_GOOD);
 
         Ok(())
+    }
+
+    // a self signed cert with a platform id string in the the Subject
+    // commonName
+    #[cfg(feature = "std")]
+    const PLATFORM_ID_PEM: &str = r#"-----BEGIN CERTIFICATE-----
+MIIBOjCB7aADAgECAgEAMAUGAytlcDBGMQswCQYDVQQGEwJVUzEMMAoGA1UECgwD
+Zm9vMSkwJwYDVQQDDCBQRFYyOlBQUC1QUFBQUFBQOlJSUjpTU1NTU1NTU1NTUzAg
+Fw0yNTA0MjkwMzQ2MjVaGA85OTk5MTIzMTIzNTk1OVowRjELMAkGA1UEBhMCVVMx
+DDAKBgNVBAoMA2ZvbzEpMCcGA1UEAwwgUERWMjpQUFAtUFBQUFBQUDpSUlI6U1NT
+U1NTU1NTU1MwKjAFBgMrZXADIQC3C95DZLN46PRMbUGHgmfgaAstTq+cmyz6krIv
+V2V4kjAFBgMrZXADQQCYRBMvK1oQF5wtji7koJoC+yQfwsVmRRIrVEvmT5/fOiMd
+z1UhDy+0wtYKr4IhWWw3E8v3Y9JcjeT1s43Nc/wG
+-----END CERTIFICATE-----
+"#;
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn pid_from_pki_path() -> anyhow::Result<()> {
+        let bytes = PLATFORM_ID_PEM.as_bytes();
+        let cert_chain: PkiPath = Certificate::load_pem_chain(bytes)
+            .context("Certificate from PLATFORM_ID_PEM")?;
+
+        let platform_id = PlatformId::try_from(&cert_chain)
+            .context("PlatformId from cert chain")?;
+        let platform_id = platform_id.as_str().context("PlatformId to str")?;
+
+        Ok(assert_eq!(platform_id, "PDV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS"))
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn pid_from_pki_path_multiple() -> anyhow::Result<()> {
+        // Create a cert chain w/ multiple PlatformIds. This chain is invalid
+        // but it's useful for testing and a good example of why we need to
+        // verify the signatures through the chain before pulling out data
+        // like the PlatformId.
+        let mut certs: String = PLATFORM_ID_PEM.to_owned();
+        certs.push_str(PLATFORM_ID_PEM);
+
+        let cert_chain: PkiPath = Certificate::load_pem_chain(certs.as_bytes())
+            .context("Certificate from two istances of PLATFORM_ID_PEM")?;
+
+        let platform_id = PlatformId::try_from(&cert_chain);
+
+        Ok(assert_eq!(
+            platform_id,
+            Err(PlatformIdPkiPathError::MultiplePlatformIds)
+        ))
+    }
+
+    #[cfg(feature = "std")]
+    const NO_PLATFORM_ID_PEM: &str = r#"-----BEGIN CERTIFICATE-----
+MIIBADCBs6ADAgECAgEAMAUGAytlcDApMQswCQYDVQQGEwJVUzEMMAoGA1UECgwD
+Zm9vMQwwCgYDVQQDDANiYXIwIBcNMjUwNDI5MDUyMzE5WhgPOTk5OTEyMzEyMzU5
+NTlaMCkxCzAJBgNVBAYTAlVTMQwwCgYDVQQKDANmb28xDDAKBgNVBAMMA2JhcjAq
+MAUGAytlcAMhALcL3kNks3jo9ExtQYeCZ+BoCy1Or5ybLPqSsi9XZXiSMAUGAytl
+cANBAFleiVB2JzLpysPIJkia4DYodkTc0KuelpNqV0ycemgQqD30O085W7xZ+c/X
++AqBlWPcwiy+hq3aaWCa586hUQ8=
+-----END CERTIFICATE-----
+"#;
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn pid_from_pki_path_none() -> anyhow::Result<()> {
+        let bytes = NO_PLATFORM_ID_PEM.as_bytes();
+        let cert_chain: PkiPath = Certificate::load_pem_chain(bytes)
+            .context("Certificate from NO_PLATFORM_ID_PEM")?;
+
+        let platform_id = PlatformId::try_from(&cert_chain);
+
+        Ok(assert_eq!(
+            platform_id,
+            Err(PlatformIdPkiPathError::NoPlatformId)
+        ))
     }
 }

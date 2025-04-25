@@ -509,11 +509,14 @@ dependencies = [
 name = "dice-mfg-msgs"
 version = "0.2.1"
 dependencies = [
+ "anyhow",
+ "const-oid",
  "corncobs",
  "hubpack",
  "serde",
  "serde-big-array",
  "thiserror 2.0.12",
+ "x509-cert",
  "zerocopy",
 ]
 
