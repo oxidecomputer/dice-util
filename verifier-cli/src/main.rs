@@ -5,6 +5,7 @@
 use anyhow::{anyhow, Context, Result};
 use attest_data::{Attestation, Log, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
+use dice_mfg_msgs::PlatformId;
 use dice_verifier::PkiPathSignatureVerifier;
 use env_logger::Builder;
 use hubpack::SerializedSize;
@@ -76,6 +77,12 @@ enum AttestCommand {
     Log,
     /// Get the length in bytes of the Log.
     LogLen,
+    /// Get the PlatformId string from the provided PkiPath
+    PlatformId {
+        /// Path to file holding the certificate chain / PkiPath
+        #[clap(env)]
+        cert_chain: PathBuf,
+    },
     /// Report a measurement to the `Attest` task for recording in the
     /// measurement log.
     Record {
@@ -512,6 +519,18 @@ fn main() -> Result<()> {
             io::stdout().flush()?;
         }
         AttestCommand::LogLen => println!("{}", attest.log_len()?),
+        AttestCommand::PlatformId { cert_chain } => {
+            let cert_chain = fs::read(cert_chain)?;
+            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
+
+            let platform_id = PlatformId::try_from(&cert_chain)
+                .context("PlatformId from attestation cert chain")?;
+            let platform_id = platform_id
+                .as_str()
+                .map_err(|_| anyhow!("Invalid PlatformId"))?;
+
+            println!("{platform_id}");
+        }
         AttestCommand::Record { digest } => {
             let digest = fs::read(digest)?;
             attest.record(&digest)?;

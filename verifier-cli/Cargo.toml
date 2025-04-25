@@ -9,7 +9,7 @@ license = "MPL-2.0"
 anyhow = { workspace = true, features = ["std"] }
 attest-data = { path = "../attest-data", features = ["std"] }
 clap.workspace = true
-const-oid = { workspace = true, features = ["db"] }
+dice-mfg-msgs = { path = "../dice-mfg-msgs", features = ["std"] }
 ed25519-dalek = { workspace = true, features = ["std"] }
 env_logger.workspace = true
 hubpack.workspace = true
