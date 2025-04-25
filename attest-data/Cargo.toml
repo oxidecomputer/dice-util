@@ -4,6 +4,8 @@ version = "0.4.0"
 edition = "2021"
 
 [dependencies]
+const-oid.workspace = true
+der = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
 hubpack.workspace = true
 thiserror = { workspace = true, optional = true }
@@ -13,5 +15,8 @@ serde_with = { workspace = true, features = ["macros"] }
 sha3.workspace = true
 static_assertions.workspace = true
 
+[dev-dependencies]
+hex.workspace = true
+
 [features]
-std = ["getrandom", "thiserror"]
+std = ["der/std", "der/derive", "der/oid", "getrandom", "sha3/oid", "thiserror" ]

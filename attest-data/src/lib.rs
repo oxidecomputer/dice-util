@@ -4,6 +4,13 @@
 
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
+#[cfg(feature = "std")]
+use const_oid::AssociatedOid;
+#[cfg(feature = "std")]
+use der::{
+    asn1::{ObjectIdentifier, OctetString},
+    Sequence,
+};
 use hubpack::SerializedSize;
 use salty::constants::SIGNATURE_SERIALIZED_LENGTH;
 use serde::{Deserialize, Serialize};
@@ -13,15 +20,19 @@ use sha3::{
     Sha3_256Core,
 };
 
-pub mod messages;
-
 #[cfg(feature = "std")]
-use thiserror::Error;
+use sha3::Sha3_256;
 
 #[cfg(feature = "std")]
 use std::fmt::{self, Display, Formatter};
 
+#[cfg(feature = "std")]
+use thiserror::Error;
+
+pub mod messages;
+
 #[cfg_attr(feature = "std", derive(Debug, Error))]
+#[derive(PartialEq)]
 pub enum AttestDataError {
     #[cfg_attr(feature = "std", error("Deserialization failed"))]
     Deserialize,
@@ -32,6 +43,11 @@ pub enum AttestDataError {
     GetRandom,
     #[cfg_attr(feature = "std", error("Slice is the wrong length"))]
     TryFromSliceError,
+    #[cfg_attr(
+        feature = "std",
+        error("Fwid provided contains unsupported digest value")
+    )]
+    UnsupportedDigest,
 }
 
 /// Array is the type we use as a base for types that are constant sized byte
@@ -128,6 +144,28 @@ impl Nonce {
     }
 }
 
+#[cfg(feature = "std")]
+pub const DICE_TCB_INFO: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("2.23.133.5.4.1");
+
+// FWID from DICE Attestation Architecture §6.1.1:
+#[cfg(feature = "std")]
+#[derive(Debug, Sequence)]
+pub struct Fwid {
+    hash_algorithm: ObjectIdentifier,
+    digest: OctetString,
+}
+
+// DiceTcbInfo from DICE Attestation Architecture §6.1.1:
+#[cfg(feature = "std")]
+#[derive(Debug, Sequence)]
+pub struct DiceTcbInfo {
+    // fwids [6] IMPLICIT FWIDLIST OPTIONAL,
+    // where FWIDLIST ::== SEQUENCE SIZE (1..MAX) OF FWID
+    #[asn1(context_specific = "6", tag_mode = "IMPLICIT", optional = "true")]
+    pub fwids: Option<Vec<Fwid>>,
+}
+
 /// Measurement is an enum that can hold any of the hash algorithms that we support
 #[derive(
     Clone, Copy, Debug, Deserialize, PartialEq, Serialize, SerializedSize,
@@ -139,6 +177,25 @@ pub enum Measurement {
 impl Default for Measurement {
     fn default() -> Self {
         Measurement::Sha3_256(Sha3_256Digest::default())
+    }
+}
+
+#[cfg(feature = "std")]
+impl TryFrom<&Fwid> for Measurement {
+    type Error = AttestDataError;
+
+    /// Attempt to create an Array<N> from the slice provided.
+    fn try_from(fwid: &Fwid) -> Result<Self, Self::Error> {
+        // map from fwid.hash_algorithm ObjectIdentifier to Measurement enum
+        if fwid.hash_algorithm == Sha3_256::OID {
+            // pull the associated data from fwid.digest OctetString
+            let digest = fwid.digest.as_bytes();
+            let digest = Sha3_256Digest::try_from(digest)?;
+
+            Ok(Measurement::Sha3_256(digest))
+        } else {
+            Err(Self::Error::UnsupportedDigest)
+        }
     }
 }
 
@@ -208,4 +265,66 @@ pub type Log = MeasurementLog<LOG_CAPACITY>;
 #[derive(Deserialize, Serialize, SerializedSize)]
 pub enum Attestation {
     Ed25519(Ed25519Signature),
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "std")]
+    use super::*;
+
+    #[cfg(feature = "std")]
+    const SHA3_DIGEST: &str =
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+    #[cfg(feature = "std")]
+    const SHA3_DIGEST_BAD: &str = "AA";
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn measurement_from_fwid_good() {
+        let bytes = hex::decode(SHA3_DIGEST).expect("decode digest hex");
+        let fwid = Fwid {
+            hash_algorithm: Sha3_256::OID,
+            digest: OctetString::new(bytes.clone())
+                .expect("OctetString from digest"),
+        };
+
+        let measurement =
+            Measurement::try_from(&fwid).expect("Measurement from Fwid");
+
+        let digest = Sha3_256Digest::try_from(bytes)
+            .expect("Sha3_256Digest from digest");
+        let expected = Measurement::Sha3_256(digest);
+
+        assert_eq!(expected, measurement);
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn measurement_from_fwid_bad_digest() {
+        // create invalid digest for alg identified by OID
+        let bytes = hex::decode(SHA3_DIGEST_BAD).expect("decode digest hex");
+        let fwid = Fwid {
+            hash_algorithm: Sha3_256::OID,
+            digest: OctetString::new(bytes).expect("OctetString from digest"),
+        };
+
+        let measurement = Measurement::try_from(&fwid);
+        assert_eq!(measurement, Err(AttestDataError::TryFromSliceError));
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn measurement_from_fwid_bad_oid() {
+        let bytes = hex::decode(SHA3_DIGEST).expect("decode digest hex");
+        // create Fwid w/ invalid OID for digest
+        let fwid = Fwid {
+            hash_algorithm: DICE_TCB_INFO,
+            digest: OctetString::new(bytes.clone())
+                .expect("OctetString from digest"),
+        };
+
+        let measurement = Measurement::try_from(&fwid);
+        assert_eq!(measurement, Err(AttestDataError::UnsupportedDigest));
+    }
 }
