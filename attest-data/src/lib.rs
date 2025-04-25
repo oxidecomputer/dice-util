@@ -24,7 +24,7 @@ use sha3::{
 use sha3::Sha3_256;
 
 #[cfg(feature = "std")]
-use std::fmt::{self, Display, Formatter};
+use std::{fmt, hash::Hash};
 
 #[cfg(feature = "std")]
 use thiserror::Error;
@@ -54,7 +54,15 @@ pub enum AttestDataError {
 /// buffers.
 #[serde_as]
 #[derive(
-    Clone, Copy, Debug, Deserialize, PartialEq, Serialize, SerializedSize,
+    Clone,
+    Copy,
+    Debug,
+    Deserialize,
+    Eq,
+    Hash,
+    PartialEq,
+    Serialize,
+    SerializedSize,
 )]
 pub struct Array<const N: usize>(#[serde_as(as = "[_; N]")] pub [u8; N]);
 
@@ -119,8 +127,8 @@ pub type Ed25519Signature = Array<SIGNATURE_SERIALIZED_LENGTH>;
 pub type Nonce = Array<NONCE_SIZE>;
 
 #[cfg(feature = "std")]
-impl Display for Nonce {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+impl fmt::Display for Nonce {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut out: Vec<String> = Vec::new();
 
         for byte in self.0 {
@@ -168,7 +176,15 @@ pub struct DiceTcbInfo {
 
 /// Measurement is an enum that can hold any of the hash algorithms that we support
 #[derive(
-    Clone, Copy, Debug, Deserialize, PartialEq, Serialize, SerializedSize,
+    Clone,
+    Copy,
+    Debug,
+    Deserialize,
+    Eq,
+    Hash,
+    PartialEq,
+    Serialize,
+    SerializedSize,
 )]
 pub enum Measurement {
     Sha3_256(Sha3_256Digest),
@@ -177,6 +193,17 @@ pub enum Measurement {
 impl Default for Measurement {
     fn default() -> Self {
         Measurement::Sha3_256(Sha3_256Digest::default())
+    }
+}
+
+#[cfg(feature = "std")]
+impl fmt::Display for Measurement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Sha3_256(digest) => {
+                write!(f, "sha3-256;{}", hex::encode(digest))
+            }
+        }
     }
 }
 
