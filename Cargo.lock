@@ -1511,7 +1511,7 @@ dependencies = [
  "anyhow",
  "attest-data",
  "clap",
- "const-oid",
+ "dice-mfg-msgs",
  "dice-verifier",
  "ed25519-dalek",
  "env_logger",
