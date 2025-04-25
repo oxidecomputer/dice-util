@@ -257,6 +257,16 @@ impl<const N: usize> MeasurementLog<N> {
             false
         }
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Measurement> {
+        self.measurements.iter().enumerate().filter_map(|(i, e)| {
+            if i < (self.index as usize) {
+                Some(e)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 impl<const N: usize> core::ops::Index<u32> for MeasurementLog<N> {
