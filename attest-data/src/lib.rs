@@ -364,4 +364,44 @@ mod tests {
         let measurement = Measurement::try_from(&fwid);
         assert_eq!(measurement, Err(AttestDataError::UnsupportedDigest));
     }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn measurement_log_iter() {
+        const THIRTY_TWO_BYTES_0: &str =
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        const THIRTY_TWO_BYTES_1: &str =
+            "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+
+        let digest_0 =
+            hex::decode(THIRTY_TWO_BYTES_0).expect("digest 0 decode");
+        let digest_0: Array<32> =
+            digest_0.try_into().expect("digest 0 try into");
+        let digest_1 =
+            hex::decode(THIRTY_TWO_BYTES_1).expect("digest 1 decode");
+        let digest_1: Array<32> =
+            digest_1.try_into().expect("digest 1 try into");
+
+        // create 2 measurements for the log
+        let measurements = [
+            Measurement::Sha3_256(digest_0),
+            Measurement::Sha3_256(digest_1),
+        ];
+
+        // this is the measurement we expect to get back from the iterator
+        let measurement_0 = measurements[0].clone();
+
+        // create a log for the two measurements above, set `index` to 1
+        let log: MeasurementLog<2> = MeasurementLog {
+            index: 1,
+            measurements,
+        };
+
+        let mut count = 0;
+        for measurement in log.iter() {
+            count += 1;
+            assert_eq!(measurement, &measurement_0);
+        }
+        assert_eq!(count, 1);
+    }
 }
