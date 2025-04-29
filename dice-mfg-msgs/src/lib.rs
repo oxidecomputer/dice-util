@@ -70,25 +70,16 @@ const CODE39_ALPHABET: [char; CODE39_LEN] = [
     'U', 'V', 'W', 'X', 'Y', 'Z', '-', '.', ' ', '$', '/', '+', '%',
 ];
 
-#[cfg_attr(any(test, feature = "std"), derive(thiserror::Error))]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlatformIdError {
-    #[cfg_attr(
-        any(test, feature = "std"),
-        error("PID string length not supported")
-    )]
+    #[cfg_attr(feature = "std", error("PID string length not supported"))]
     BadSize,
-    #[cfg_attr(
-        any(test, feature = "std"),
-        error("invalid char '{c:?}' at offset {i:?}")
-    )]
+    #[cfg_attr(feature = "std", error("invalid char '{c:?}' at offset {i:?}"))]
     Invalid { i: usize, c: char },
-    #[cfg_attr(
-        any(test, feature = "std"),
-        error("PID string has invalid prefix")
-    )]
+    #[cfg_attr(feature = "std", error("PID string has invalid prefix"))]
     InvalidPrefix,
-    #[cfg_attr(any(test, feature = "std"), error("PID string is malformed"))]
+    #[cfg_attr(feature = "std", error("PID string is malformed"))]
     Malformed,
 }
 
@@ -285,28 +276,19 @@ pub enum KeySlotStatus {
     Revoked,
 }
 
-#[cfg_attr(any(test, feature = "std"), derive(thiserror::Error))]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
 #[derive(Debug, PartialEq)]
 pub enum Error {
-    #[cfg_attr(
-        any(test, feature = "std"),
-        error("Failed to decode corncobs message")
-    )]
+    #[cfg_attr(feature = "std", error("Failed to decode corncobs message"))]
     Decode,
     #[cfg_attr(
-        any(test, feature = "std"),
+        feature = "std",
         error("Failed to deserialize hubpack message")
     )]
     Deserialize,
-    #[cfg_attr(
-        any(test, feature = "std"),
-        error("Failed to serialize hubpack message")
-    )]
+    #[cfg_attr(feature = "std", error("Failed to serialize hubpack message"))]
     Serialize,
-    #[cfg_attr(
-        any(test, feature = "std"),
-        error("Slice too large for SizedBuf")
-    )]
+    #[cfg_attr(feature = "std", error("Slice too large for SizedBuf"))]
     SliceTooBig,
 }
 
