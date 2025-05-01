@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{AttestSprot, Interface};
+use crate::{Attest, Interface};
 use anyhow::{anyhow, Context, Result};
-use attest_data::Nonce;
+use attest_data::{Attestation, Log, Nonce};
 use hubpack::SerializedSize;
 use log::{debug, info};
 use sha3::{Digest, Sha3_256};
@@ -14,6 +14,20 @@ use std::{
     process::{Command, Output},
 };
 use tempfile::NamedTempFile;
+use x509_cert::{der::Decode, Certificate, PkiPath};
+
+/// This trait implements the hubris attestation API exposed by the `attest`
+/// task in the RoT and proxied through the `sprot` task in the SP.
+pub trait AttestSprot {
+    fn attest_len(&self) -> Result<u32>;
+    fn attest(&self, nonce: &Nonce, out: &mut [u8]) -> Result<()>;
+    fn cert_chain_len(&self) -> Result<u32>;
+    fn cert_len(&self, index: u32) -> Result<u32>;
+    fn cert(&self, index: u32, out: &mut [u8]) -> Result<()>;
+    fn log(&self, out: &mut [u8]) -> Result<()>;
+    fn log_len(&self) -> Result<u32>;
+    fn record(&self, data: &[u8]) -> Result<()>;
+}
 
 /// A type to simplify the execution of the HIF operations exposed by the RoT
 /// Attest task.
@@ -268,5 +282,43 @@ impl AttestSprot for AttestHiffy {
                 String::from_utf8_lossy(&output.stderr)
             ))
         }
+    }
+}
+
+impl Attest for AttestHiffy {
+    fn get_measurement_log(&self) -> Result<Log> {
+        let log_len = self.log_len()?;
+        let mut log = vec![0u8; log_len as usize];
+        self.log(&mut log)?;
+        let (log, _): (Log, _) = hubpack::deserialize(&log)
+            .map_err(|e| anyhow!("Failed to deserialize Log: {}", e))?;
+
+        Ok(log)
+    }
+
+    fn get_certificates(&self) -> Result<PkiPath> {
+        let mut cert_chain = PkiPath::new();
+        for index in 0..self.cert_chain_len()? {
+            let cert_len = self.cert_len(index)?;
+            let mut cert = vec![0u8; cert_len as usize];
+            self.cert(index, &mut cert)?;
+
+            let cert = Certificate::from_der(&cert)?;
+
+            cert_chain.push(cert);
+        }
+
+        Ok(cert_chain)
+    }
+
+    fn attest(&self, nonce: &Nonce) -> Result<Attestation> {
+        let attest_len = self.attest_len()?;
+        let mut out = vec![0u8; attest_len as usize];
+        AttestSprot::attest(self, nonce, &mut out)?;
+
+        let (attestation, _): (Attestation, _) = hubpack::deserialize(&out)
+            .map_err(|e| anyhow!("Failed to deserialize Attestation: {}", e))?;
+
+        Ok(attestation)
     }
 }
