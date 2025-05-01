@@ -836,6 +836,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "875b3680cb2f8f71bdcf9a30f38d48282f5d3c95cbf9b3fa57269bb5d5c06828"
 
 [[package]]
+name = "libipcc"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/ipcc-rs?rev=524eb8f125003dff50b9703900c6b323f00f9e1b#524eb8f125003dff50b9703900c6b323f00f9e1b"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "thiserror 1.0.58",
+]
+
+[[package]]
 name = "libudev"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1516,6 +1526,7 @@ dependencies = [
  "ed25519-dalek",
  "env_logger",
  "hubpack",
+ "libipcc",
  "log",
  "p384",
  "pem-rfc7468",

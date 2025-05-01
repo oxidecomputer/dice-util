@@ -23,13 +23,29 @@ use x509_cert::{
 };
 
 pub mod hiffy;
+#[cfg(feature = "ipcc")]
+pub mod ipcc;
 
 use hiffy::AttestHiffy;
+#[cfg(feature = "ipcc")]
+use ipcc::AttestIpcc;
 
 pub trait Attest {
     fn get_measurement_log(&self) -> Result<Log>;
     fn get_certificates(&self) -> Result<PkiPath>;
     fn attest(&self, nonce: &Nonce) -> Result<Attestation>;
+}
+
+impl dyn Attest {
+    pub fn new(interface: Interface) -> Result<Box<dyn Attest>> {
+        match interface {
+            #[cfg(feature = "ipcc")]
+            Interface::Ipcc => Ok(Box::new(AttestIpcc::new()?)),
+            Interface::Rot | Interface::Sprot => {
+                Ok(Box::new(AttestHiffy::new(interface)))
+            }
+        }
+    }
 }
 
 /// Execute HIF operations exposed by the RoT Attest task.
@@ -126,6 +142,8 @@ enum AttestCommand {
 /// An enum of the possible routes to the `Attest` task.
 #[derive(Clone, Debug, ValueEnum)]
 pub enum Interface {
+    #[cfg(feature = "ipcc")]
+    Ipcc,
     Rot,
     Sprot,
 }
@@ -133,6 +151,8 @@ pub enum Interface {
 impl fmt::Display for Interface {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            #[cfg(feature = "ipcc")]
+            Interface::Ipcc => write!(f, "Ipcc"),
             Interface::Rot => write!(f, "Attest"),
             Interface::Sprot => write!(f, "SpRot"),
         }
@@ -167,7 +187,7 @@ fn main() -> Result<()> {
     };
     builder.filter(None, level).init();
 
-    let attest = AttestHiffy::new(args.interface);
+    let attest = <dyn Attest>::new(args.interface)?;
 
     match args.command {
         AttestCommand::Attest { nonce } => {
@@ -219,10 +239,10 @@ fn main() -> Result<()> {
             // Use the directory provided by the caller to hold intermediate
             // files, or fall back to a temp dir.
             match work_dir {
-                Some(w) => verify(&attest, &ca_cert, self_signed, w)?,
+                Some(w) => verify(attest.as_ref(), &ca_cert, self_signed, w)?,
                 None => {
                     let work_dir = tempfile::tempdir()?;
-                    verify(&attest, &ca_cert, self_signed, work_dir)?
+                    verify(attest.as_ref(), &ca_cert, self_signed, work_dir)?
                 }
             };
         }
@@ -247,7 +267,7 @@ fn main() -> Result<()> {
 }
 
 fn verify<P: AsRef<Path>>(
-    attest: &AttestHiffy,
+    attest: &dyn Attest,
     ca_cert: &Option<PathBuf>,
     self_signed: bool,
     work_dir: P,
