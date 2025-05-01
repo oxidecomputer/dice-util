@@ -10,7 +10,7 @@ use dice_verifier::PkiPathSignatureVerifier;
 use env_logger::Builder;
 use hubpack::SerializedSize;
 use log::{info, warn, LevelFilter};
-use pem_rfc7468::{LineEnding, PemLabel};
+use pem_rfc7468::LineEnding;
 use std::{
     fmt::{self, Debug},
     fs::{self, File},
@@ -66,46 +66,15 @@ enum AttestCommand {
         #[clap(env)]
         nonce: PathBuf,
     },
-    /// Get the length in bytes of attestations.
-    AttestLen,
-    /// Get a certificate from the Attest task.
-    Cert {
-        /// Target encoding for certificate.
-        #[clap(long, env, default_value_t = Encoding::Pem)]
-        encoding: Encoding,
-
-        /// Index of certificate in certificate chain.
-        #[clap(env)]
-        index: u32,
-    },
     /// Get the full cert chain from the RoT encoded per RFC 6066 (PKI path)
     CertChain,
-    /// Get the length of the certificate chain that ties the key used by the
-    /// `Attest` task to sign attestations back to some PKI. This chain may be
-    /// self signed or will terminate at the intermediate before the root.
-    CertChainLen,
-    /// get the length of the certificate at the provided index.
-    CertLen {
-        /// Index of certificate in certificate chain.
-        #[clap(env)]
-        index: u32,
-    },
     /// Get the log of measurements recorded by the RoT.
     Log,
-    /// Get the length in bytes of the Log.
-    LogLen,
     /// Get the PlatformId string from the provided PkiPath
     PlatformId {
         /// Path to file holding the certificate chain / PkiPath
         #[clap(env)]
         cert_chain: PathBuf,
-    },
-    /// Report a measurement to the `Attest` task for recording in the
-    /// measurement log.
-    Record {
-        /// Path to file holding the digest to record
-        #[clap(env)]
-        digest: PathBuf,
     },
     Verify {
         /// Path to file holding trust anchor for the associated PKI.
@@ -228,27 +197,6 @@ fn main() -> Result<()> {
             io::stdout().write_all(attestation.as_bytes())?;
             io::stdout().flush()?;
         }
-        AttestCommand::AttestLen => println!("{}", attest.attest_len()?),
-        AttestCommand::Cert { encoding, index } => {
-            let cert_len = attest.cert_len(index)?;
-            let mut out = vec![0u8; cert_len as usize];
-            attest.cert(index, &mut out)?;
-
-            let out = match encoding {
-                Encoding::Der => out,
-                Encoding::Pem => {
-                    let pem = pem_rfc7468::encode_string(
-                        Certificate::PEM_LABEL,
-                        LineEnding::default(),
-                        &out,
-                    )?;
-                    pem.as_bytes().to_vec()
-                }
-            };
-
-            io::stdout().write_all(&out)?;
-            io::stdout().flush()?;
-        }
         AttestCommand::CertChain => {
             let mut cert_chain = PkiPath::new();
 
@@ -268,10 +216,6 @@ fn main() -> Result<()> {
             }
             io::stdout().flush()?;
         }
-        AttestCommand::CertChainLen => println!("{}", attest.cert_chain_len()?),
-        AttestCommand::CertLen { index } => {
-            println!("{}", attest.cert_len(index)?)
-        }
         AttestCommand::Log => {
             let log_len = attest.log_len()?;
             let mut log = vec![0u8; log_len as usize];
@@ -285,7 +229,6 @@ fn main() -> Result<()> {
             io::stdout().write_all(log.as_bytes())?;
             io::stdout().flush()?;
         }
-        AttestCommand::LogLen => println!("{}", attest.log_len()?),
         AttestCommand::PlatformId { cert_chain } => {
             let cert_chain = fs::read(cert_chain)?;
             let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
@@ -297,10 +240,6 @@ fn main() -> Result<()> {
                 .map_err(|_| anyhow!("Invalid PlatformId"))?;
 
             println!("{platform_id}");
-        }
-        AttestCommand::Record { digest } => {
-            let digest = fs::read(digest)?;
-            attest.record(&digest)?;
         }
         AttestCommand::Verify {
             ca_cert,
