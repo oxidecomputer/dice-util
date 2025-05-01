@@ -55,9 +55,15 @@ $ cargo run --package verifier-cli -- log > log.json
 ```
 
 ### Verify the Attestation
+NOTE: The following awk script extracts the leaf from the cert chain obtained [above](#get-the-cert-chain).
+This is the certiticate for the attestation signing key.
 
 ```shell
-$ cargo run --package verifier-cli -- cert 0 > alias.pem
+$ awk '\
+BEGIN { done = 0 } \
+{ if (done != 1) print $0 } \
+/-----END CERTIFICATE-----/ { done = 1 } \
+' cert-chain.pem > alias.pem
 $ cargo run --package verifier-cli -- verify-attestation --alias-cert alias.pem --log log.json --nonce nonce.bin attestation.json
 ```
 
