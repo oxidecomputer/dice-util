@@ -26,7 +26,7 @@ pub mod hiffy;
 #[cfg(feature = "ipcc")]
 pub mod ipcc;
 
-use hiffy::AttestHiffy;
+use hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
 use ipcc::AttestIpcc;
 
@@ -41,8 +41,9 @@ impl dyn Attest {
         match interface {
             #[cfg(feature = "ipcc")]
             Interface::Ipcc => Ok(Box::new(AttestIpcc::new()?)),
-            Interface::Rot | Interface::Sprot => {
-                Ok(Box::new(AttestHiffy::new(interface)))
+            Interface::Rot => Ok(Box::new(AttestHiffy::new(AttestTask::Rot))),
+            Interface::Sprot => {
+                Ok(Box::new(AttestHiffy::new(AttestTask::Sprot)))
             }
         }
     }
@@ -146,17 +147,6 @@ pub enum Interface {
     Ipcc,
     Rot,
     Sprot,
-}
-
-impl fmt::Display for Interface {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            #[cfg(feature = "ipcc")]
-            Interface::Ipcc => write!(f, "Ipcc"),
-            Interface::Rot => write!(f, "Attest"),
-            Interface::Sprot => write!(f, "SpRot"),
-        }
-    }
 }
 
 /// An enum of the possible certificate encodings.
