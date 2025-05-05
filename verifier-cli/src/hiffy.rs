@@ -2,13 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{Attest, Interface};
+use crate::Attest;
 use anyhow::{anyhow, Context, Result};
 use attest_data::{Attestation, Log, Nonce};
 use hubpack::SerializedSize;
 use log::{debug, info};
 use sha3::{Digest, Sha3_256};
 use std::{
+    fmt,
     io::{Read, Write},
     path::Path,
     process::{Command, Output},
@@ -29,20 +30,38 @@ pub trait AttestSprot {
     fn record(&self, data: &[u8]) -> Result<()>;
 }
 
+/// The `AttestHiffy` type can speak to the `Attest` tasks eaither the RoT
+/// directly or through SpRot task in the SP. This enum is used to control
+/// which.
+#[derive(Clone, Debug)]
+pub enum AttestTask {
+    Rot,
+    Sprot,
+}
+
+/// We use the `Display` trait to produce the string representation of the
+/// attest task name. In the RoT the task is called `Attest`, in the SP the
+/// Attest API is exposed by the task named `SpRot`.
+impl fmt::Display for AttestTask {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Rot => write!(f, "Attest"),
+            Self::Sprot => write!(f, "SpRot"),
+        }
+    }
+}
+
 /// A type to simplify the execution of the HIF operations exposed by the RoT
 /// Attest task.
 pub struct AttestHiffy {
-    /// The Attest task can be reached either directly through the `hiffy`
-    /// task in the RoT or through the `Sprot` task in the Sp. This member
-    /// determins which is used.
-    interface: Interface,
+    task: AttestTask,
 }
 
 impl AttestHiffy {
     const CHUNK_SIZE: usize = 256;
 
-    pub fn new(interface: Interface) -> Self {
-        AttestHiffy { interface }
+    pub fn new(task: AttestTask) -> Self {
+        AttestHiffy { task }
     }
 
     /// `humility` returns u32s as hex strings prefixed with "0x". This
@@ -95,7 +114,7 @@ impl AttestHiffy {
 
         cmd.arg("hiffy");
         cmd.arg("--call");
-        cmd.arg(format!("{}.{}", self.interface, op));
+        cmd.arg(format!("{}.{}", self.task, op));
         if let Some(a) = args {
             cmd.arg(format!("--arguments={a}"));
         }
@@ -118,7 +137,7 @@ impl AttestHiffy {
         let mut cmd = Command::new("humility");
 
         cmd.arg("hiffy");
-        cmd.arg(format!("--call={}.{}", self.interface, op));
+        cmd.arg(format!("--call={}.{}", self.task, op));
         cmd.arg(format!("--num={length}"));
         cmd.arg(format!("--output={}", output.to_string_lossy()));
         if let Some(args) = args {
@@ -265,7 +284,7 @@ impl AttestSprot for AttestHiffy {
         let mut cmd = Command::new("humility");
 
         cmd.arg("hiffy");
-        cmd.arg(format!("--call={}.record", self.interface));
+        cmd.arg(format!("--call={}.record", self.task));
         cmd.arg(format!("--input={}", tmp.path().to_string_lossy()));
         cmd.arg("--arguments=algorithm=Sha3_256");
         debug!("executing command: {:?}", cmd);
