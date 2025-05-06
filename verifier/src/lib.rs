@@ -42,7 +42,7 @@ impl TryFrom<&Certificate> for Ed25519CertVerifier {
 
     /// Create a `CertVerifier` from the provided `Certificate`
     fn try_from(certificate: &Certificate) -> Result<Self> {
-        use ed25519_dalek::{VerifyingKey, PUBLIC_KEY_LENGTH};
+        use ed25519_dalek::VerifyingKey;
 
         let spki = &certificate.tbs_certificate.subject_public_key_info;
         if spki.algorithm.oid != ID_ED_25519 {
@@ -53,12 +53,11 @@ impl TryFrom<&Certificate> for Ed25519CertVerifier {
             return Err(anyhow!("UnexpectedParameters"));
         }
 
-        let verifying_key: [u8; PUBLIC_KEY_LENGTH] = spki
+        let key_bytes = spki
             .subject_public_key
             .as_bytes()
-            .ok_or_else(|| anyhow!("Invalid / unaligned public key"))?
-            .try_into()?;
-        let verifying_key = VerifyingKey::from_bytes(&verifying_key)?;
+            .ok_or_else(|| anyhow!("Invalid / unaligned public key"))?;
+        let verifying_key = VerifyingKey::try_from(key_bytes)?;
 
         Ok(Self { verifying_key })
     }
