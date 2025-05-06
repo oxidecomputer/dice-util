@@ -104,33 +104,47 @@ impl CertVerifier for Ed25519CertVerifier {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum P384CertVerifierError {
+    #[error("Key from cert is not ID_ECC_PUBLIC_KEY")]
+    WrongKeyType,
+    #[error("Missing expected key parameter: SECP_384_R_1")]
+    MissingParam,
+    #[error("Key parameter isn't an ObjectIdentifier")]
+    ParamNotOid(#[from] x509_cert::der::Error),
+    #[error("Key params are not SECP_384_R_1")]
+    WrongKeyParam,
+    #[error("Signature Error {0}")]
+    VerifyingKeyFromSpki(#[from] x509_cert::spki::Error),
+}
+
 /// CertVerifier for verifying p384 signatures on `Certificate`s.
 struct P384CertVerifier {
     verifying_key: p384::ecdsa::VerifyingKey,
 }
 
 impl TryFrom<&Certificate> for P384CertVerifier {
-    type Error = anyhow::Error;
+    type Error = P384CertVerifierError;
 
     /// Create a `CertVerifier` from the provided `Certificate`
-    fn try_from(certificate: &Certificate) -> Result<Self> {
+    fn try_from(certificate: &Certificate) -> Result<Self, Self::Error> {
         use const_oid::db::rfc5912::SECP_384_R_1;
         use p384::ecdsa::VerifyingKey;
         use x509_cert::{der::referenced::OwnedToRef, spki::ObjectIdentifier};
 
         let spki = &certificate.tbs_certificate.subject_public_key_info;
         if spki.algorithm.oid != ID_EC_PUBLIC_KEY {
-            return Err(anyhow!("UnsupportedAlgorithm"));
+            return Err(Self::Error::WrongKeyType);
         }
 
         let param = spki
             .algorithm
             .parameters
             .as_ref()
-            .ok_or_else(|| anyhow!("MissingParams"))?;
+            .ok_or(Self::Error::MissingParam)?;
         let oid: ObjectIdentifier = param.decode_as()?;
         if oid != SECP_384_R_1 {
-            return Err(anyhow!("UnsupportedParameter"));
+            return Err(Self::Error::WrongKeyParam);
         }
 
         let verifying_key = VerifyingKey::try_from(spki.owned_to_ref())?;
