@@ -531,7 +531,6 @@ dependencies = [
  "env_logger",
  "log",
  "p384",
- "pem-rfc7468",
  "sha3",
  "x509-cert",
 ]
