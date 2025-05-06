@@ -103,10 +103,7 @@ impl TryFrom<&Certificate> for P384CertVerifier {
     fn try_from(certificate: &Certificate) -> Result<Self> {
         use const_oid::db::rfc5912::SECP_384_R_1;
         use p384::ecdsa::VerifyingKey;
-        use x509_cert::{
-            der::{referenced::OwnedToRef, Tag, Tagged},
-            spki::ObjectIdentifier,
-        };
+        use x509_cert::{der::referenced::OwnedToRef, spki::ObjectIdentifier};
 
         let spki = &certificate.tbs_certificate.subject_public_key_info;
         if spki.algorithm.oid != ID_EC_PUBLIC_KEY {
@@ -118,10 +115,6 @@ impl TryFrom<&Certificate> for P384CertVerifier {
             .parameters
             .as_ref()
             .ok_or_else(|| anyhow!("MissingParams"))?;
-        if param.tag() != Tag::ObjectIdentifier {
-            return Err(anyhow!("UnsupportedTag"));
-        }
-
         let oid: ObjectIdentifier = param.decode_as()?;
         if oid != SECP_384_R_1 {
             return Err(anyhow!("UnsupportedParameter"));
