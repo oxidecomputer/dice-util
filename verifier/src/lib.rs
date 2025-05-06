@@ -66,7 +66,7 @@ impl TryFrom<&Certificate> for Ed25519CertVerifier {
 impl CertVerifier for Ed25519CertVerifier {
     /// Verify the ed25519 signature on the `Certificate` provided
     fn verify(&self, cert: &Certificate) -> Result<()> {
-        use ed25519_dalek::{Signature, Verifier, SIGNATURE_LENGTH};
+        use ed25519_dalek::{Signature, Verifier};
 
         let algorithm = &cert.signature_algorithm;
         if algorithm.oid != ID_ED_25519 {
@@ -77,12 +77,11 @@ impl CertVerifier for Ed25519CertVerifier {
             return Err(anyhow!("UnexpectedParams"));
         }
 
-        let signature: [u8; SIGNATURE_LENGTH] = cert
+        let signature = cert
             .signature
             .as_bytes()
-            .ok_or_else(|| anyhow!("Invalid / unaligned signature"))?
-            .try_into()?;
-        let signature = Signature::from_bytes(&signature);
+            .ok_or_else(|| anyhow!("Invalid / unaligned signature"))?;
+        let signature = Signature::try_from(signature)?;
 
         let message = cert.tbs_certificate.to_der()?;
 
