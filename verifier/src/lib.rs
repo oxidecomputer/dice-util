@@ -144,7 +144,7 @@ impl CertVerifier for P384CertVerifier {
             return Err(anyhow!("Invalid signature algorithm for verifier"));
         }
 
-        let signature: &[u8] = cert
+        let signature = cert
             .signature
             .as_bytes()
             .ok_or_else(|| anyhow!("Invalid / unaligned signature"))?;
