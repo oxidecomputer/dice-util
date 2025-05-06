@@ -6,6 +6,7 @@ use anyhow::{anyhow, Result};
 use attest_data::{Attestation, Nonce};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
 use sha3::{Digest, Sha3_256};
+use thiserror::Error;
 use x509_cert::{der::Encode, Certificate, PkiPath};
 
 /// Unit-like struct with a single non-member associated function. This
@@ -32,31 +33,43 @@ trait CertVerifier {
     fn verify(&self, cert: &Certificate) -> Result<()>;
 }
 
+#[derive(Debug, Error)]
+pub enum Ed25519CertVerifierError {
+    #[error("Spki public key type is not Ed25519")]
+    WrongKeyType,
+    #[error("Public key has params but Ed25519 keys have none")]
+    UnexpectedParam,
+    #[error("Malformed public key")]
+    MalformedPublicKey,
+    #[error("Failed to create verifier from bytes: {0}")]
+    VerifyingKeyFromBytes(#[from] ed25519_dalek::SignatureError),
+}
+
 /// CertVerifier for verifying ed25519 signatures on `Certificate`s.
 struct Ed25519CertVerifier {
     verifying_key: ed25519_dalek::VerifyingKey,
 }
 
 impl TryFrom<&Certificate> for Ed25519CertVerifier {
-    type Error = anyhow::Error;
+    type Error = Ed25519CertVerifierError;
 
     /// Create a `CertVerifier` from the provided `Certificate`
-    fn try_from(certificate: &Certificate) -> Result<Self> {
+    fn try_from(certificate: &Certificate) -> Result<Self, Self::Error> {
         use ed25519_dalek::VerifyingKey;
 
         let spki = &certificate.tbs_certificate.subject_public_key_info;
         if spki.algorithm.oid != ID_ED_25519 {
-            return Err(anyhow!("IncompatibleCertificate"));
+            return Err(Self::Error::WrongKeyType);
         }
 
         if spki.algorithm.parameters.is_some() {
-            return Err(anyhow!("UnexpectedParameters"));
+            return Err(Self::Error::UnexpectedParam);
         }
 
         let key_bytes = spki
             .subject_public_key
             .as_bytes()
-            .ok_or_else(|| anyhow!("Invalid / unaligned public key"))?;
+            .ok_or_else(|| Self::Error::MalformedPublicKey)?;
         let verifying_key = VerifyingKey::try_from(key_bytes)?;
 
         Ok(Self { verifying_key })

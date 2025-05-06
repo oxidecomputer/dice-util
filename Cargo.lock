@@ -512,6 +512,7 @@ dependencies = [
  "log",
  "p384",
  "sha3",
+ "thiserror 2.0.12",
  "x509-cert",
 ]
 
