@@ -26,11 +26,27 @@ impl CertSigVerifierFactory {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum CertVerifierError {
+    #[error("Wrong signature type for veriying key")]
+    SignatureType,
+    #[error("Signature algorithm contains unexpected parameters")]
+    UnexpectedParams,
+    #[error("Signature is malformed")]
+    MalformedSignature,
+    #[error("Failed to convert bytes to Signature")]
+    SignatureConversion(Box<dyn std::error::Error + Send + Sync + 'static>),
+    #[error("Message extraction failed")]
+    Message(Box<dyn std::error::Error + Send + Sync + 'static>),
+    #[error("Signature verification failed")]
+    Signature(Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
 /// This trait is intended to encapsulate arbitrary certificate verification
 /// tasks.
 trait CertVerifier {
     /// Verify some property of the `Certificate` provided.
-    fn verify(&self, cert: &Certificate) -> Result<()>;
+    fn verify(&self, cert: &Certificate) -> Result<(), CertVerifierError>;
 }
 
 #[derive(Debug, Error)]
@@ -78,29 +94,33 @@ impl TryFrom<&Certificate> for Ed25519CertVerifier {
 
 impl CertVerifier for Ed25519CertVerifier {
     /// Verify the ed25519 signature on the `Certificate` provided
-    fn verify(&self, cert: &Certificate) -> Result<()> {
+    fn verify(&self, cert: &Certificate) -> Result<(), CertVerifierError> {
         use ed25519_dalek::{Signature, Verifier};
 
         let algorithm = &cert.signature_algorithm;
         if algorithm.oid != ID_ED_25519 {
-            return Err(anyhow!("Invalid signature algorithm for verifier"));
+            return Err(CertVerifierError::SignatureType);
         }
 
         if algorithm.parameters.is_some() {
-            return Err(anyhow!("UnexpectedParams"));
+            return Err(CertVerifierError::UnexpectedParams);
         }
 
         let signature = cert
             .signature
             .as_bytes()
-            .ok_or_else(|| anyhow!("Invalid / unaligned signature"))?;
-        let signature = Signature::try_from(signature)?;
+            .ok_or(CertVerifierError::MalformedSignature)?;
+        let signature = Signature::try_from(signature)
+            .map_err(|e| CertVerifierError::SignatureConversion(Box::new(e)))?;
 
-        let message = cert.tbs_certificate.to_der()?;
+        let message = cert
+            .tbs_certificate
+            .to_der()
+            .map_err(|e| CertVerifierError::Message(Box::new(e)))?;
 
         self.verifying_key
             .verify(&message, &signature)
-            .map_err(|e| anyhow!("signature verification failed: {}", e))
+            .map_err(|e| CertVerifierError::Signature(Box::new(e)))
     }
 }
 
@@ -155,26 +175,34 @@ impl TryFrom<&Certificate> for P384CertVerifier {
 
 impl CertVerifier for P384CertVerifier {
     /// Verify the ed25519 signature on the `Certificate` provided
-    fn verify(&self, cert: &Certificate) -> Result<()> {
+    fn verify(&self, cert: &Certificate) -> Result<(), CertVerifierError> {
         use const_oid::db::rfc5912::ECDSA_WITH_SHA_384;
         use p384::ecdsa::{signature::Verifier, Signature};
 
         let algorithm = &cert.signature_algorithm;
         if algorithm.oid != ECDSA_WITH_SHA_384 {
-            return Err(anyhow!("Invalid signature algorithm for verifier"));
+            return Err(CertVerifierError::SignatureType);
+        }
+
+        if algorithm.parameters.is_some() {
+            return Err(CertVerifierError::UnexpectedParams);
         }
 
         let signature = cert
             .signature
             .as_bytes()
-            .ok_or_else(|| anyhow!("Invalid / unaligned signature"))?;
-        let signature = Signature::from_der(signature)?;
+            .ok_or(CertVerifierError::MalformedSignature)?;
+        let signature = Signature::from_der(signature)
+            .map_err(|e| CertVerifierError::SignatureConversion(Box::new(e)))?;
 
-        let message = cert.tbs_certificate.to_der()?;
+        let message = cert
+            .tbs_certificate
+            .to_der()
+            .map_err(|e| CertVerifierError::Message(Box::new(e)))?;
 
         self.verifying_key
             .verify(&message, &signature)
-            .map_err(|e| anyhow!("signature verification failed: {}", e))
+            .map_err(|e| CertVerifierError::Signature(Box::new(e)))
     }
 }
 
