@@ -9,6 +9,16 @@ use sha3::{Digest, Sha3_256};
 use thiserror::Error;
 use x509_cert::{der::Encode, Certificate, PkiPath};
 
+#[derive(Debug, Error)]
+pub enum CertSigVerifierFactoryError {
+    #[error("Failed to create verifier from Ed25519 public key")]
+    Ed25519CertVerifierError(#[from] Ed25519CertVerifierError),
+    #[error("Failed to create verifier from P384 public key")]
+    P384CertVerifierError(#[from] P384CertVerifierError),
+    #[error("Cannot create verifier for unsupported algorithm")]
+    UnsupportedAlgorithm,
+}
+
 /// Unit-like struct with a single non-member associated function. This
 /// struct should never be instantiated. Just call the one associated
 /// function.
@@ -17,11 +27,13 @@ struct CertSigVerifierFactory;
 impl CertSigVerifierFactory {
     /// Get a CertVerifier suitable for verifying the signatures on
     /// `Certificates` from the certificate provided.
-    fn get_verifier(cert: &Certificate) -> Result<Box<dyn CertVerifier>> {
+    fn get_verifier(
+        cert: &Certificate,
+    ) -> Result<Box<dyn CertVerifier>, CertSigVerifierFactoryError> {
         match cert.tbs_certificate.subject_public_key_info.algorithm.oid {
             ID_ED_25519 => Ok(Box::new(Ed25519CertVerifier::try_from(cert)?)),
             ID_EC_PUBLIC_KEY => Ok(Box::new(P384CertVerifier::try_from(cert)?)),
-            _ => Err(anyhow!("UnsupportedAlgorithm")),
+            _ => Err(CertSigVerifierFactoryError::UnsupportedAlgorithm),
         }
     }
 }
