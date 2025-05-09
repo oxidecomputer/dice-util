@@ -176,8 +176,8 @@ impl PkiPathSignatureVerifier {
     /// NOTE: If `root` is `None` then the provided cert chain must terminate
     /// in a self-signed certificate.
     pub fn verify(&self, pki_path: &PkiPath) -> Result<()> {
-        if pki_path.is_empty() {
-            return Err(anyhow!("EmptyPkiPath"));
+        if pki_path.len() < 2 {
+            return Err(anyhow!("verification requires PkiPath of at least 2"));
         }
 
         self._verify(&pki_path[0], &pki_path[1..])
