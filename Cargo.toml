@@ -11,32 +11,32 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-anyhow = { version = "1.0.97", default-features = false }
+anyhow = { version = "1.0.98", default-features = false }
 attest.path = "attest"
-chrono = { version = "0.4.40", default-features=false }
-clap = { version = "4.5.31", features = ["derive", "env"] }
+chrono = { version = "0.4.41", default-features=false }
+clap = { version = "4.5.38", features = ["derive", "env"] }
 const-oid = { version = "0.9.6", default-features = false }
 corncobs = "0.1"
 der = { version = "0.7.10", default-features = false }
-derive_more = "0.99"
+derive_more = "0.99.20"
 ecdsa = { version = "0.16", default-features = false }
 ed25519-dalek = { version = "2.1", default-features = false }
-env_logger = { version = "0.11.6", default-features = false }
-getrandom = "0.3.1"
+env_logger = { version = "0.11.8", default-features = false }
+getrandom = "0.3.3"
 hex.version = "0.4"
 hubpack = "0.1"
 log = { version = "0.4.26", features = ["std"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "0.7.0", default-features = false }
 ron = "0.8"
-rpassword = "7.3.1"
+rpassword = "7.4.0"
 salty = { version = "0.3", default-features = false }
-serde = { version = "1.0.218", default-features = false }
+serde = { version = "1.0.219", default-features = false }
 serde-big-array = "0.5.1"
 serde_json = { version = "1.0.140", features = ["std", "alloc"] }
 serde_with = { version = "3.12.0", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
-sha2 = "0.10.8"
+sha2 = "0.10.9"
 sha3 = { version = "0.10.8", default-features = false }
 static_assertions = { version = "1.1.0", default-features = false }
 string-error = "0.1"
@@ -44,5 +44,5 @@ tempfile = { version = "3.17.1", default-features = false }
 thiserror = "2.0.12"
 x509-cert = { version = "0.2.5", default-features = false }
 yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs", branch="v0.42.0-with-audit", features = ["default", "usb"] }
-zerocopy = "0.8.21"
+zerocopy = "0.8.25"
 zeroize = { version = "1.8.1", default-features = false }
