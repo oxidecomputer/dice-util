@@ -167,7 +167,7 @@ impl MfgDriver {
                 Ok(())
             }
             _ => {
-                warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
+                warn!("expected Ack, got unexpected message: \"{resp:?}\"");
                 Err(Error::WrongMsg(resp.to_string()).into())
             }
         }
@@ -261,7 +261,7 @@ impl MfgDriver {
             // given a serial number yet.
             MfgMessage::Nak => return Err(Error::NoPlatformId.into()),
             _ => {
-                warn!("requested CSR, got unexpected response: \"{:?}\"", recv);
+                warn!("requested CSR, got unexpected response: \"{recv:?}\"");
                 return Err(Error::WrongMsg(recv.to_string()).into());
             }
         };
@@ -380,7 +380,7 @@ impl MfgDriver {
                 }
             }
             _ => {
-                warn!("expected Ack, got unexpected message: \"{:?}\"", resp);
+                warn!("expected Ack, got unexpected message: \"{resp:?}\"");
                 Err(Error::WrongMsg(resp.to_string()).into())
             }
         }
@@ -431,7 +431,7 @@ impl MfgDriver {
                     }
                 }
                 Err(e) => {
-                    warn!("read_all failed with error: \"{}\"", e);
+                    warn!("read_all failed with error: \"{e}\"");
                     return Err(e.into());
                 }
             }
@@ -588,7 +588,7 @@ impl CertSigner {
             cmd.arg("-extensions").arg(section);
         }
 
-        info!("cmd: {:?}", cmd);
+        info!("cmd: {cmd:?}");
 
         let output = cmd.output()?;
 
@@ -604,12 +604,12 @@ impl CertSigner {
 
         info!("getting log entries");
         let entries = client.get_log_entries()?;
-        info!("LogEntries: {:#?}", entries);
+        info!("LogEntries: {entries:#?}");
 
         use chrono::{SecondsFormat, Utc};
 
         let now = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-        info!("now: {}", now);
+        info!("now: {now}");
         fs::write(
             format!("{now}.audit.json"),
             serde_json::to_string(&entries)?,
@@ -663,7 +663,7 @@ pub fn get_log_entries(auth_id: Id) -> Result<u16> {
 
 pub fn set_log_index(auth_id: Id, index: u16) -> Result<()> {
     let client = get_client(auth_id)?;
-    info!("setting log index to: {}", index);
+    info!("setting log index to: {index}");
 
     Ok(client.set_log_index(index)?)
 }
