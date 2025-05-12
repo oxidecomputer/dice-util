@@ -434,7 +434,7 @@ fn main() -> Result<()> {
                     temp_dir.path().join("csr.pem"),
                 )
             };
-            let output_dir = work_dir.unwrap_or_else(|| temp_dir.into_path());
+            let output_dir = work_dir.unwrap_or_else(|| temp_dir.keep());
 
             driver.get_csr(Some(&csr))?;
             if !dice_mfg::check_csr(&csr, &platform_id)? {
