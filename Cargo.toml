@@ -18,7 +18,6 @@ clap = { version = "4.5.38", features = ["derive", "env"] }
 const-oid = { version = "0.9.6", default-features = false }
 corncobs = "0.1"
 der = { version = "0.7.10", default-features = false }
-derive_more = "0.99.20"
 ecdsa = { version = "0.16", default-features = false }
 ed25519-dalek = { version = "2.1", default-features = false }
 env_logger = { version = "0.11.8", default-features = false }
