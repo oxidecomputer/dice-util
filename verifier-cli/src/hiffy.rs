@@ -76,11 +76,11 @@ impl AttestHiffy {
             let output = String::from_utf8_lossy(&output.stdout);
             let output: Vec<&str> = output.trim().split(' ').collect();
             let output = output[output.len() - 1];
-            debug!("output: {}", output);
+            debug!("output: {output}");
 
             let (output, radix) = match output.strip_prefix("0x") {
                 Some(s) => {
-                    debug!("prefix stripped: \"{}\"", s);
+                    debug!("prefix stripped: \"{s}\"");
                     (s, 16)
                 }
                 None => (output, 10),
@@ -118,7 +118,7 @@ impl AttestHiffy {
         if let Some(a) = args {
             cmd.arg(format!("--arguments={a}"));
         }
-        debug!("executing command: {:?}", cmd);
+        debug!("executing command: {cmd:?}");
 
         let output = cmd.output()?;
         Self::u32_from_cmd_output(output)
@@ -147,7 +147,7 @@ impl AttestHiffy {
         if let Some(i) = input {
             cmd.arg(format!("--input={i}"));
         }
-        debug!("executing command: {:?}", cmd);
+        debug!("executing command: {cmd:?}");
 
         let output = cmd.output()?;
         if output.status.success() {
@@ -275,7 +275,7 @@ impl AttestSprot for AttestHiffy {
     /// Record the sha3 hash of a file.
     fn record(&self, data: &[u8]) -> Result<()> {
         let digest = Sha3_256::digest(data);
-        info!("Recording measurement: {:?}", digest);
+        info!("Recording measurement: {digest:?}");
         let mut tmp = NamedTempFile::new()?;
         if digest.as_slice().len() != tmp.write(digest.as_slice())? {
             return Err(anyhow!("failed to write all data to disk"));
@@ -287,7 +287,7 @@ impl AttestSprot for AttestHiffy {
         cmd.arg(format!("--call={}.record", self.task));
         cmd.arg(format!("--input={}", tmp.path().to_string_lossy()));
         cmd.arg("--arguments=algorithm=Sha3_256");
-        debug!("executing command: {:?}", cmd);
+        debug!("executing command: {cmd:?}");
 
         let output = cmd.output()?;
         if output.status.success() {

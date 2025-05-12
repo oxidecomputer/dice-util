@@ -25,7 +25,7 @@ env_logger = { version = "0.11.8", default-features = false }
 getrandom = "0.3.3"
 hex.version = "0.4"
 hubpack = "0.1"
-log = { version = "0.4.26", features = ["std"] }
+log = { version = "0.4.27", features = ["std"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "0.7.0", default-features = false }
 ron = "0.8"
