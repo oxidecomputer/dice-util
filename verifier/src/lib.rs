@@ -3,8 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use anyhow::{anyhow, Result};
-use attest_data::{Attestation, Nonce};
+use attest_data::{Attestation, Log, Nonce};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
+use hubpack::SerializedSize;
 use sha3::{Digest, Sha3_256};
 use thiserror::Error;
 use x509_cert::{der::Encode, Certificate, PkiPath};
@@ -306,7 +307,7 @@ impl PkiPathSignatureVerifier {
 pub fn verify_attestation(
     alias: &Certificate,
     attestation: &Attestation,
-    log: &[u8],
+    log: &Log,
     nonce: &Nonce,
 ) -> Result<()> {
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
@@ -318,6 +319,11 @@ pub fn verify_attestation(
     let signature = match attestation {
         Attestation::Ed25519(s) => Signature::from_bytes(&s.0),
     };
+
+    let mut buf = vec![0u8; Log::MAX_SIZE];
+    hubpack::serialize(&mut buf, log)
+        .map_err(|_| anyhow!("failed to serialize Log"))?;
+    let log = buf;
 
     // - message: the data that's signed by the RoT to produce an
     //   attestation `sha3_256(log | nonce)`
