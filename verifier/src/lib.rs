@@ -218,6 +218,17 @@ impl CertVerifier for P384CertVerifier {
     }
 }
 
+/// Errors produced by the PkiPathSignatureVerifier
+#[derive(Debug, Error)]
+pub enum PkiPathSignatureVerifierError {
+    #[error("Failed to get signature verifier for certificate: {0}")]
+    Unsupported(#[from] CertSigVerifierFactoryError),
+    #[error("The PkiPath provided must be length 2 or more")]
+    PathTooShort,
+    #[error("Signature verification failed: {0}")]
+    VerifierFailed(#[from] CertVerifierError),
+}
+
 /// This struct encapsulates the signature verification process for a PkiPath.
 #[derive(Debug)]
 pub struct PkiPathSignatureVerifier {
@@ -229,7 +240,9 @@ impl PkiPathSignatureVerifier {
     /// `Certificate` acting as the root / trust anchor. If `None` is
     /// provided then the `PkiPath`s verified by this verifier must be self-
     /// signed.
-    pub fn new(root_cert: Option<Certificate>) -> Result<Self> {
+    pub fn new(
+        root_cert: Option<Certificate>,
+    ) -> Result<Self, PkiPathSignatureVerifierError> {
         if let Some(cert) = &root_cert {
             let verifier = CertSigVerifierFactory::get_verifier(cert)?;
             // verify root cert before using it
@@ -242,12 +255,15 @@ impl PkiPathSignatureVerifier {
     /// Iterate over the provided PkiPath verifying the signature chain.
     /// NOTE: If `root` is `None` then the provided cert chain must terminate
     /// in a self-signed certificate.
-    pub fn verify(&self, pki_path: &PkiPath) -> Result<()> {
-        if pki_path.len() < 2 {
-            return Err(anyhow!("verification requires PkiPath of at least 2"));
+    pub fn verify(
+        &self,
+        pki_path: &PkiPath,
+    ) -> Result<(), PkiPathSignatureVerifierError> {
+        if pki_path.len() >= 2 {
+            self._verify(&pki_path[0], &pki_path[1..])
+        } else {
+            Err(PkiPathSignatureVerifierError::PathTooShort)
         }
-
-        self._verify(&pki_path[0], &pki_path[1..])
     }
 
     /// This function is the work horse for verifying `PkiPath`s. It should
@@ -256,7 +272,7 @@ impl PkiPathSignatureVerifier {
         &self,
         certificate: &Certificate,
         pki_path: &[Certificate],
-    ) -> Result<()> {
+    ) -> Result<(), PkiPathSignatureVerifierError> {
         let verifier = if !pki_path.is_empty() {
             // common case: verify that the public key from `pki_path[0]`
             // can be use to verify the signature over `certificate`

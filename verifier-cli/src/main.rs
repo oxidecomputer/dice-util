@@ -515,5 +515,5 @@ fn verify_cert_chain(
     };
 
     let verifier = PkiPathSignatureVerifier::new(root)?;
-    verifier.verify(&cert_chain)
+    Ok(verifier.verify(&cert_chain)?)
 }
