@@ -1,6 +1,6 @@
 [package]
 name = "dice-verifier"
-version = "0.2.0"
+version = "0.3.0-pre0"
 edition = "2021"
 description = "a library crate implementing the attestation verifier"
 license = "MPL-2.0"
