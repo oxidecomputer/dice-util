@@ -481,7 +481,12 @@ fn verify_attestation(
     let alias = fs::read(alias_cert)?;
     let alias = Certificate::from_pem(&alias)?;
 
-    dice_verifier::verify_attestation(&alias, &attestation, &log, &nonce)
+    Ok(dice_verifier::verify_attestation(
+        &alias,
+        &attestation,
+        &log,
+        &nonce,
+    )?)
 }
 
 fn verify_cert_chain(

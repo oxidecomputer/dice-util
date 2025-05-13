@@ -6,7 +6,6 @@ description = "a library crate implementing the attestation verifier"
 license = "MPL-2.0"
 
 [dependencies]
-anyhow = { workspace = true, features = ["std"] }
 attest-data = { path = "../attest-data", features = ["std"] }
 const-oid.workspace = true
 ed25519-dalek = { workspace = true, features = ["std"] }
