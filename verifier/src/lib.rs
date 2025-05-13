@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use anyhow::{anyhow, Result};
 use attest_data::{Attestation, Log, Nonce};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
 use hubpack::SerializedSize;
@@ -304,12 +303,25 @@ impl PkiPathSignatureVerifier {
     }
 }
 
+/// Errors produced by the `verify_attestation` function
+#[derive(Debug, Error)]
+pub enum VerifyAttestationError {
+    #[error("Failed to hubpack the log: {0}")]
+    Serialize(#[from] hubpack::error::Error),
+    #[error("Alias public key is malformed: spki bit string has unused bits")]
+    OddKey,
+    #[error("Failed to construct VerifyingKey from alias public key")]
+    KeyConversion(ed25519_dalek::ed25519::Error),
+    #[error("Failed to construct VerifyingKey from alias public key")]
+    VerificationFailed(ed25519_dalek::ed25519::Error),
+}
+
 pub fn verify_attestation(
     alias: &Certificate,
     attestation: &Attestation,
     log: &Log,
     nonce: &Nonce,
-) -> Result<()> {
+) -> Result<(), VerifyAttestationError> {
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
     // To verify an attestation we need to extract and construct a few
@@ -321,8 +333,7 @@ pub fn verify_attestation(
     };
 
     let mut buf = vec![0u8; Log::MAX_SIZE];
-    hubpack::serialize(&mut buf, log)
-        .map_err(|_| anyhow!("failed to serialize Log"))?;
+    hubpack::serialize(&mut buf, log)?;
     let log = buf;
 
     // - message: the data that's signed by the RoT to produce an
@@ -337,8 +348,11 @@ pub fn verify_attestation(
         .subject_public_key_info
         .subject_public_key
         .as_bytes()
-        .ok_or_else(|| anyhow!("Invalid / unaligned public key"))?;
+        .ok_or(VerifyAttestationError::OddKey)?;
+    let alias = VerifyingKey::try_from(alias)
+        .map_err(VerifyAttestationError::KeyConversion)?;
 
-    let verifying_key = VerifyingKey::from_bytes(alias.try_into()?)?;
-    Ok(verifying_key.verify(message.as_slice(), &signature)?)
+    alias
+        .verify(message.as_slice(), &signature)
+        .map_err(VerifyAttestationError::VerificationFailed)
 }
