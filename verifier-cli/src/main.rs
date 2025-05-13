@@ -10,7 +10,6 @@ use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
 use dice_verifier::PkiPathSignatureVerifier;
 use env_logger::Builder;
-use hubpack::SerializedSize;
 use log::{info, warn, LevelFilter};
 use pem_rfc7468::LineEnding;
 use std::{
@@ -473,13 +472,8 @@ fn verify_attestation(
     let attestation = fs::read_to_string(attestation)?;
     let attestation: Attestation = serde_json::from_str(&attestation)?;
 
-    // deserialize Log from json & serialize to hubpacked bytes
     let log = fs::read_to_string(log)?;
     let log: Log = serde_json::from_str(&log)?;
-    let mut buf = vec![0u8; Log::MAX_SIZE];
-    hubpack::serialize(&mut buf, &log)
-        .map_err(|_| anyhow!("failed to serialize Log"))?;
-    let log = buf;
 
     let nonce = fs::read(nonce)?;
     let nonce = Nonce::try_from(nonce)?;
