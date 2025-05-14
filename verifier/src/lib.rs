@@ -231,17 +231,17 @@ pub enum PkiPathSignatureVerifierError {
 
 /// This struct encapsulates the signature verification process for a PkiPath.
 #[derive(Debug)]
-pub struct PkiPathSignatureVerifier {
-    root_cert: Option<Certificate>,
+struct PkiPathSignatureVerifier<'a> {
+    root_cert: Option<&'a Certificate>,
 }
 
-impl PkiPathSignatureVerifier {
+impl<'a> PkiPathSignatureVerifier<'a> {
     /// Create a new `PkiPathSignatureVerifier` with the provided
     /// `Certificate` acting as the root / trust anchor. If `None` is
     /// provided then the `PkiPath`s verified by this verifier must be self-
     /// signed.
-    pub fn new(
-        root_cert: Option<Certificate>,
+    fn new(
+        root_cert: Option<&'a Certificate>,
     ) -> Result<Self, PkiPathSignatureVerifierError> {
         if let Some(cert) = &root_cert {
             let verifier = CertSigVerifierFactory::get_verifier(cert)?;
@@ -255,7 +255,7 @@ impl PkiPathSignatureVerifier {
     /// Iterate over the provided PkiPath verifying the signature chain.
     /// NOTE: If `root` is `None` then the provided cert chain must terminate
     /// in a self-signed certificate.
-    pub fn verify(
+    fn verify(
         &self,
         pki_path: &PkiPath,
     ) -> Result<(), PkiPathSignatureVerifierError> {
@@ -314,6 +314,13 @@ pub enum VerifyAttestationError {
     KeyConversion(ed25519_dalek::ed25519::Error),
     #[error("Failed to construct VerifyingKey from alias public key")]
     VerificationFailed(ed25519_dalek::ed25519::Error),
+}
+
+pub fn verify_cert_chain(
+    pki_path: &PkiPath,
+    root: Option<&Certificate>,
+) -> Result<(), PkiPathSignatureVerifierError> {
+    PkiPathSignatureVerifier::new(root)?.verify(pki_path)
 }
 
 pub fn verify_attestation(
