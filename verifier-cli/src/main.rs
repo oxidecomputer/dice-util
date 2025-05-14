@@ -8,7 +8,6 @@ use attest_data::{
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
-use dice_verifier::PkiPathSignatureVerifier;
 use env_logger::Builder;
 use log::{info, warn, LevelFilter};
 use pem_rfc7468::LineEnding;
@@ -513,6 +512,8 @@ fn verify_cert_chain(
         }
     };
 
-    let verifier = PkiPathSignatureVerifier::new(root)?;
-    Ok(verifier.verify(&cert_chain)?)
+    Ok(dice_verifier::verify_cert_chain(
+        &cert_chain,
+        root.as_ref(),
+    )?)
 }
