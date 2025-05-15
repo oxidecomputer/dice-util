@@ -8,6 +8,7 @@ use attest_data::{
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
+use dice_verifier::hiffy::{AttestHiffy, AttestTask};
 use env_logger::Builder;
 use log::{info, warn, LevelFilter};
 use pem_rfc7468::LineEnding;
@@ -27,7 +28,6 @@ pub mod hiffy;
 #[cfg(feature = "ipcc")]
 pub mod ipcc;
 
-use hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
 use ipcc::AttestIpcc;
 

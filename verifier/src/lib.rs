@@ -9,6 +9,8 @@ use sha3::{Digest, Sha3_256};
 use thiserror::Error;
 use x509_cert::{der::Encode, Certificate, PkiPath};
 
+pub mod hiffy;
+
 #[derive(Debug, Error)]
 pub enum CertSigVerifierFactoryError {
     #[error("Failed to create verifier from Ed25519 public key")]
