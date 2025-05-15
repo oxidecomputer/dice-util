@@ -5,11 +5,43 @@
 use attest_data::{Attestation, Log, Nonce};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
 use hubpack::SerializedSize;
+#[cfg(feature = "ipcc")]
+use libipcc::IpccError;
 use sha3::{Digest, Sha3_256};
 use thiserror::Error;
-use x509_cert::{der::Encode, Certificate, PkiPath};
+use x509_cert::{
+    der::{self, Encode},
+    Certificate, PkiPath,
+};
 
 pub mod hiffy;
+use hiffy::AttestHiffyError;
+
+#[cfg(feature = "ipcc")]
+pub mod ipcc;
+
+#[derive(Debug, Error)]
+pub enum AttestError {
+    #[error(transparent)]
+    Certificate(#[from] der::Error),
+    #[error(transparent)]
+    Deserialize(hubpack::Error),
+    #[error(transparent)]
+    Hiffy(#[from] AttestHiffyError),
+    #[error("failed to send ipcc message to RoT: {0}")]
+    HostToRot(attest_data::messages::HostToRotError),
+    #[cfg(feature = "ipcc")]
+    #[error(transparent)]
+    Ipcc(#[from] IpccError),
+    #[error(transparent)]
+    Serialize(hubpack::Error),
+}
+
+pub trait Attest {
+    fn get_measurement_log(&self) -> Result<Log, AttestError>;
+    fn get_certificates(&self) -> Result<PkiPath, AttestError>;
+    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError>;
+}
 
 #[derive(Debug, Error)]
 pub enum CertSigVerifierFactoryError {
