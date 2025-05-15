@@ -13,7 +13,6 @@ dice-mfg-msgs = { path = "../dice-mfg-msgs", features = ["std"] }
 ed25519-dalek = { workspace = true, features = ["std"] }
 env_logger.workspace = true
 hubpack.workspace = true
-libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "524eb8f125003dff50b9703900c6b323f00f9e1b", optional = true }
 log.workspace = true
 p384 = { workspace = true, default-features = true }
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
@@ -25,4 +24,4 @@ x509-cert = { workspace = true, default-features = true }
 serde_json.workspace = true
 
 [features]
-ipcc = ["libipcc"]
+ipcc = ["dice-verifier/ipcc"]

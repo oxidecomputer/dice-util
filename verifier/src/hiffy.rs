@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use attest_data::Nonce;
+use attest_data::{Attestation, Log, Nonce};
 use hubpack::SerializedSize;
 use sha3::{Digest, Sha3_256};
 use std::{
@@ -13,6 +13,9 @@ use std::{
 };
 use tempfile::NamedTempFile;
 use thiserror::Error;
+use x509_cert::{der::Decode, Certificate, PkiPath};
+
+use crate::{Attest, AttestError};
 
 /// This trait implements the hubris attestation API exposed by the `attest`
 /// task in the RoT and proxied through the `sprot` task in the SP.
@@ -289,5 +292,43 @@ impl AttestSprot for AttestHiffy {
         } else {
             Err(AttestHiffyError::ExitStatus(output.status))
         }
+    }
+}
+
+impl Attest for AttestHiffy {
+    fn get_measurement_log(&self) -> Result<Log, AttestError> {
+        let log_len = self.log_len()?;
+        let mut log = vec![0u8; log_len as usize];
+        self.log(&mut log)?;
+        let (log, _): (Log, _) =
+            hubpack::deserialize(&log).map_err(AttestError::Deserialize)?;
+
+        Ok(log)
+    }
+
+    fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+        let mut cert_chain = PkiPath::new();
+        for index in 0..self.cert_chain_len()? {
+            let cert_len = self.cert_len(index)?;
+            let mut cert = vec![0u8; cert_len as usize];
+            self.cert(index, &mut cert)?;
+
+            let cert = Certificate::from_der(&cert)?;
+
+            cert_chain.push(cert);
+        }
+
+        Ok(cert_chain)
+    }
+
+    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+        let attest_len = self.attest_len()?;
+        let mut out = vec![0u8; attest_len as usize];
+        AttestSprot::attest(self, nonce, &mut out)?;
+
+        let (attestation, _): (Attestation, _) =
+            hubpack::deserialize(&out).map_err(AttestError::Deserialize)?;
+
+        Ok(attestation)
     }
 }

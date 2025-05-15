@@ -11,9 +11,13 @@ const-oid.workspace = true
 ed25519-dalek = { workspace = true, features = ["std"] }
 env_logger.workspace = true
 hubpack.workspace = true
+libipcc = { workspace = true, optional = true }
 log.workspace = true
 p384 = { workspace = true, default-features = true }
 sha3.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 x509-cert = { workspace = true, default-features = true }
+
+[features]
+ipcc = ["libipcc"]
