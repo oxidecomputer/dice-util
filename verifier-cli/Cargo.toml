@@ -19,6 +19,7 @@ p384 = { workspace = true, default-features = true }
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
 sha3.workspace = true
 tempfile.workspace = true
+thiserror.workspace = true
 dice-verifier.path = "../verifier"
 x509-cert = { workspace = true, default-features = true }
 serde_json.workspace = true
