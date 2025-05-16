@@ -4,7 +4,8 @@
 
 use anyhow::{anyhow, Context, Result};
 use attest_data::{
-    Attestation, DiceTcbInfo, Log, Measurement, Nonce, DICE_TCB_INFO,
+    AttestDataError, Attestation, DiceTcbInfo, Log, Measurement, Nonce,
+    DICE_TCB_INFO,
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
@@ -24,8 +25,11 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
 };
+use thiserror::Error;
 use x509_cert::{
-    der::{Decode, DecodePem, DecodeValue, EncodePem, Header, SliceReader},
+    der::{
+        self, Decode, DecodePem, DecodeValue, EncodePem, Header, SliceReader,
+    },
     Certificate, PkiPath,
 };
 
@@ -313,16 +317,34 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Error)]
+pub enum MeasurementSetError {
+    #[error("failed to create reader from extension value: {0}")]
+    ExtensionDecode(der::Error),
+    #[error("failed to decode extension header: {0}")]
+    HeaderDecode(der::Error),
+    #[error("failed to decode TcbInfo extension: {0}")]
+    DiceTcbInfoDecode(der::Error),
+    #[error("failed to create Measurement from DiceTcbInfo extension: {0}")]
+    MeasurementConstruct(#[from] AttestDataError),
+}
+
 type MeasurementSet = HashSet<Measurement>;
 
 trait FromArtifacts {
-    fn from_artifacts(pki_path: &PkiPath, log: &Log) -> Result<Self>
+    fn from_artifacts(
+        pki_path: &PkiPath,
+        log: &Log,
+    ) -> Result<Self, MeasurementSetError>
     where
         Self: Sized;
 }
 
 impl FromArtifacts for MeasurementSet {
-    fn from_artifacts(pki_path: &PkiPath, log: &Log) -> Result<Self> {
+    fn from_artifacts(
+        pki_path: &PkiPath,
+        log: &Log,
+    ) -> Result<Self, MeasurementSetError> {
         let mut measurements = Self::new();
 
         for cert in pki_path {
@@ -334,21 +356,21 @@ impl FromArtifacts for MeasurementSet {
                         }
 
                         let mut reader =
-                            SliceReader::new(ext.extn_value.as_bytes())?;
+                            SliceReader::new(ext.extn_value.as_bytes())
+                                .map_err(
+                                    MeasurementSetError::ExtensionDecode,
+                                )?;
                         let header = Header::decode(&mut reader)
-                            .context("decode Extension header")?;
+                            .map_err(MeasurementSetError::HeaderDecode)?;
 
                         let tcb_info =
                             DiceTcbInfo::decode_value(&mut reader, header)
-                                .context(
-                                    "Decode DiceTcbInfo from DER reader",
+                                .map_err(
+                                    MeasurementSetError::DiceTcbInfoDecode,
                                 )?;
                         if let Some(fwid_vec) = &tcb_info.fwids {
                             for fwid in fwid_vec {
-                                let measurement = Measurement::try_from(fwid)
-                                    .context(
-                                    "Measurement from DiceTcbInfo Fwid",
-                                )?;
+                                let measurement = Measurement::try_from(fwid)?;
                                 measurements.insert(measurement);
                             }
                         }
