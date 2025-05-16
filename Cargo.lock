@@ -509,9 +509,11 @@ dependencies = [
  "ed25519-dalek",
  "env_logger",
  "hubpack",
+ "libipcc",
  "log",
  "p384",
  "sha3",
+ "tempfile",
  "thiserror 2.0.12",
  "x509-cert",
 ]
@@ -1505,13 +1507,13 @@ dependencies = [
  "ed25519-dalek",
  "env_logger",
  "hubpack",
- "libipcc",
  "log",
  "p384",
  "pem-rfc7468",
  "serde_json",
  "sha3",
  "tempfile",
+ "thiserror 2.0.12",
  "x509-cert",
 ]
 

@@ -24,6 +24,7 @@ env_logger = { version = "0.11.8", default-features = false }
 getrandom = "0.3.3"
 hex.version = "0.4"
 hubpack = "0.1"
+libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "524eb8f125003dff50b9703900c6b323f00f9e1b" }
 log = { version = "0.4.27", features = ["std"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "0.7.0", default-features = false }

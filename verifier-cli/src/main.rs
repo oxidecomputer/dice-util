@@ -8,7 +8,12 @@ use attest_data::{
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
-use dice_verifier::PkiPathSignatureVerifier;
+#[cfg(feature = "ipcc")]
+use dice_verifier::ipcc::AttestIpcc;
+use dice_verifier::{
+    hiffy::{AttestHiffy, AttestTask},
+    Attest,
+};
 use env_logger::Builder;
 use log::{info, warn, LevelFilter};
 use pem_rfc7468::LineEnding;
@@ -24,32 +29,14 @@ use x509_cert::{
     Certificate, PkiPath,
 };
 
-pub mod hiffy;
-#[cfg(feature = "ipcc")]
-pub mod ipcc;
-
-use hiffy::{AttestHiffy, AttestTask};
-#[cfg(feature = "ipcc")]
-use ipcc::AttestIpcc;
-
 type MeasurementCorpus = HashSet<Measurement>;
 
-pub trait Attest {
-    fn get_measurement_log(&self) -> Result<Log>;
-    fn get_certificates(&self) -> Result<PkiPath>;
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation>;
-}
-
-impl dyn Attest {
-    pub fn new(interface: Interface) -> Result<Box<dyn Attest>> {
-        match interface {
-            #[cfg(feature = "ipcc")]
-            Interface::Ipcc => Ok(Box::new(AttestIpcc::new()?)),
-            Interface::Rot => Ok(Box::new(AttestHiffy::new(AttestTask::Rot))),
-            Interface::Sprot => {
-                Ok(Box::new(AttestHiffy::new(AttestTask::Sprot)))
-            }
-        }
+fn get_attest(interface: Interface) -> Result<Box<dyn Attest>> {
+    match interface {
+        #[cfg(feature = "ipcc")]
+        Interface::Ipcc => Ok(Box::new(AttestIpcc::new()?)),
+        Interface::Rot => Ok(Box::new(AttestHiffy::new(AttestTask::Rot))),
+        Interface::Sprot => Ok(Box::new(AttestHiffy::new(AttestTask::Sprot))),
     }
 }
 
@@ -200,7 +187,7 @@ fn main() -> Result<()> {
     };
     builder.filter(None, level).init();
 
-    let attest = <dyn Attest>::new(args.interface)?;
+    let attest = get_attest(args.interface)?;
 
     match args.command {
         AttestCommand::Attest { nonce } => {
@@ -513,6 +500,8 @@ fn verify_cert_chain(
         }
     };
 
-    let verifier = PkiPathSignatureVerifier::new(root)?;
-    Ok(verifier.verify(&cert_chain)?)
+    Ok(dice_verifier::verify_cert_chain(
+        &cert_chain,
+        root.as_ref(),
+    )?)
 }

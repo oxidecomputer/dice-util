@@ -2,18 +2,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use anyhow::{anyhow, Result};
 use attest_data::{
     messages::{HostToRotCommand, RotToHost},
     Attestation, Log, Nonce,
 };
-use libipcc::IpccHandle;
+use libipcc::{IpccError, IpccHandle};
 use x509_cert::{
     der::{self, Decode, Encode, Reader},
     Certificate, PkiPath,
 };
 
-use crate::Attest;
+use crate::{Attest, AttestError};
 
 // A slight hack. These are only defined right now in the `ffi` part
 // of libipcc which isn't available on non-illumos targets. Probably
@@ -26,15 +25,14 @@ pub struct AttestIpcc {
 
 impl AttestIpcc {
     /// Creates a new `Ipcc` instance.
-    pub fn new() -> Result<Self> {
-        let handle =
-            IpccHandle::new().map_err(|e| anyhow!("Ipcc error {}", e))?;
+    pub fn new() -> Result<Self, IpccError> {
+        let handle = IpccHandle::new()?;
         Ok(Self { handle })
     }
 }
 
 impl Attest for AttestIpcc {
-    fn get_measurement_log(&self) -> Result<Log> {
+    fn get_measurement_log(&self) -> Result<Log, AttestError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
         let len = attest_data::messages::serialize(
@@ -42,7 +40,7 @@ impl Attest for AttestIpcc {
             &HostToRotCommand::GetMeasurementLog,
             |_| 0,
         )
-        .map_err(|e| anyhow!("serialize {}", e))?;
+        .map_err(AttestError::Serialize)?;
         let len = self
             .handle
             .rot_request(&rot_message[..len], &mut rot_resp)?;
@@ -50,15 +48,15 @@ impl Attest for AttestIpcc {
             &rot_resp[..len],
             RotToHost::RotMeasurementLog,
         )
-        .map_err(|e| anyhow!("bad response {:?}", e))?;
+        .map_err(AttestError::HostToRot)?;
 
-        let (log, _): (Log, _) = hubpack::deserialize(data)
-            .map_err(|e| anyhow!("Failed to deserialize Log: {}", e))?;
+        let (log, _): (Log, _) =
+            hubpack::deserialize(data).map_err(AttestError::Deserialize)?;
 
         Ok(log)
     }
 
-    fn get_certificates(&self) -> Result<PkiPath> {
+    fn get_certificates(&self) -> Result<PkiPath, AttestError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
         let len = attest_data::messages::serialize(
@@ -66,7 +64,7 @@ impl Attest for AttestIpcc {
             &HostToRotCommand::GetCertificates,
             |_| 0,
         )
-        .map_err(|e| anyhow!("serialize {}", e))?;
+        .map_err(AttestError::Serialize)?;
         let len = self
             .handle
             .rot_request(&rot_message[..len], &mut rot_resp)?;
@@ -74,7 +72,7 @@ impl Attest for AttestIpcc {
             &rot_resp[..len],
             RotToHost::RotCertificates,
         )
-        .map_err(|e| anyhow!("bad response {:?}", e))?;
+        .map_err(AttestError::HostToRot)?;
 
         let mut idx = 0;
 
@@ -99,7 +97,7 @@ impl Attest for AttestIpcc {
         Ok(certs)
     }
 
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation> {
+    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
         let len = attest_data::messages::serialize(
@@ -110,7 +108,7 @@ impl Attest for AttestIpcc {
                 32
             },
         )
-        .map_err(|e| anyhow!("serialize {}", e))?;
+        .map_err(AttestError::Serialize)?;
         let len = self
             .handle
             .rot_request(&rot_message[..len], &mut rot_resp)?;
@@ -118,10 +116,10 @@ impl Attest for AttestIpcc {
             &rot_resp[..len],
             RotToHost::RotAttestation,
         )
-        .map_err(|e| anyhow!("bad response {:?}", e))?;
+        .map_err(AttestError::HostToRot)?;
 
-        let (attestation, _): (Attestation, _) = hubpack::deserialize(data)
-            .map_err(|e| anyhow!("Failed to deserialize Attestation: {}", e))?;
+        let (attestation, _): (Attestation, _) =
+            hubpack::deserialize(data).map_err(AttestError::Deserialize)?;
 
         Ok(attestation)
     }

@@ -6,6 +6,8 @@ use crate::{NONCE_SIZE, SHA3_256_DIGEST_SIZE};
 use hubpack::error::Error as HubpackError;
 use hubpack::SerializedSize;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+#[cfg(feature = "std")]
+use thiserror::Error;
 
 /// Magic value for [`Header::magic`]
 pub const ATTEST_MAGIC: u32 = 0xA77E5700;
@@ -67,84 +69,149 @@ pub enum HostToRotCommand {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[cfg_attr(feature = "std", derive(Error))]
 //#[repr(u32)]
 pub enum HostToRotError {
+    #[cfg_attr(feature = "std", error("Unused"))]
     _Unused,
     /// Header magic was incorrect
+    #[cfg_attr(feature = "std", error("magic number was incorrect"))]
     MagicMismatch,
     /// Mismatch of protocol versions
+    #[cfg_attr(feature = "std", error("protocol version mismatch"))]
     VersionMismatch,
     /// Message failed to deserialize
+    #[cfg_attr(feature = "std", error("message failed to deserialze"))]
     Deserialize,
     /// Wrong length of data arguments (expected no data or incorrect length)
+    #[cfg_attr(feature = "std", error("message data length incorrect"))]
     IncorrectDataLen,
     /// Unexpected command returned
+    #[cfg_attr(feature = "std", error("message data length incorrect"))]
     UnexpectedCommand,
     /// Error return from the sprot command
+    #[cfg_attr(feature = "std", error(transparent))]
     SprotError(RecvSprotError),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[repr(u32)]
+#[cfg_attr(feature = "std", derive(Error))]
 // Errors returned from the hubris side. This is _so many_
 pub enum RecvSprotError {
     // protocol
     /// CRC check failed.
+    #[cfg_attr(feature = "std", error("CRC check failed"))]
     ProtocolInvalidCrc,
     /// FIFO overflow/underflow
+    #[cfg_attr(feature = "std", error("FIFO overflow/underflow"))]
     ProtocolFlowError,
     /// Unsupported protocol version
+    #[cfg_attr(feature = "std", error("unsupported protocol version"))]
     ProtocolUnsupportedProtocol,
     /// Unknown message
+    #[cfg_attr(feature = "std", error("unknown message"))]
     ProtocolBadMessageType,
     /// Transfer size is outside of maximum and minimum lenghts for message type.
+    #[cfg_attr(
+        feature = "std",
+        error("message is outside minimum / maximum lengths")
+    )]
     ProtocolBadMessageLength,
     // We cannot assert chip select
+    #[cfg_attr(feature = "std", error("cannot assert chip select"))]
     ProtocolCannotAssertCSn,
     // The request timed out
+    #[cfg_attr(feature = "std", error("request time out"))]
     ProtocolTimeout,
     // Hubpack error
+    #[cfg_attr(feature = "std", error("failed to deserialize message"))]
     ProtocolDeserialization,
     // The RoT has not de-asserted ROT_IRQ
+    #[cfg_attr(feature = "std", error("Rot has not de-asserted ROT_IRQ"))]
     ProtocolRotIrqRemainsAsserted,
     // An unexpected response was received.
     // This should basically be impossible. We only include it so we can
     // return this error when unpacking a RspBody in idol calls.
+    #[cfg_attr(feature = "std", error("received unexpected response"))]
     ProtocolUnexpectedResponse,
     // Failed to load update status
+    #[cfg_attr(feature = "std", error("failed to load update status"))]
     ProtocolBadUpdateStatus,
     // Used for mapping From<idol_runtime::ServerDeath>
+    #[cfg_attr(feature = "std", error("protocol task restarted"))]
     ProtocolTaskRestarted,
     // The SP and RoT did not agree on whether the SP is sending
     // a request or waiting for a reply.
+    #[cfg_attr(feature = "std", error("sprot protocol tasks out of sync"))]
     ProtocolDesynchronized,
 
     // Spi
+    #[cfg_attr(
+        feature = "std",
+        error("transfer size is 0 or exceeds maximum")
+    )]
     SpiBadTransferSize,
+    #[cfg_attr(feature = "std", error("spi task restarted"))]
     SpiTaskRestarted,
 
     // Update -- this should not get returned
+    #[cfg_attr(
+        feature = "std",
+        error("lease length is longer than block size")
+    )]
     UpdateError,
     // Sprockets is deprecated but we still keep the error type
+    #[cfg_attr(feature = "std", error("sprockets (deprecated) error"))]
     SprocketsError,
     // Watchdog error, we should not get this
+    #[cfg_attr(feature = "std", error("impossible watchdog error"))]
     WatchdogError,
 
     // Attest errors
+    #[cfg_attr(feature = "std", error("cert exceeds maximum length"))]
     AttestCertTooBig,
+    #[cfg_attr(feature = "std", error("index is out of range"))]
     AttestInvalidCertIndex,
+    #[cfg_attr(feature = "std", error("attestation task has no certs"))]
     AttestNoCerts,
+    #[cfg_attr(
+        feature = "std",
+        error("requested data range is out of bounds")
+    )]
     AttestOutOfRange,
+    #[cfg_attr(feature = "std", error("measurement log is full"))]
     AttestLogFull,
+    #[cfg_attr(
+        feature = "std",
+        error("measurement log exceeds maximum length")
+    )]
     AttestLogTooBig,
+    #[cfg_attr(feature = "std", error("attestation task restarted"))]
     AttestTaskRestarted,
+    #[cfg_attr(
+        feature = "std",
+        error("lease insufficient for requested operation")
+    )]
     AttestBadLease,
+    #[cfg_attr(
+        feature = "std",
+        error("the selected algorithm is not supported")
+    )]
     AttestUnsupportedAlgorithm,
+    #[cfg_attr(feature = "std", error("failed to serialize measurement log"))]
     AttestSerializeLog,
+    #[cfg_attr(feature = "std", error("failed to serialize signature"))]
     AttestSerializeSignature,
+    #[cfg_attr(feature = "std", error("signature exceeds maximum size"))]
     AttestSignatureTooBig,
     // Handle some host-sp-comms errors
+    #[cfg_attr(feature = "std", error("lease provided is insufficient"))]
     CommsBufTooSmall,
+    #[cfg_attr(
+        feature = "std",
+        error("current slot in measurement log is reserved")
+    )]
     AttestLogSlotReserved,
 }
 

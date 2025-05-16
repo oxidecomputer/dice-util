@@ -5,9 +5,43 @@
 use attest_data::{Attestation, Log, Nonce};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
 use hubpack::SerializedSize;
+#[cfg(feature = "ipcc")]
+use libipcc::IpccError;
 use sha3::{Digest, Sha3_256};
 use thiserror::Error;
-use x509_cert::{der::Encode, Certificate, PkiPath};
+use x509_cert::{
+    der::{self, Encode},
+    Certificate, PkiPath,
+};
+
+pub mod hiffy;
+use hiffy::AttestHiffyError;
+
+#[cfg(feature = "ipcc")]
+pub mod ipcc;
+
+#[derive(Debug, Error)]
+pub enum AttestError {
+    #[error(transparent)]
+    Certificate(#[from] der::Error),
+    #[error(transparent)]
+    Deserialize(hubpack::Error),
+    #[error(transparent)]
+    Hiffy(#[from] AttestHiffyError),
+    #[error("failed to send ipcc message to RoT: {0}")]
+    HostToRot(attest_data::messages::HostToRotError),
+    #[cfg(feature = "ipcc")]
+    #[error(transparent)]
+    Ipcc(#[from] IpccError),
+    #[error(transparent)]
+    Serialize(hubpack::Error),
+}
+
+pub trait Attest {
+    fn get_measurement_log(&self) -> Result<Log, AttestError>;
+    fn get_certificates(&self) -> Result<PkiPath, AttestError>;
+    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError>;
+}
 
 #[derive(Debug, Error)]
 pub enum CertSigVerifierFactoryError {
@@ -231,17 +265,17 @@ pub enum PkiPathSignatureVerifierError {
 
 /// This struct encapsulates the signature verification process for a PkiPath.
 #[derive(Debug)]
-pub struct PkiPathSignatureVerifier {
-    root_cert: Option<Certificate>,
+struct PkiPathSignatureVerifier<'a> {
+    root_cert: Option<&'a Certificate>,
 }
 
-impl PkiPathSignatureVerifier {
+impl<'a> PkiPathSignatureVerifier<'a> {
     /// Create a new `PkiPathSignatureVerifier` with the provided
     /// `Certificate` acting as the root / trust anchor. If `None` is
     /// provided then the `PkiPath`s verified by this verifier must be self-
     /// signed.
-    pub fn new(
-        root_cert: Option<Certificate>,
+    fn new(
+        root_cert: Option<&'a Certificate>,
     ) -> Result<Self, PkiPathSignatureVerifierError> {
         if let Some(cert) = &root_cert {
             let verifier = CertSigVerifierFactory::get_verifier(cert)?;
@@ -255,7 +289,7 @@ impl PkiPathSignatureVerifier {
     /// Iterate over the provided PkiPath verifying the signature chain.
     /// NOTE: If `root` is `None` then the provided cert chain must terminate
     /// in a self-signed certificate.
-    pub fn verify(
+    fn verify(
         &self,
         pki_path: &PkiPath,
     ) -> Result<(), PkiPathSignatureVerifierError> {
@@ -314,6 +348,13 @@ pub enum VerifyAttestationError {
     KeyConversion(ed25519_dalek::ed25519::Error),
     #[error("Failed to construct VerifyingKey from alias public key")]
     VerificationFailed(ed25519_dalek::ed25519::Error),
+}
+
+pub fn verify_cert_chain(
+    pki_path: &PkiPath,
+    root: Option<&Certificate>,
+) -> Result<(), PkiPathSignatureVerifierError> {
+    PkiPathSignatureVerifier::new(root)?.verify(pki_path)
 }
 
 pub fn verify_attestation(

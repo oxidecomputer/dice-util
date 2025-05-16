@@ -2,11 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::Attest;
-use anyhow::{anyhow, Context, Result};
 use attest_data::{Attestation, Log, Nonce};
 use hubpack::SerializedSize;
-use log::{debug, info};
 use sha3::{Digest, Sha3_256};
 use std::{
     fmt,
@@ -15,19 +12,26 @@ use std::{
     process::{Command, Output},
 };
 use tempfile::NamedTempFile;
+use thiserror::Error;
 use x509_cert::{der::Decode, Certificate, PkiPath};
+
+use crate::{Attest, AttestError};
 
 /// This trait implements the hubris attestation API exposed by the `attest`
 /// task in the RoT and proxied through the `sprot` task in the SP.
 pub trait AttestSprot {
-    fn attest_len(&self) -> Result<u32>;
-    fn attest(&self, nonce: &Nonce, out: &mut [u8]) -> Result<()>;
-    fn cert_chain_len(&self) -> Result<u32>;
-    fn cert_len(&self, index: u32) -> Result<u32>;
-    fn cert(&self, index: u32, out: &mut [u8]) -> Result<()>;
-    fn log(&self, out: &mut [u8]) -> Result<()>;
-    fn log_len(&self) -> Result<u32>;
-    fn record(&self, data: &[u8]) -> Result<()>;
+    fn attest_len(&self) -> Result<u32, AttestHiffyError>;
+    fn attest(
+        &self,
+        nonce: &Nonce,
+        out: &mut [u8],
+    ) -> Result<(), AttestHiffyError>;
+    fn cert_chain_len(&self) -> Result<u32, AttestHiffyError>;
+    fn cert_len(&self, index: u32) -> Result<u32, AttestHiffyError>;
+    fn cert(&self, index: u32, out: &mut [u8]) -> Result<(), AttestHiffyError>;
+    fn log(&self, out: &mut [u8]) -> Result<(), AttestHiffyError>;
+    fn log_len(&self) -> Result<u32, AttestHiffyError>;
+    fn record(&self, data: &[u8]) -> Result<(), AttestHiffyError>;
 }
 
 /// The `AttestHiffy` type can speak to the `Attest` tasks eaither the RoT
@@ -51,6 +55,18 @@ impl fmt::Display for AttestTask {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum AttestHiffyError {
+    #[error("Failed to parse u32 from hiffy hex output: {0}")]
+    BadU32(#[from] std::num::ParseIntError),
+    #[error("Hiffy command failed: {0}")]
+    ExitStatus(std::process::ExitStatus),
+    #[error("Failed to hubpack something: {0}")]
+    Serialize(#[from] hubpack::Error),
+    #[error("Failed to do something w/ a tempfile: {0}")]
+    TempFile(#[from] std::io::Error),
+}
+
 /// A type to simplify the execution of the HIF operations exposed by the RoT
 /// Attest task.
 pub struct AttestHiffy {
@@ -70,44 +86,33 @@ impl AttestHiffy {
     /// to be decimal. Currently this function ignores the interface and
     /// operation names from the string. Future work may check that these are
     /// consistent with the operation executed.
-    fn u32_from_cmd_output(output: Output) -> Result<u32> {
+    fn u32_from_cmd_output(output: Output) -> Result<u32, AttestHiffyError> {
         if output.status.success() {
             // check interface & operation name?
             let output = String::from_utf8_lossy(&output.stdout);
             let output: Vec<&str> = output.trim().split(' ').collect();
             let output = output[output.len() - 1];
-            debug!("output: {output}");
 
-            let (output, radix) = match output.strip_prefix("0x") {
-                Some(s) => {
-                    debug!("prefix stripped: \"{s}\"");
-                    (s, 16)
-                }
+            let (output, _) = match output.strip_prefix("0x") {
+                Some(s) => (s, 16),
                 None => (output, 10),
             };
 
-            let log_len =
-                u32::from_str_radix(output, 16).with_context(|| {
-                    format!("Failed to parse \"{output}\" as base {radix} u32",)
-                })?;
-
-            debug!("output u32: {log_len}");
-
-            Ok(log_len)
+            Ok(u32::from_str_radix(output, 16)
+                .map_err(AttestHiffyError::BadU32)?)
         } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
+            Err(AttestHiffyError::ExitStatus(output.status))
         }
     }
 
     /// This convenience function encapsulates a pattern common to
     /// the hiffy command line for the `Attest` operations that get the
     /// lengths of the data returned in leases.
-    fn get_len_cmd(&self, op: &str, args: Option<String>) -> Result<u32> {
+    fn get_len_cmd(
+        &self,
+        op: &str,
+        args: Option<String>,
+    ) -> Result<u32, AttestHiffyError> {
         // rely on environment for target & archive?
         // check that they are set before continuing
         let mut cmd = Command::new("humility");
@@ -118,7 +123,6 @@ impl AttestHiffy {
         if let Some(a) = args {
             cmd.arg(format!("--arguments={a}"));
         }
-        debug!("executing command: {cmd:?}");
 
         let output = cmd.output()?;
         Self::u32_from_cmd_output(output)
@@ -133,7 +137,7 @@ impl AttestHiffy {
         output: &Path,
         args: Option<&str>,
         input: Option<&str>,
-    ) -> Result<()> {
+    ) -> Result<(), AttestHiffyError> {
         let mut cmd = Command::new("humility");
 
         cmd.arg("hiffy");
@@ -147,31 +151,28 @@ impl AttestHiffy {
         if let Some(i) = input {
             cmd.arg(format!("--input={i}"));
         }
-        debug!("executing command: {cmd:?}");
 
         let output = cmd.output()?;
         if output.status.success() {
-            debug!("output: {}", String::from_utf8_lossy(&output.stdout));
             Ok(())
         } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
+            Err(AttestHiffyError::ExitStatus(output.status))
         }
     }
 }
 
 impl AttestSprot for AttestHiffy {
-    fn attest(&self, nonce: &Nonce, out: &mut [u8]) -> Result<()> {
+    fn attest(
+        &self,
+        nonce: &Nonce,
+        out: &mut [u8],
+    ) -> Result<(), AttestHiffyError> {
         let mut attestation_tmp = tempfile::NamedTempFile::new()?;
         let mut nonce_tmp = tempfile::NamedTempFile::new()?;
 
         let mut buf = [0u8; Nonce::MAX_SIZE];
         hubpack::serialize(&mut buf, &nonce)
-            .map_err(|_| anyhow!("failed to serialize Nonce"))?;
+            .map_err(AttestHiffyError::Serialize)?;
         nonce_tmp.write_all(&buf)?;
 
         self.get_chunk(
@@ -185,23 +186,23 @@ impl AttestSprot for AttestHiffy {
     }
 
     /// Get length of the measurement log in bytes.
-    fn attest_len(&self) -> Result<u32> {
+    fn attest_len(&self) -> Result<u32, AttestHiffyError> {
         self.get_len_cmd("attest_len", None)
     }
 
     /// Get length of the certificate chain from the Attest task. This cert
     /// chain may be self signed or will terminate at the intermediate before
     /// the root.
-    fn cert_chain_len(&self) -> Result<u32> {
+    fn cert_chain_len(&self) -> Result<u32, AttestHiffyError> {
         self.get_len_cmd("cert_chain_len", None)
     }
 
     /// Get length of the certificate at the provided index in bytes.
-    fn cert_len(&self, index: u32) -> Result<u32> {
+    fn cert_len(&self, index: u32) -> Result<u32, AttestHiffyError> {
         self.get_len_cmd("cert_len", Some(format!("index={index}")))
     }
 
-    fn cert(&self, index: u32, out: &mut [u8]) -> Result<()> {
+    fn cert(&self, index: u32, out: &mut [u8]) -> Result<(), AttestHiffyError> {
         for offset in
             (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
         {
@@ -235,7 +236,7 @@ impl AttestSprot for AttestHiffy {
 
     /// Get measurement log. This function assumes that the slice provided
     /// is sufficiently large to hold the log.
-    fn log(&self, out: &mut [u8]) -> Result<()> {
+    fn log(&self, out: &mut [u8]) -> Result<(), AttestHiffyError> {
         for offset in
             (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
         {
@@ -268,18 +269,15 @@ impl AttestSprot for AttestHiffy {
     }
 
     /// Get length of the measurement log in bytes.
-    fn log_len(&self) -> Result<u32> {
+    fn log_len(&self) -> Result<u32, AttestHiffyError> {
         self.get_len_cmd("log_len", None)
     }
 
     /// Record the sha3 hash of a file.
-    fn record(&self, data: &[u8]) -> Result<()> {
+    fn record(&self, data: &[u8]) -> Result<(), AttestHiffyError> {
         let digest = Sha3_256::digest(data);
-        info!("Recording measurement: {digest:?}");
         let mut tmp = NamedTempFile::new()?;
-        if digest.as_slice().len() != tmp.write(digest.as_slice())? {
-            return Err(anyhow!("failed to write all data to disk"));
-        }
+        tmp.write_all(digest.as_slice())?;
 
         let mut cmd = Command::new("humility");
 
@@ -287,35 +285,28 @@ impl AttestSprot for AttestHiffy {
         cmd.arg(format!("--call={}.record", self.task));
         cmd.arg(format!("--input={}", tmp.path().to_string_lossy()));
         cmd.arg("--arguments=algorithm=Sha3_256");
-        debug!("executing command: {cmd:?}");
 
         let output = cmd.output()?;
         if output.status.success() {
-            debug!("output: {}", String::from_utf8_lossy(&output.stdout));
             Ok(())
         } else {
-            Err(anyhow!(
-                "command failed with status: {}\nstdout: \"{}\"\nstderr: \"{}\"",
-                output.status,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ))
+            Err(AttestHiffyError::ExitStatus(output.status))
         }
     }
 }
 
 impl Attest for AttestHiffy {
-    fn get_measurement_log(&self) -> Result<Log> {
+    fn get_measurement_log(&self) -> Result<Log, AttestError> {
         let log_len = self.log_len()?;
         let mut log = vec![0u8; log_len as usize];
         self.log(&mut log)?;
-        let (log, _): (Log, _) = hubpack::deserialize(&log)
-            .map_err(|e| anyhow!("Failed to deserialize Log: {}", e))?;
+        let (log, _): (Log, _) =
+            hubpack::deserialize(&log).map_err(AttestError::Deserialize)?;
 
         Ok(log)
     }
 
-    fn get_certificates(&self) -> Result<PkiPath> {
+    fn get_certificates(&self) -> Result<PkiPath, AttestError> {
         let mut cert_chain = PkiPath::new();
         for index in 0..self.cert_chain_len()? {
             let cert_len = self.cert_len(index)?;
@@ -330,13 +321,13 @@ impl Attest for AttestHiffy {
         Ok(cert_chain)
     }
 
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation> {
+    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
         let attest_len = self.attest_len()?;
         let mut out = vec![0u8; attest_len as usize];
         AttestSprot::attest(self, nonce, &mut out)?;
 
-        let (attestation, _): (Attestation, _) = hubpack::deserialize(&out)
-            .map_err(|e| anyhow!("Failed to deserialize Attestation: {}", e))?;
+        let (attestation, _): (Attestation, _) =
+            hubpack::deserialize(&out).map_err(AttestError::Deserialize)?;
 
         Ok(attestation)
     }
