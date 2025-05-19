@@ -240,15 +240,19 @@ fn main() -> Result<()> {
             // Use the directory provided by the caller to hold intermediate
             // files, or fall back to a temp dir.
             let platform_id = match work_dir {
-                Some(w) => {
-                    verify(attest.as_ref(), &ca_cert, &corpus, self_signed, &w)?
-                }
+                Some(w) => verify(
+                    attest.as_ref(),
+                    ca_cert.as_deref(),
+                    &corpus,
+                    self_signed,
+                    &w,
+                )?,
                 None => {
                     let work_dir = tempfile::tempdir()?;
                     verify(
                         attest.as_ref(),
-                        &ca_cert,
-                        corpus.as_ref(),
+                        ca_cert.as_deref(),
+                        &corpus,
                         self_signed,
                         work_dir.as_ref(),
                     )?
@@ -273,7 +277,7 @@ fn main() -> Result<()> {
             ca_cert,
             self_signed,
         } => {
-            verify_cert_chain(&ca_cert, &cert_chain, self_signed)?;
+            verify_cert_chain(ca_cert.as_deref(), &cert_chain, self_signed)?;
         }
         AttestCommand::VerifyMeasurements {
             cert_chain,
@@ -344,10 +348,10 @@ impl FromArtifacts for MeasurementSet {
 // to the caller in an error.
 // NOTE: The output of this function is only as trustworthy as its inputs.
 // These must be verified independently.
-fn verify_measurements<P: AsRef<Path>, Q: AsRef<Path>, R: AsRef<Path>>(
-    cert_chain: P,
-    log: Q,
-    corpus: R,
+fn verify_measurements(
+    cert_chain: &Path,
+    log: &Path,
+    corpus: &Path,
 ) -> Result<()> {
     let corpus = fs::read_to_string(corpus)?;
     let corpus: MeasurementCorpus = serde_json::from_str(&corpus)?;
@@ -368,19 +372,19 @@ fn verify_measurements<P: AsRef<Path>, Q: AsRef<Path>, R: AsRef<Path>>(
     }
 }
 
-fn verify<P: AsRef<Path>>(
+fn verify(
     attest: &dyn Attest,
-    ca_cert: &Option<PathBuf>,
-    corpus: P,
+    ca_cert: Option<&Path>,
+    corpus: &Path,
     self_signed: bool,
-    work_dir: P,
+    work_dir: &Path,
 ) -> Result<PlatformId> {
     // generate nonce from RNG
     info!("getting Nonce from platform RNG");
     let nonce = Nonce::from_platform_rng()?;
 
     // write nonce to temp dir
-    let nonce_path = work_dir.as_ref().join("nonce.bin");
+    let nonce_path = work_dir.join("nonce.bin");
     info!("writing nonce to: {}", nonce_path.display());
     fs::write(&nonce_path, nonce)?;
 
@@ -392,7 +396,7 @@ fn verify<P: AsRef<Path>>(
     let mut attestation = serde_json::to_string(&attestation)?;
     attestation.push('\n');
 
-    let attestation_path = work_dir.as_ref().join("attest.json");
+    let attestation_path = work_dir.join("attest.json");
     info!("writing attestation to: {}", attestation_path.display());
     fs::write(&attestation_path, &attestation)?;
 
@@ -402,15 +406,15 @@ fn verify<P: AsRef<Path>>(
     let mut log = serde_json::to_string(&log)?;
     log.push('\n');
 
-    let log_path = work_dir.as_ref().join("log.json");
+    let log_path = work_dir.join("log.json");
     info!("writing measurement log to: {}", log_path.display());
     fs::write(&log_path, &log)?;
 
     // get cert chain
     info!("getting cert chain");
-    let cert_chain_path = work_dir.as_ref().join("cert-chain.pem");
+    let cert_chain_path = work_dir.join("cert-chain.pem");
     let mut cert_chain = File::create(&cert_chain_path)?;
-    let alias_cert_path = work_dir.as_ref().join("alias.pem");
+    let alias_cert_path = work_dir.join("alias.pem");
 
     let certs = attest.get_certificates()?;
 
@@ -437,7 +441,7 @@ fn verify<P: AsRef<Path>>(
     )?;
     info!("attestation verified");
 
-    verify_measurements(&cert_chain_path, &log_path, &corpus)?;
+    verify_measurements(&cert_chain_path, &log_path, corpus)?;
     info!("measurements verified");
 
     let cert_chain = fs::read(&cert_chain_path)?;
@@ -450,10 +454,10 @@ fn verify<P: AsRef<Path>>(
 }
 
 fn verify_attestation(
-    alias_cert: &PathBuf,
-    attestation: &PathBuf,
-    log: &PathBuf,
-    nonce: &PathBuf,
+    alias_cert: &Path,
+    attestation: &Path,
+    log: &Path,
+    nonce: &Path,
 ) -> Result<()> {
     info!("verifying attestation");
     let attestation = fs::read_to_string(attestation)?;
@@ -477,8 +481,8 @@ fn verify_attestation(
 }
 
 fn verify_cert_chain(
-    ca_cert: &Option<PathBuf>,
-    cert_chain: &PathBuf,
+    ca_cert: Option<&Path>,
+    cert_chain: &Path,
     self_signed: bool,
 ) -> Result<()> {
     info!("veryfying cert chain");
