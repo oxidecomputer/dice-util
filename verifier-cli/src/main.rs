@@ -191,37 +191,59 @@ fn main() -> Result<()> {
 
     match args.command {
         AttestCommand::Attest { nonce } => {
-            let nonce = fs::read(nonce)?;
-            let nonce = Nonce::try_from(nonce)?;
-            let attestation = attest.attest(&nonce)?;
+            let nonce = fs::read(&nonce)
+                .context(format!("Nonce bytes from: {}", nonce.display()))?;
+            let nonce =
+                Nonce::try_from(nonce).context("Nonce from file contents")?;
+            let attestation = attest
+                .attest(&nonce)
+                .context("Getting attestation with provided Nonce")?;
 
             // serialize attestation to json & write to file
-            let mut attestation = serde_json::to_string(&attestation)?;
+            let mut attestation = serde_json::to_string(&attestation)
+                .context("Attestation to JSON")?;
             attestation.push('\n');
 
-            io::stdout().write_all(attestation.as_bytes())?;
-            io::stdout().flush()?;
+            io::stdout()
+                .write_all(attestation.as_bytes())
+                .context("Write Attestation as JSON to stdout")?;
+            io::stdout().flush().context("Flush stdout")?;
         }
         AttestCommand::CertChain => {
-            let cert_chain = attest.get_certificates()?;
+            let cert_chain = attest
+                .get_certificates()
+                .context("Getting attestation certificate chain")?;
             for cert in cert_chain {
-                let cert = cert.to_pem(LineEnding::default())?;
+                let cert = cert
+                    .to_pem(LineEnding::default())
+                    .context("Encode certificate as PEM")?;
 
-                io::stdout().write_all(cert.as_bytes())?;
+                io::stdout()
+                    .write_all(cert.as_bytes())
+                    .context("Write cert chain to stdout")?;
             }
-            io::stdout().flush()?;
+            io::stdout().flush().context("Flush stdout")?;
         }
         AttestCommand::Log => {
-            let log = attest.get_measurement_log()?;
-            let mut log = serde_json::to_string(&log)?;
+            let log = attest
+                .get_measurement_log()
+                .context("Getting attestation measurement log")?;
+            let mut log = serde_json::to_string(&log)
+                .context("Encode measurement log as JSON")?;
             log.push('\n');
 
-            io::stdout().write_all(log.as_bytes())?;
-            io::stdout().flush()?;
+            io::stdout()
+                .write_all(log.as_bytes())
+                .context("Write measurement log to stdout")?;
+            io::stdout().flush().context("Flush stdout")?;
         }
         AttestCommand::PlatformId { cert_chain } => {
-            let cert_chain = fs::read(cert_chain)?;
-            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
+            let cert_chain = fs::read(&cert_chain).context(format!(
+                "Read attestation certificate chain bytes from file: {}",
+                cert_chain.display()
+            ))?;
+            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+                .context("Parse certificate chain")?;
 
             let platform_id = PlatformId::try_from(&cert_chain)
                 .context("PlatformId from attestation cert chain")?;
@@ -353,14 +375,26 @@ fn verify_measurements(
     log: &Path,
     corpus: &Path,
 ) -> Result<()> {
-    let corpus = fs::read_to_string(corpus)?;
-    let corpus: MeasurementCorpus = serde_json::from_str(&corpus)?;
+    let corpus = fs::read_to_string(corpus).context(format!(
+        "measurement corpus from file path: {}",
+        corpus.display()
+    ))?;
+    let corpus: MeasurementCorpus = serde_json::from_str(&corpus)
+        .context("MeasurementCorpus from file contents")?;
 
-    let cert_chain = fs::read(cert_chain)?;
-    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
+    let cert_chain = fs::read(cert_chain).context(format!(
+        "Read cert chain from file: {}",
+        cert_chain.display()
+    ))?;
+    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+        .context("loading PkiPath from PEM cert chain")?;
 
-    let log = fs::read_to_string(log)?;
-    let log: Log = serde_json::from_str(&log)?;
+    let log = fs::read_to_string(log).context(format!(
+        "Reading measurement log from file: {}",
+        log.display()
+    ))?;
+    let log: Log =
+        serde_json::from_str(&log).context("Deserialize Log from JSON")?;
 
     let measurements = MeasurementSet::from_artifacts(&cert_chain, &log)
         .context("MeasurementSet from PkiPath")?;
@@ -381,53 +415,79 @@ fn verify(
 ) -> Result<PlatformId> {
     // generate nonce from RNG
     info!("getting Nonce from platform RNG");
-    let nonce = Nonce::from_platform_rng()?;
+    let nonce =
+        Nonce::from_platform_rng().context("Nonce from platform RNG")?;
 
     // write nonce to temp dir
     let nonce_path = work_dir.join("nonce.bin");
     info!("writing nonce to: {}", nonce_path.display());
-    fs::write(&nonce_path, nonce)?;
+    fs::write(&nonce_path, nonce)
+        .context(format!("Write nonce to file: {}", nonce_path.display()))?;
 
     // get attestation
     info!("getting attestation");
-    let attestation = attest.attest(&nonce)?;
+    let attestation = attest
+        .attest(&nonce)
+        .context("Get attestation with nonce")?;
 
     // serialize attestation to json & write to file
-    let mut attestation = serde_json::to_string(&attestation)?;
+    let mut attestation = serde_json::to_string(&attestation)
+        .context("Serialize attestation to JSON")?;
     attestation.push('\n');
 
     let attestation_path = work_dir.join("attest.json");
     info!("writing attestation to: {}", attestation_path.display());
-    fs::write(&attestation_path, &attestation)?;
+    fs::write(&attestation_path, &attestation).context(format!(
+        "Write attestation to file: {}",
+        attestation_path.display()
+    ))?;
 
     // get log
     info!("getting measurement log");
-    let log = attest.get_measurement_log()?;
-    let mut log = serde_json::to_string(&log)?;
+    let log = attest
+        .get_measurement_log()
+        .context("Get measurement log from attestor")?;
+    let mut log = serde_json::to_string(&log)
+        .context("Serialize measurement log to JSON")?;
     log.push('\n');
 
     let log_path = work_dir.join("log.json");
     info!("writing measurement log to: {}", log_path.display());
-    fs::write(&log_path, &log)?;
+    fs::write(&log_path, &log).context(format!(
+        "Write measurement log to file: {}",
+        log_path.display()
+    ))?;
 
     // get cert chain
     info!("getting cert chain");
     let cert_chain_path = work_dir.join("cert-chain.pem");
-    let mut cert_chain = File::create(&cert_chain_path)?;
+    let mut cert_chain = File::create(&cert_chain_path).context(format!(
+        "Create file for cert chain: {}",
+        cert_chain_path.display()
+    ))?;
     let alias_cert_path = work_dir.join("alias.pem");
 
-    let certs = attest.get_certificates()?;
+    let certs = attest
+        .get_certificates()
+        .context("Get certificate chain from attestor")?;
 
     // the first cert in the chain / the leaf cert is the one
     // used to sign attestations
     info!("writing alias cert to: {}", alias_cert_path.display());
-    let pem = certs[0].to_pem(LineEnding::default())?;
+    let pem = certs[0]
+        .to_pem(LineEnding::default())
+        .context("Encode alias cert as PEM")?;
     fs::write(&alias_cert_path, pem)?;
 
     for (index, cert) in certs.iter().enumerate() {
         info!("writing cert[{}] to: {}", index, cert_chain_path.display());
-        let pem = cert.to_pem(LineEnding::default())?;
-        cert_chain.write_all(pem.as_bytes())?;
+        let pem = cert
+            .to_pem(LineEnding::default())
+            .context(format!("Encode cert {index} as PEM"))?;
+        cert_chain.write_all(pem.as_bytes()).context(format!(
+            "Write cert {index} to file: {}",
+            cert_chain_path.display()
+        ))?;
     }
 
     verify_cert_chain(ca_cert, &cert_chain_path, self_signed)?;
@@ -444,8 +504,12 @@ fn verify(
     verify_measurements(&cert_chain_path, &log_path, corpus)?;
     info!("measurements verified");
 
-    let cert_chain = fs::read(&cert_chain_path)?;
-    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
+    let cert_chain = fs::read(&cert_chain_path).context(format!(
+        "read cert chain from path: {}",
+        cert_chain_path.display()
+    ))?;
+    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+        .context("Parse cert chain from PEM")?;
 
     let platform_id = PlatformId::try_from(&cert_chain)
         .context("PlatformId from attestation cert chain")?;
@@ -460,24 +524,32 @@ fn verify_attestation(
     nonce: &Path,
 ) -> Result<()> {
     info!("verifying attestation");
-    let attestation = fs::read_to_string(attestation)?;
-    let attestation: Attestation = serde_json::from_str(&attestation)?;
+    let attestation = fs::read_to_string(attestation).context(format!(
+        "Read Attestation from file: {}",
+        attestation.display()
+    ))?;
+    let attestation: Attestation = serde_json::from_str(&attestation)
+        .context("Deserialize Attestation from JSON")?;
 
-    let log = fs::read_to_string(log)?;
-    let log: Log = serde_json::from_str(&log)?;
+    let log = fs::read_to_string(log)
+        .context(format!("Read Log from file: {}", log.display()))?;
+    let log: Log =
+        serde_json::from_str(&log).context("Deserialize Log from JSON")?;
 
-    let nonce = fs::read(nonce)?;
-    let nonce = Nonce::try_from(nonce)?;
+    let nonce = fs::read(nonce)
+        .context(format!("Read Nonce from file: {}", nonce.display()))?;
+    let nonce =
+        Nonce::try_from(nonce).context("Deserialize Nonce from JSON")?;
 
-    let alias = fs::read(alias_cert)?;
-    let alias = Certificate::from_pem(&alias)?;
+    let alias = fs::read(alias_cert).context(format!(
+        "Read alias cert from file: {}",
+        alias_cert.display()
+    ))?;
+    let alias =
+        Certificate::from_pem(&alias).context("Parse alias cert from PEM")?;
 
-    Ok(dice_verifier::verify_attestation(
-        &alias,
-        &attestation,
-        &log,
-        &nonce,
-    )?)
+    dice_verifier::verify_attestation(&alias, &attestation, &log, &nonce)
+        .context("Verify attestation")
 }
 
 fn verify_cert_chain(
@@ -490,8 +562,12 @@ fn verify_cert_chain(
         return Err(anyhow!("`ca-cert` or `self-signed` is required"));
     }
 
-    let cert_chain = fs::read(cert_chain)?;
-    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)?;
+    let cert_chain = fs::read(cert_chain).context(format!(
+        "Reading certs from file: {}",
+        cert_chain.display()
+    ))?;
+    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+        .context("Parsing certs from PEM")?;
 
     let root = match ca_cert {
         Some(r) => {
@@ -504,8 +580,6 @@ fn verify_cert_chain(
         }
     };
 
-    Ok(dice_verifier::verify_cert_chain(
-        &cert_chain,
-        root.as_ref(),
-    )?)
+    dice_verifier::verify_cert_chain(&cert_chain, root.as_ref())
+        .context("Verify cert chain")
 }
