@@ -71,7 +71,7 @@ impl<const N: usize> Array<N> {
 }
 
 impl<const N: usize> Default for Array<N> {
-    /// Create and initialize an Array<N> to 0's.
+    /// Create and initialize an `Array<N>` to 0's.
     fn default() -> Self {
         Self([0u8; N])
     }
@@ -87,7 +87,7 @@ impl<const N: usize> From<[u8; N]> for Array<N> {
 impl<const N: usize> TryFrom<&[u8]> for Array<N> {
     type Error = AttestDataError;
 
-    /// Attempt to create an Array<N> from the slice provided.
+    /// Attempt to create an `Array<N>` from the slice provided.
     fn try_from(item: &[u8]) -> Result<Self, Self::Error> {
         let nonce: [u8; N] = item
             .try_into()
@@ -100,7 +100,7 @@ impl<const N: usize> TryFrom<&[u8]> for Array<N> {
 impl<const N: usize> TryFrom<Vec<u8>> for Array<N> {
     type Error = AttestDataError;
 
-    /// Attempt to create an Array<N> from the Vec<u8> provided.
+    /// Attempt to create an `Array<N>` from the `Vec<u8>` provided.
     fn try_from(item: Vec<u8>) -> Result<Self, Self::Error> {
         item[..].try_into()
     }
@@ -211,7 +211,7 @@ impl fmt::Display for Measurement {
 impl TryFrom<&Fwid> for Measurement {
     type Error = AttestDataError;
 
-    /// Attempt to create an Array<N> from the slice provided.
+    /// Attempt to create an `Array<N>` from the slice provided.
     fn try_from(fwid: &Fwid) -> Result<Self, Self::Error> {
         // map from fwid.hash_algorithm ObjectIdentifier to Measurement enum
         if fwid.hash_algorithm == Sha3_256::OID {
