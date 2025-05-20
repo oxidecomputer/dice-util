@@ -55,6 +55,8 @@ impl fmt::Display for AttestTask {
     }
 }
 
+/// Possible errors produced while iteracting with the attest task using the
+/// `humility hiffy` interface.
 #[derive(Debug, Error)]
 pub enum AttestHiffyError {
     #[error("Failed to parse u32 from hiffy hex output: {0}")]

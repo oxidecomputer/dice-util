@@ -20,6 +20,10 @@ use hiffy::AttestHiffyError;
 #[cfg(feature = "ipcc")]
 pub mod ipcc;
 
+/// `AttestError` describes the possible errors encountered while getting an
+/// attestation from the RoT. Such errors range from those produced by the
+/// transport used to communicate with the RoT to those related to parsing
+/// or processing data produced by the RoT.
 #[derive(Debug, Error)]
 pub enum AttestError {
     #[error(transparent)]
@@ -37,12 +41,30 @@ pub enum AttestError {
     Serialize(hubpack::Error),
 }
 
+/// The `Attest` trait is implemented by types that provide access to the RoT
+/// attestation API. These types are generally proxies that shuttle data over
+/// some transport between the caller and the RoT.
 pub trait Attest {
+    /// Get the measurement log from the attest task. The Log is transmitted
+    /// with no integrity protection so its trustworthiness must be established
+    /// by an external process (see `verify_attestation`).
     fn get_measurement_log(&self) -> Result<Log, AttestError>;
+    /// Get the certificate chain from the attest task. This cert chain is a
+    /// PKI path (per RFC 6066) starting with the leaf cert for the attestation
+    /// signer and terminating at the intermediate before the root. The
+    /// trustworthiness of this certificate chain must be established through
+    /// an external process (see `verify_cert_chain`).
     fn get_certificates(&self) -> Result<PkiPath, AttestError>;
+    /// Get an attestation from the attest task. An attestation is a signature
+    /// over the (hubpack serialized) measurement Log and the provided Nonce.
+    /// To prevent replay attacks each Nonce used must be unique and
+    /// unpredictable. Generally the Nonce should be generated from the
+    /// platform's random number generator (see `Nonce::from_platform_rng`).
     fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError>;
 }
 
+/// Errors related to the creation of signature verifiers for certs in a
+/// `PkiPath`.
 #[derive(Debug, Error)]
 pub enum CertSigVerifierFactoryError {
     #[error("Failed to create verifier from Ed25519 public key")]
@@ -72,6 +94,7 @@ impl CertSigVerifierFactory {
     }
 }
 
+/// Errors encountered while verifying aspects of a certificate.
 #[derive(Debug, Error)]
 pub enum CertVerifierError {
     #[error("Wrong signature type for veriying key")]
@@ -95,6 +118,7 @@ trait CertVerifier {
     fn verify(&self, cert: &Certificate) -> Result<(), CertVerifierError>;
 }
 
+/// Errors produced by the `Ed25519CertVerifier`.
 #[derive(Debug, Error)]
 pub enum Ed25519CertVerifierError {
     #[error("Spki public key type is not Ed25519")]
@@ -107,7 +131,8 @@ pub enum Ed25519CertVerifierError {
     VerifyingKeyFromBytes(#[from] ed25519_dalek::SignatureError),
 }
 
-/// CertVerifier for verifying ed25519 signatures on `Certificate`s.
+/// Errors produced when verifying ed25519 signatures over `Certificate`s by
+/// the `Ed25519CertVerifier`.
 struct Ed25519CertVerifier {
     verifying_key: ed25519_dalek::VerifyingKey,
 }
@@ -170,6 +195,8 @@ impl CertVerifier for Ed25519CertVerifier {
     }
 }
 
+/// Errors produced when verifying P384 signatures over `Certificate`s by
+/// the `P384CertVerifier`.
 #[derive(Debug, Error)]
 pub enum P384CertVerifierError {
     #[error("Key from cert is not ID_ECC_PUBLIC_KEY")]
@@ -350,6 +377,14 @@ pub enum VerifyAttestationError {
     VerificationFailed(ed25519_dalek::ed25519::Error),
 }
 
+/// The certificate chains produced by the RoT are PKI paths (RFC 6066) that
+/// start with a leaf cert for the attestation signer and ends with the last
+/// intermediate before the root. This function walks this PKI path verifying
+/// the signatures over each certificate back to the provided root. Development
+/// systems that have not been issued a platform identity certificate will
+/// produce cert chains that terminate with a self-signed cert. To verify such
+/// a cert chain the caller must pass `None` for the root to case the
+/// verification function to accept the self-signed root.
 pub fn verify_cert_chain(
     pki_path: &PkiPath,
     root: Option<&Certificate>,
@@ -357,6 +392,9 @@ pub fn verify_cert_chain(
     PkiPathSignatureVerifier::new(root)?.verify(pki_path)
 }
 
+/// This function uses the provided artifacts to establish trust in the Log.
+/// The trustworthiness of the alias certificate and the attestation / nonce
+/// must be established independently (see
 pub fn verify_attestation(
     alias: &Certificate,
     attestation: &Attestation,

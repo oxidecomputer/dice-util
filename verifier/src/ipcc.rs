@@ -19,6 +19,8 @@ use crate::{Attest, AttestError};
 // indicates those constants belong elsewhere...
 const IPCC_MAX_DATA_SIZE: usize = 4123 - 19;
 
+/// The `AttestIpcc` type communicates with the RoT `Attest` task through the
+/// IPCC interface / <https://github.com/oxidecomputer/ipcc-rs>
 pub struct AttestIpcc {
     handle: IpccHandle,
 }
