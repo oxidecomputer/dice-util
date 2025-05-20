@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(feature = "std")]
 use thiserror::Error;
 
-/// Magic value for [`Header::magic`]
+/// Magic value for `HostRotHeader::magic`
 pub const ATTEST_MAGIC: u32 = 0xA77E5700;
 
 /// Right now `Attest` and `TqSign` are the only commands that take data
