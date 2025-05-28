@@ -331,23 +331,12 @@ pub enum MeasurementSetError {
 /// This is a collection to represent the measurements received from an
 /// attestor. These measurements will come from the measurement log and the
 /// DiceTcbInfo extension(s) in the attestation cert chain / pki path.
-type MeasurementSet = HashSet<Measurement>;
-
-/// This trait exists to work around the orphan rule so we can add this method
-/// to the MeasurementSet type alias.
-trait FromArtifacts {
-    fn from_artifacts(
-        pki_path: &PkiPath,
-        log: &Log,
-    ) -> Result<Self, MeasurementSetError>
-    where
-        Self: Sized;
-}
+struct MeasurementSet(HashSet<Measurement>);
 
 /// Construct a MeasurementSet from the provided artifacts. The
 /// trustwirthiness of these artifacts must be established independently
 /// (see `verify_cert_chain` and `verify_attestation`).
-impl FromArtifacts for MeasurementSet {
+impl MeasurementSet {
     /// Construct a MeasurementSet from the provided artifacts. The
     /// trustwirthiness of these artifacts must be established independently
     /// (see `verify_cert_chain` and `verify_attestation`).
@@ -355,7 +344,7 @@ impl FromArtifacts for MeasurementSet {
         pki_path: &PkiPath,
         log: &Log,
     ) -> Result<Self, MeasurementSetError> {
-        let mut measurements = Self::new();
+        let mut measurements = HashSet::new();
 
         for cert in pki_path {
             if let Some(extensions) = &cert.tbs_certificate.extensions {
@@ -393,7 +382,12 @@ impl FromArtifacts for MeasurementSet {
             measurements.insert(*measurement);
         }
 
-        Ok(measurements)
+        Ok(Self(measurements))
+    }
+
+    /// Thin wrapper over HashSet.is_subset w/ better type info
+    pub fn is_subset(&self, corpus: &ReferenceMeasurements) -> bool {
+        self.0.is_subset(&corpus.0)
     }
 }
 
@@ -457,7 +451,7 @@ fn verify_measurements(
     let measurements = MeasurementSet::from_artifacts(&cert_chain, &log)
         .context("MeasurementSet from PkiPath")?;
 
-    if measurements.is_subset(&corpus.0) {
+    if measurements.is_subset(&corpus) {
         Ok(())
     } else {
         Err(anyhow!("Measurements are NOT a subset of Corpus"))
