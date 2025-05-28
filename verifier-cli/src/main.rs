@@ -317,6 +317,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+/// Possible errors produced by the `MeasurmentSet` construction process.
 #[derive(Debug, Error)]
 pub enum MeasurementSetError {
     #[error("failed to create reader from extension value: {0}")]
@@ -329,8 +330,13 @@ pub enum MeasurementSetError {
     MeasurementConstruct(#[from] AttestDataError),
 }
 
+/// This is a collection to represent the measurements received from an
+/// attestor. These measurements will come from the measurement log and the
+/// DiceTcbInfo extension(s) in the attestation cert chain / pki path.
 type MeasurementSet = HashSet<Measurement>;
 
+/// This trait exists to work around the orphan rule so we can add this method
+/// to the MeasurementSet type alias.
 trait FromArtifacts {
     fn from_artifacts(
         pki_path: &PkiPath,
@@ -340,7 +346,13 @@ trait FromArtifacts {
         Self: Sized;
 }
 
+/// Construct a MeasurementSet from the provided artifacts. The
+/// trustwirthiness of these artifacts must be established independently
+/// (see `verify_cert_chain` and `verify_attestation`).
 impl FromArtifacts for MeasurementSet {
+    /// Construct a MeasurementSet from the provided artifacts. The
+    /// trustwirthiness of these artifacts must be established independently
+    /// (see `verify_cert_chain` and `verify_attestation`).
     fn from_artifacts(
         pki_path: &PkiPath,
         log: &Log,
