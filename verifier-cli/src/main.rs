@@ -33,8 +33,6 @@ use x509_cert::{
     Certificate, PkiPath,
 };
 
-type MeasurementCorpus = HashSet<Measurement>;
-
 fn get_attest(interface: Interface) -> Result<Box<dyn Attest>> {
     match interface {
         #[cfg(feature = "ipcc")]
@@ -399,6 +397,32 @@ impl FromArtifacts for MeasurementSet {
     }
 }
 
+/// A collection of measurement values that is used as a source of truth when
+/// appraising the set of measurements derived from an attestation.
+pub struct ReferenceMeasurements(pub(crate) HashSet<Measurement>);
+
+/// Possible errors produced by the `ReferenceMeasurements` construction
+/// process.
+#[derive(Debug, Error)]
+pub enum ReferenceMeasurementsError {
+    #[error("Digest is not the expected 32 byte length")]
+    BadDigest(#[from] anyhow::Error),
+}
+
+impl TryFrom<&str> for ReferenceMeasurements {
+    type Error = ReferenceMeasurementsError;
+
+    /// Construct a collection of `ReferenceMeasurements` from the provided
+    /// `Corim` documents. The trustworthiness of these inputs must be
+    /// established independently
+    fn try_from(corpus: &str) -> Result<Self, Self::Error> {
+        let set: HashSet<Measurement> = serde_json::from_str(corpus)
+            .context("MeasurementCorpus from file contents")?;
+
+        Ok(Self(set))
+    }
+}
+
 // Check that the measurments in `cert_chain` and `log` are all present in
 // the `corpus`. If an unexpected measurement is encountered it is returned
 // to the caller in an error.
@@ -413,7 +437,7 @@ fn verify_measurements(
         "measurement corpus from file path: {}",
         corpus.display()
     ))?;
-    let corpus: MeasurementCorpus = serde_json::from_str(&corpus)
+    let corpus = ReferenceMeasurements::try_from(corpus.as_str())
         .context("MeasurementCorpus from file contents")?;
 
     let cert_chain = fs::read(cert_chain).context(format!(
@@ -433,7 +457,7 @@ fn verify_measurements(
     let measurements = MeasurementSet::from_artifacts(&cert_chain, &log)
         .context("MeasurementSet from PkiPath")?;
 
-    if measurements.is_subset(&corpus) {
+    if measurements.is_subset(&corpus.0) {
         Ok(())
     } else {
         Err(anyhow!("Measurements are NOT a subset of Corpus"))
