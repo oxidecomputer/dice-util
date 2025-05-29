@@ -18,6 +18,7 @@ use dice_verifier::{
 use env_logger::Builder;
 use log::{info, warn, LevelFilter};
 use pem_rfc7468::LineEnding;
+use rats_corim::Corim;
 use std::{
     collections::HashSet,
     fmt::{self, Debug},
@@ -399,19 +400,22 @@ pub struct ReferenceMeasurements(pub(crate) HashSet<Measurement>);
 /// process.
 #[derive(Debug, Error)]
 pub enum ReferenceMeasurementsError {
-    #[error("Digest is not the expected 32 byte length")]
-    BadDigest(#[from] anyhow::Error),
+    #[error("Digest is not the expected length")]
+    BadDigest(#[from] AttestDataError),
 }
 
-impl TryFrom<&str> for ReferenceMeasurements {
+impl TryFrom<Corim> for ReferenceMeasurements {
     type Error = ReferenceMeasurementsError;
 
     /// Construct a collection of `ReferenceMeasurements` from the provided
     /// `Corim` documents. The trustworthiness of these inputs must be
     /// established independently
-    fn try_from(corpus: &str) -> Result<Self, Self::Error> {
-        let set: HashSet<Measurement> = serde_json::from_str(corpus)
-            .context("MeasurementCorpus from file contents")?;
+    fn try_from(corim: Corim) -> Result<Self, Self::Error> {
+        let mut set = HashSet::new();
+
+        for d in corim.iter_digests() {
+            set.insert(d.try_into()?);
+        }
 
         Ok(Self(set))
     }
@@ -427,12 +431,10 @@ fn verify_measurements(
     log: &Path,
     corpus: &Path,
 ) -> Result<()> {
-    let corpus = fs::read_to_string(corpus).context(format!(
-        "measurement corpus from file path: {}",
-        corpus.display()
-    ))?;
-    let corpus = ReferenceMeasurements::try_from(corpus.as_str())
-        .context("MeasurementCorpus from file contents")?;
+    let corpus = Corim::from_file(corpus)
+        .context(format!("Corim from file path: {}", corpus.display()))?;
+    let corpus = ReferenceMeasurements::try_from(corpus)
+        .context("ReferenceMeasurements from CoRIM")?;
 
     let cert_chain = fs::read(cert_chain).context(format!(
         "Read cert chain from file: {}",
