@@ -2,15 +2,20 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use attest_data::{Attestation, Log, Nonce};
+use attest_data::{
+    AttestDataError, Attestation, DiceTcbInfo, Log, Measurement, Nonce,
+    DICE_TCB_INFO,
+};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
 use hubpack::SerializedSize;
 #[cfg(feature = "ipcc")]
 use libipcc::IpccError;
+use rats_corim::Corim;
 use sha3::{Digest, Sha3_256};
+use std::collections::HashSet;
 use thiserror::Error;
 use x509_cert::{
-    der::{self, Encode},
+    der::{self, Decode, DecodeValue, Encode, Header, SliceReader},
     Certificate, PkiPath,
 };
 
@@ -361,6 +366,107 @@ impl<'a> PkiPathSignatureVerifier<'a> {
         } else {
             Ok(())
         }
+    }
+}
+
+/// Possible errors produced by the `MeasurmentSet` construction process.
+#[derive(Debug, Error)]
+pub enum MeasurementSetError {
+    #[error("failed to create reader from extension value: {0}")]
+    ExtensionDecode(der::Error),
+    #[error("failed to decode extension header: {0}")]
+    HeaderDecode(der::Error),
+    #[error("failed to decode TcbInfo extension: {0}")]
+    DiceTcbInfoDecode(der::Error),
+    #[error("failed to create Measurement from DiceTcbInfo extension: {0}")]
+    MeasurementConstruct(#[from] AttestDataError),
+}
+
+/// This is a collection to represent the measurements received from an
+/// attestor. These measurements will come from the measurement log and the
+/// DiceTcbInfo extension(s) in the attestation cert chain / pki path.
+pub struct MeasurementSet(HashSet<Measurement>);
+
+/// Construct a MeasurementSet from the provided artifacts. The
+/// trustwirthiness of these artifacts must be established independently
+/// (see `verify_cert_chain` and `verify_attestation`).
+impl MeasurementSet {
+    /// Construct a MeasurementSet from the provided artifacts. The
+    /// trustwirthiness of these artifacts must be established independently
+    /// (see `verify_cert_chain` and `verify_attestation`).
+    pub fn from_artifacts(
+        pki_path: &PkiPath,
+        log: &Log,
+    ) -> Result<Self, MeasurementSetError> {
+        let mut measurements = HashSet::new();
+
+        for cert in pki_path {
+            if let Some(extensions) = &cert.tbs_certificate.extensions {
+                for ext in extensions {
+                    if ext.extn_id == DICE_TCB_INFO {
+                        let mut reader =
+                            SliceReader::new(ext.extn_value.as_bytes())
+                                .map_err(
+                                    MeasurementSetError::ExtensionDecode,
+                                )?;
+                        let header = Header::decode(&mut reader)
+                            .map_err(MeasurementSetError::HeaderDecode)?;
+
+                        let tcb_info =
+                            DiceTcbInfo::decode_value(&mut reader, header)
+                                .map_err(
+                                    MeasurementSetError::DiceTcbInfoDecode,
+                                )?;
+                        if let Some(fwid_vec) = &tcb_info.fwids {
+                            for fwid in fwid_vec {
+                                let measurement = Measurement::try_from(fwid)?;
+                                measurements.insert(measurement);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for measurement in log.iter() {
+            measurements.insert(*measurement);
+        }
+
+        Ok(Self(measurements))
+    }
+
+    /// Thin wrapper over HashSet.is_subset w/ better type info
+    pub fn is_subset(&self, corpus: &ReferenceMeasurements) -> bool {
+        self.0.is_subset(&corpus.0)
+    }
+}
+
+/// A collection of measurement values that is used as a source of truth when
+/// appraising the set of measurements derived from an attestation.
+pub struct ReferenceMeasurements(pub(crate) HashSet<Measurement>);
+
+/// Possible errors produced by the `ReferenceMeasurements` construction
+/// process.
+#[derive(Debug, Error)]
+pub enum ReferenceMeasurementsError {
+    #[error("Digest is not the expected length")]
+    BadDigest(#[from] AttestDataError),
+}
+
+impl TryFrom<Corim> for ReferenceMeasurements {
+    type Error = ReferenceMeasurementsError;
+
+    /// Construct a collection of `ReferenceMeasurements` from the provided
+    /// `Corim` documents. The trustworthiness of these inputs must be
+    /// established independently
+    fn try_from(corim: Corim) -> Result<Self, Self::Error> {
+        let mut set = HashSet::new();
+
+        for d in corim.iter_digests() {
+            set.insert(d.try_into()?);
+        }
+
+        Ok(Self(set))
     }
 }
 
