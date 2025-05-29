@@ -554,6 +554,7 @@ dependencies = [
  "libipcc",
  "log",
  "p384",
+ "rats-corim",
  "sha3",
  "tempfile",
  "thiserror 2.0.12",
@@ -1667,7 +1668,6 @@ dependencies = [
  "serde_json",
  "sha3",
  "tempfile",
- "thiserror 2.0.12",
  "x509-cert",
 ]
 
