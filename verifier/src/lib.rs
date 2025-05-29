@@ -541,3 +541,25 @@ pub fn verify_attestation(
         .verify(message.as_slice(), &signature)
         .map_err(VerifyAttestationError::VerificationFailed)
 }
+
+/// Possible errors produced by the measurement verification / appraisal
+/// process.
+#[derive(Debug, Error)]
+pub enum VerifyMeasurementsError {
+    #[error("Measurements are not a subset of reference measurements")]
+    NotSubset,
+}
+
+/// This function implements the core of our attestation appraisal policy.
+/// The trustworthiness of the parameters provided must be established
+/// independently.
+pub fn verify_measurements(
+    measurements: &MeasurementSet,
+    corpus: &ReferenceMeasurements,
+) -> Result<(), VerifyMeasurementsError> {
+    if measurements.is_subset(corpus) {
+        Ok(())
+    } else {
+        Err(VerifyMeasurementsError::NotSubset)
+    }
+}
