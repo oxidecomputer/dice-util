@@ -16,6 +16,7 @@ hubpack.workspace = true
 log.workspace = true
 p384 = { workspace = true, default-features = true }
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
+rats-corim.workspace = true
 sha3.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
