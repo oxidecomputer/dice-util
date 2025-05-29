@@ -310,8 +310,7 @@ fn main() -> Result<()> {
 }
 
 // Check that the measurments in `cert_chain` and `log` are all present in
-// the `corpus`. If an unexpected measurement is encountered it is returned
-// to the caller in an error.
+// the `corpus`.
 // NOTE: The output of this function is only as trustworthy as its inputs.
 // These must be verified independently.
 fn verify_measurements(
@@ -341,11 +340,8 @@ fn verify_measurements(
     let measurements = MeasurementSet::from_artifacts(&cert_chain, &log)
         .context("MeasurementSet from PkiPath")?;
 
-    if measurements.is_subset(&corpus) {
-        Ok(())
-    } else {
-        Err(anyhow!("Measurements are NOT a subset of Corpus"))
-    }
+    dice_verifier::verify_measurements(&measurements, &corpus)
+        .context("Verify measurements")
 }
 
 fn verify(
