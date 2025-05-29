@@ -28,6 +28,7 @@ libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "524eb8f1250
 log = { version = "0.4.27", features = ["std"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "0.7.0", default-features = false }
+rats-corim = { git = "https://github.com/flihp/rats-corim", branch = "minor-update-and-ergonomics" }
 ron = "0.8"
 rpassword = "7.4.0"
 salty = { version = "0.3", default-features = false }

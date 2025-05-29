@@ -9,6 +9,7 @@ der = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 hubpack.workspace = true
+rats-corim = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 salty.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -17,4 +18,4 @@ sha3.workspace = true
 static_assertions.workspace = true
 
 [features]
-std = ["der/std", "der/derive", "der/oid", "getrandom", "hex", "sha3/oid", "thiserror" ]
+std = ["der/std", "der/derive", "der/oid", "getrandom", "hex", "rats-corim", "sha3/oid", "thiserror" ]

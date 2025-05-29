@@ -48,6 +48,8 @@ pub enum AttestDataError {
         error("Fwid provided contains unsupported digest value")
     )]
     UnsupportedDigest,
+    #[cfg_attr(feature = "std", error("CoRIM Digest contained tagged value"))]
+    TaggedDigest,
 }
 
 /// Array is the type we use as a base for types that are constant sized byte
@@ -222,6 +224,27 @@ impl TryFrom<&Fwid> for Measurement {
             Ok(Measurement::Sha3_256(digest))
         } else {
             Err(Self::Error::UnsupportedDigest)
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl TryFrom<rats_corim::Digest> for Measurement {
+    type Error = AttestDataError;
+
+    /// Attempt to create a Measurement from the `rats_corim::Digest` provided.
+    fn try_from(digest: rats_corim::Digest) -> Result<Self, Self::Error> {
+        match digest.alg {
+            10 => {
+                let bytes = match &digest.val {
+                    rats_corim::TaggedBytes::Bytes(v) => v,
+                    rats_corim::TaggedBytes::Tagged(_, _) => {
+                        return Err(Self::Error::TaggedDigest)
+                    }
+                };
+                Ok(Measurement::Sha3_256(bytes[..].try_into()?))
+            }
+            _ => Err(Self::Error::UnsupportedDigest),
         }
     }
 }
