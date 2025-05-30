@@ -507,17 +507,20 @@ fn verify_cert_chain(
     let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
         .context("Parsing certs from PEM")?;
 
-    let root = match ca_cert {
+    match ca_cert {
         Some(r) => {
             let root = fs::read(r)?;
-            Some(Certificate::from_pem(root)?)
+            let root = Certificate::from_pem(root)?;
+            let root = Some(std::slice::from_ref(&root));
+            let _ = dice_verifier::verify_cert_chain(&cert_chain, root)
+                .context("Verify cert chain")?;
         }
         None => {
             warn!("allowing self-signed cert chain");
-            None
+            let _ = dice_verifier::verify_cert_chain(&cert_chain, None)
+                .context("Verify self signed cert chain")?;
         }
-    };
+    }
 
-    dice_verifier::verify_cert_chain(&cert_chain, root.as_ref())
-        .context("Verify cert chain")
+    Ok(())
 }
