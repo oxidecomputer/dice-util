@@ -457,17 +457,19 @@ pub enum ReferenceMeasurementsError {
     BadDigest(#[from] AttestDataError),
 }
 
-impl TryFrom<Corim> for ReferenceMeasurements {
+impl TryFrom<&[Corim]> for ReferenceMeasurements {
     type Error = ReferenceMeasurementsError;
 
     /// Construct a collection of `ReferenceMeasurements` from the provided
     /// `Corim` documents. The trustworthiness of these inputs must be
     /// established independently
-    fn try_from(corim: Corim) -> Result<Self, Self::Error> {
+    fn try_from(corims: &[Corim]) -> Result<Self, Self::Error> {
         let mut set = HashSet::new();
 
-        for d in corim.iter_digests() {
-            set.insert(d.try_into()?);
+        for corim in corims {
+            for d in corim.iter_digests() {
+                set.insert(d.try_into()?);
+            }
         }
 
         Ok(Self(set))

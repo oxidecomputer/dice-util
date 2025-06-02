@@ -320,7 +320,7 @@ fn verify_measurements(
 ) -> Result<()> {
     let corpus = Corim::from_file(corpus)
         .context(format!("Corim from file path: {}", corpus.display()))?;
-    let corpus = ReferenceMeasurements::try_from(corpus)
+    let corpus = ReferenceMeasurements::try_from(std::slice::from_ref(&corpus))
         .context("ReferenceMeasurements from CoRIM")?;
 
     let cert_chain = fs::read(cert_chain).context(format!(
