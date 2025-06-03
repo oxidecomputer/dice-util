@@ -10,7 +10,7 @@ use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
 use hubpack::SerializedSize;
 #[cfg(feature = "ipcc")]
 use libipcc::IpccError;
-use rats_corim::Corim;
+pub use rats_corim::{Corim, Error as CorimError};
 use sha3::{Digest, Sha3_256};
 use std::collections::HashSet;
 use thiserror::Error;
