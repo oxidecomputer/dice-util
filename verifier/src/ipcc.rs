@@ -6,7 +6,8 @@ use attest_data::{
     messages::{HostToRotCommand, RotToHost},
     Attestation, Log, Nonce,
 };
-use libipcc::{IpccError, IpccHandle};
+pub use libipcc::IpccError;
+use libipcc::IpccHandle;
 use x509_cert::{
     der::{self, Decode, Encode, Reader},
     Certificate, PkiPath,
