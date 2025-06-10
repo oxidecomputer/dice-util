@@ -251,7 +251,7 @@ impl TryFrom<rats_corim::Digest> for Measurement {
 
 /// Log is the collection of measurements recorded
 #[serde_as]
-#[derive(Deserialize, Serialize, SerializedSize)]
+#[derive(Clone, Deserialize, Serialize, SerializedSize)]
 pub struct MeasurementLog<const N: usize> {
     index: u32,
     #[serde_as(as = "[_; N]")]
