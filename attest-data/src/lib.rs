@@ -322,7 +322,7 @@ const LOG_CAPACITY: usize = 16;
 
 pub type Log = MeasurementLog<LOG_CAPACITY>;
 
-#[derive(Deserialize, Serialize, SerializedSize)]
+#[derive(Debug, Deserialize, Serialize, SerializedSize)]
 pub enum Attestation {
     Ed25519(Ed25519Signature),
 }
