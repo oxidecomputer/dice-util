@@ -25,6 +25,11 @@ use hiffy::AttestHiffyError;
 #[cfg(feature = "ipcc")]
 pub mod ipcc;
 
+#[cfg(feature = "mock")]
+pub mod mock;
+#[cfg(feature = "mock")]
+pub use mock::AttestMock;
+
 /// `AttestError` describes the possible errors encountered while getting an
 /// attestation from the RoT. Such errors range from those produced by the
 /// transport used to communicate with the RoT to those related to parsing

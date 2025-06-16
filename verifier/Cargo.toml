@@ -15,6 +15,7 @@ libipcc = { workspace = true, optional = true }
 log.workspace = true
 p384 = { workspace = true, default-features = true }
 rats-corim.workspace = true
+serde_json = { workspace = true, optional = true }
 sha3.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
@@ -22,3 +23,4 @@ x509-cert = { workspace = true, default-features = true }
 
 [features]
 ipcc = ["libipcc"]
+mock = ["ed25519-dalek/pem", "serde_json"]

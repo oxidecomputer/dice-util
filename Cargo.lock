@@ -555,6 +555,7 @@ dependencies = [
  "log",
  "p384",
  "rats-corim",
+ "serde_json",
  "sha3",
  "tempfile",
  "thiserror 2.0.12",
