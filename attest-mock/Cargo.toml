@@ -1,0 +1,17 @@
+[package]
+name = "attest-mock"
+version = "0.1.0"
+edition = "2024"
+description = "tools to generate attestation artifacts from KDL for use in testing"
+license = "MPL-2.0"
+
+[dependencies]
+anyhow = { workspace = true, features = ["std"] }
+attest-data = { path = "../attest-data", features = ["std"] }
+clap.workspace = true
+hex.workspace = true
+hubpack.workspace = true
+knuffel.workspace = true
+miette.workspace = true
+rats-corim.workspace = true
+serde_json.workspace = true
