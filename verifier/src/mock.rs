@@ -18,8 +18,8 @@ use x509_cert::{der, Certificate, PkiPath};
 pub enum AttestMockError {
     #[error("Failed to parse certificate: {0}")]
     DerError(#[from] der::Error),
-    #[error("Failed to deserialize to JSON: {0}")]
-    Deserialize(#[from] serde_json::Error),
+    #[error("Failed to deserialized hubpacked log: {0}")]
+    Deserialize(#[from] hubpack::error::Error),
     #[error("Failed to parse key from PKCS8: {0}")]
     Pkcs8(#[from] pkcs8::Error),
     #[error("Failed to read file from Path: {0}")]
@@ -41,8 +41,8 @@ impl AttestMock {
         let certs = fs::read_to_string(pki_path)?;
         let certs = Certificate::load_pem_chain(certs.as_bytes())?;
 
-        let log = fs::read_to_string(&log_path)?;
-        let log: Log = serde_json::from_str(&log)?;
+        let log = fs::read(&log_path)?;
+        let (log, _): (Log, _) = hubpack::deserialize(&log)?;
 
         let alias_key = SigningKey::read_pkcs8_pem_file(alias_path)?;
 
