@@ -130,7 +130,7 @@ pub fn buf_out_fmt<F: Write>(
 ) -> Result<(), Box<dyn Error>> {
     writeln!(out, "\nconst {}: [u8; {}] = [", name, slice.len())?;
     for (i, elm) in slice.iter().enumerate() {
-        if i % 8 == 0 {
+        if i.is_multiple_of(8) {
             write!(out, "    {elm:#04x}, ")?;
         } else if i % 8 == 7 {
             #[allow(clippy::write_with_newline)]
@@ -139,7 +139,7 @@ pub fn buf_out_fmt<F: Write>(
             write!(out, "{elm:#04x}, ")?;
         }
     }
-    if slice.len() % 8 != 0 {
+    if !slice.len().is_multiple_of(8) {
         #[allow(clippy::write_with_newline)]
         write!(out, "\n")?;
     }
