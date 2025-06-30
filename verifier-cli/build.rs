@@ -8,7 +8,6 @@
 static OXIDE_PLATFORM: &str = "/usr/platform/oxide/lib/amd64/";
 
 fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
     #[cfg(all(feature = "ipcc", target_os = "illumos"))]
     {
         println!("cargo:rustc-link-arg=-Wl,-R{}", OXIDE_PLATFORM);
