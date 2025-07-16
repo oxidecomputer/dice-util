@@ -202,10 +202,7 @@ impl MfgDriver {
     pub fn set_platform_id(&mut self, pid: PlatformId) -> Result<()> {
         let mut retry = self.max_retry;
         loop {
-            match pid.as_str() {
-                Ok(s) => print!("setting platform id to: \"{s}\" ... "),
-                Err(e) => return Err(Error::InvalidPlatformId(e).into()),
-            }
+            print!("setting platform id to: \"{pid}\"");
             io::stdout().flush()?;
 
             let hash = self.send_msg(&MfgMessage::PlatformId(pid))?;

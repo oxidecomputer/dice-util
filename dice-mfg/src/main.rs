@@ -422,10 +422,9 @@ fn main() -> Result<()> {
 
             let (cert, csr) = if let Some(ref w) = work_dir {
                 // use workdir to hold CSR if provided
-                let id = platform_id.as_str()?;
                 (
-                    w.join(format!("{id}.cert.pem")),
-                    w.join(format!("{id}.csr.pem")),
+                    w.join(format!("{platform_id}.cert.pem")),
+                    w.join(format!("{platform_id}.csr.pem")),
                 )
             } else {
                 // otherwise use a tempdir
