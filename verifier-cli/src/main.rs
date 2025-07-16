@@ -243,9 +243,7 @@ fn main() -> Result<()> {
 
             let platform_id = PlatformId::try_from(&cert_chain)
                 .context("PlatformId from attestation cert chain")?;
-            let platform_id = platform_id
-                .as_str()
-                .map_err(|_| anyhow!("Invalid PlatformId"))?;
+            let platform_id = platform_id.as_str();
 
             println!("{platform_id}");
         }
@@ -276,9 +274,6 @@ fn main() -> Result<()> {
                     )?
                 }
             };
-            let platform_id = platform_id
-                .as_str()
-                .map_err(|_| anyhow!("Invalid PlatformId"))?;
 
             println!("{platform_id}");
         }
