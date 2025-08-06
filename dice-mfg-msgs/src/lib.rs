@@ -117,7 +117,6 @@ impl fmt::Display for PlatformIdError {
 // see RFD 308 § 4.3.1
 // 0XV2:PPP-PPPPPPP:RRR:LLLWWYYSSSS
 const PREFIX_LEN: usize = 4;
-const RFD308_V2_LEN: usize = 32;
 const RFD308_V2_PREFIX: &str = "0XV2";
 
 // RFD 303 §4.6
@@ -136,9 +135,6 @@ pub const PLATFORM_ID_MAX_LEN: usize = PLATFORM_ID_V1_LEN;
 pub struct PlatformId([u8; PLATFORM_ID_MAX_LEN]);
 
 fn validate_0xv2(s: &str) -> Result<(), PlatformIdError> {
-    if s.len() != RFD308_V2_LEN {
-        return Err(PlatformIdError::BadSize);
-    }
     if !s.starts_with(RFD308_V2_PREFIX) {
         return Err(PlatformIdError::InvalidPrefix);
     }
@@ -181,9 +177,6 @@ fn validate_pdv1(s: &str) -> Result<(), PlatformIdError> {
 }
 
 fn validate_pdv2(s: &str) -> Result<(), PlatformIdError> {
-    if s.len() != PLATFORM_ID_V2_LEN {
-        return Err(PlatformIdError::BadSize);
-    }
     if !s.starts_with(PLATFORM_ID_V2_PREFIX) {
         return Err(PlatformIdError::InvalidPrefix);
     }
@@ -219,7 +212,6 @@ fn validate_pdv2(s: &str) -> Result<(), PlatformIdError> {
 // string.
 fn platform_id_from_0xv2(s: &str) -> Result<PlatformId, PlatformIdError> {
     validate_0xv2(s)?;
-    let s = s.as_bytes();
     let mut bytes = [0u8; PLATFORM_ID_MAX_LEN];
 
     // set PDV2 prefix
@@ -228,11 +220,19 @@ fn platform_id_from_0xv2(s: &str) -> Result<PlatformId, PlatformIdError> {
 
     // copy ':PN'
     bytes[PLATFORM_ID_V1_PREFIX.len()..16]
-        .copy_from_slice(&s[PLATFORM_ID_V2_PREFIX.len()..16]);
+        .copy_from_slice(&s.as_bytes()[PLATFORM_ID_V2_PREFIX.len()..16]);
 
+    // fill revision field w/ `RRR`
     bytes[16..20].copy_from_slice(b":RRR");
     // copy ':SN'
-    bytes[20..32].copy_from_slice(&s[20..32]);
+    let i = s.rfind(':').ok_or(PlatformIdError::Malformed)?;
+    let (_, sn) = s.split_at_checked(i).ok_or(PlatformIdError::Malformed)?;
+
+    // the NS must be either 11 (v1) or 8 (v2) characters + the ':' separator
+    if !(sn.len() == 9 || sn.len() == 12) {
+        return Err(PlatformIdError::Malformed);
+    }
+    bytes[20..20 + sn.len()].copy_from_slice(&s.as_bytes()[20..20 + sn.len()]);
 
     Ok(PlatformId(bytes))
 }
@@ -254,7 +254,7 @@ fn platform_id_from_pdv2(s: &str) -> Result<PlatformId, PlatformIdError> {
 
     const LEN: usize = PLATFORM_ID_MAX_LEN;
     let mut bytes = [0u8; LEN];
-    bytes[..PLATFORM_ID_V2_LEN].copy_from_slice(s.as_bytes());
+    bytes[..s.len()].copy_from_slice(s.as_bytes());
 
     Ok(PlatformId(bytes))
 }
@@ -264,7 +264,7 @@ impl TryFrom<&str> for PlatformId {
 
     /// Construct a PlatformId enum variant appropriate for the supplied &str.
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        if s.len() != PLATFORM_ID_MAX_LEN {
+        if s.len() < PREFIX_LEN {
             return Err(PlatformIdError::BadSize);
         }
         match &s[..PREFIX_LEN] {
@@ -343,6 +343,9 @@ impl TryFrom<&PkiPath> for PlatformId {
                         let common = Utf8StringRef::try_from(&atav.value)
                             .map_err(Self::Error::CommonNameDecode)?;
                         let common: &str = common.as_ref();
+                        // our common name is a fixed 32 bytes, but trailing
+                        // characters may be NUL so we trim
+                        let common = common.trim_end_matches('\0');
                         if let Ok(id) = PlatformId::try_from(common) {
                             if platform_id.is_none() {
                                 platform_id = Some(id);
@@ -492,9 +495,12 @@ mod tests {
     #[cfg(feature = "std")]
     use x509_cert::{Certificate, PkiPath};
 
+    const RFD308_V2_LEN: usize = 32;
+
     const RFD308_V2_GOOD: &str = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
     const PID_V1_GOOD: &str = "PDV1:PPP-PPPPPPP:000:SSSSSSSSSSS";
     const PID_V2_GOOD: &str = "PDV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
+    const RFD219_V2_GOOD: &str = "0XV2:PPP-PPPPPPP:RRR:2SSSSSSS";
 
     #[test]
     fn rfd308_v2_good() -> Result<(), PlatformIdError> {
@@ -523,7 +529,7 @@ mod tests {
         let pid = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
-        assert_eq!(pid.err(), Some(PlatformIdError::BadSize));
+        assert_eq!(pid.err(), Some(PlatformIdError::Malformed));
         Ok(())
     }
 
@@ -719,6 +725,12 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn rfd219_v2_validate() -> Result<(), PlatformIdError> {
+        assert!(validate_0xv2(RFD219_V2_GOOD).is_ok());
+        Ok(())
+    }
+
     const RFD308_V2_SERIALIZED: [u8; 32] = [
         b'P', b'D', b'V', b'2', b':', b'P', b'P', b'P', b'-', b'P', b'P', b'P',
         b'P', b'P', b'P', b'P', b':', b'R', b'R', b'R', b':', b'S', b'S', b'S',
@@ -777,6 +789,39 @@ z1UhDy+0wtYKr4IhWWw3E8v3Y9JcjeT1s43Nc/wG
         Ok(assert_eq!(
             platform_id.as_str(),
             "PDV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS"
+        ))
+    }
+
+    const PLATFORM_ID_V2_PEM: &str = r#"-----BEGIN CERTIFICATE-----
+MIICTzCCAdagAwIBAgIUEAAAAAAAAAAAAAAAAAAAAAAAAAEwCgYIKoZIzj0EAwMw
+YDELMAkGA1UEBhMCVVMxHzAdBgNVBAoMFk94aWRlIENvbXB1dGVyIENvbXBhbnkx
+MDAuBgNVBAMMJ1BsYXRmb3JtIElkZW50aXR5IEludGVybWVkaWF0ZSAyMDc4MDM1
+NzAgFw0yNTA4MDYyMjM5MDNaGA85OTk5MTIzMTIzNTk1OVowWTELMAkGA1UEBhMC
+VVMxHzAdBgNVBAoMFk94aWRlIENvbXB1dGVyIENvbXBhbnkxKTAnBgNVBAMMIFBE
+VjI6UFBQLVBQUFBQUFA6UlJSOjJBODVYVzRKAAAAMCowBQYDK2VwAyEAIYxu6pjE
+12IQAAGqUxxci+4uoL2H9WDyPXDiI9zcmzWjgaEwgZ4wHQYDVR0OBBYEFKwTUnXH
+Vfd0Sd+hKkhya/m705IbMB8GA1UdIwQYMBaAFITJscccOxWIMVJheKfg7Y0Hlt4U
+MA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMDsGA1UdIAEB/wQxMC8w
+DAYKKwYBBAGDwU8BAzAJBgdngQUFBGQGMAkGB2eBBQUEZAgwCQYHZ4EFBQRkDDAK
+BggqhkjOPQQDAwNnADBkAjArNWDm6SyGCRu8FnqqpZEqrxid60zh8X+sUX7FnoSu
+F8WaS6Hg7GQlDDB0RrkIteUCMD0trkxthcbjuqBrL9qaAU1WhpKGHZbR35+flA0F
+/sWrKvOqEVgCWJbj5nRlhjpg0w==
+-----END CERTIFICATE-----
+"#;
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn pid_from_pki_path_v2() -> anyhow::Result<()> {
+        let bytes = PLATFORM_ID_V2_PEM.as_bytes();
+        let cert_chain: PkiPath = Certificate::load_pem_chain(bytes)
+            .context("Certificate from PLATFORM_ID_PEM")?;
+
+        let platform_id = PlatformId::try_from(&cert_chain)
+            .context("PlatformId from cert chain")?;
+
+        Ok(assert_eq!(
+            platform_id.as_str(),
+            "PDV2:PPP-PPPPPPP:RRR:2A85XW4J"
         ))
     }
 
