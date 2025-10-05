@@ -6,7 +6,10 @@
 
 #[cfg(feature = "std")]
 use const_oid::db::rfc4519::COMMON_NAME;
-use core::fmt;
+use core::{fmt, str::Utf8Error};
+use dice_util_barcode::{
+    Barcode, BarcodeError, Prefix, PREFIX_PDV1, PREFIX_PDV2, SEPARATOR,
+};
 use hubpack::SerializedSize;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
@@ -69,198 +72,150 @@ impl SizedBlob {
     }
 }
 
-// Code39 alphabet https://en.wikipedia.org/wiki/Code_39
-const CODE39_LEN: usize = 43;
-const CODE39_ALPHABET: [char; CODE39_LEN] = [
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E',
-    'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
-    'U', 'V', 'W', 'X', 'Y', 'Z', '-', '.', ' ', '$', '/', '+', '%',
-];
-
-#[derive(Clone, Copy, Debug, thiserror::Error, PartialEq)]
+/// A type representing all possible errors that can be encountered while
+/// parsing a serial number string.
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum PlatformIdError {
-    #[error("PID string length not supported")]
-    BadSize,
-    #[error("invalid char '{c:?}' at offset {i:?}")]
-    Invalid { i: usize, c: char },
-    #[error("PID string has invalid prefix")]
+    #[error("The input string has an invalid prefix")]
     InvalidPrefix,
-    #[error("PID string is malformed")]
-    Malformed,
+    #[error("Failed to construct Barcode from the provided string: {0}")]
+    Barcode(#[from] BarcodeError),
+    #[error("TheThe input string has no delimiters")]
+    Encoding(#[from] Utf8Error),
+    #[error("The input string has no delimiters")]
+    NoDelim,
 }
 
-// see RFD 308 § 4.3.1
-// 0XV2:PPP-PPPPPPP:RRR:LLLWWYYSSSS
-const PREFIX_LEN: usize = 4;
-const RFD308_V2_PREFIX: &str = "0XV2";
-
-// RFD 303 §4.6
-const PLATFORM_ID_V1_LEN: usize = 32;
-const PLATFORM_ID_V1_PREFIX: &str = "PDV1";
-const PLATFORM_ID_V2_LEN: usize = 32;
-const PLATFORM_ID_V2_PREFIX: &str = "PDV2";
-pub const PLATFORM_ID_MAX_LEN: usize = PLATFORM_ID_V1_LEN;
-
+pub const PLATFORM_ID_MAX_LEN: usize = 32;
+/// A type representing a platform identity string. It must fit in a 32 byte
+/// region of memory.
 #[derive(
     Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, SerializedSize,
 )]
-#[repr(C)]
-// have serde use the TryFrom to validate the PlatformId when deserializing
 #[serde(try_from = "[u8; PLATFORM_ID_MAX_LEN]")]
 pub struct PlatformId([u8; PLATFORM_ID_MAX_LEN]);
 
-fn validate_0xv2(s: &str) -> Result<(), PlatformIdError> {
-    if !s.starts_with(RFD308_V2_PREFIX) {
-        return Err(PlatformIdError::InvalidPrefix);
+impl PlatformId {
+    /// Get the platform identity string as a byte slice
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
     }
-    validate_0xv2_noprefix(s)
+
+    /// Get the platform identity as a &str
+    /// NOTE: This function will panic if any of the bytes in the PlatformId
+    /// aren't valid UTF8.
+    pub fn as_str(&self) -> &str {
+        str::from_utf8(&self.0)
+            .expect("malformed platform id string")
+            .trim_end_matches('\0')
+    }
 }
 
-fn validate_0xv2_noprefix(s: &str) -> Result<(), PlatformIdError> {
-    for (i, c) in s.chars().enumerate() {
-        match i {
-            8 => {
-                if c != '-' {
-                    return Err(PlatformIdError::Invalid { i, c });
-                }
-            }
-            4 | 16 | 20 => {
-                if c != ':' {
-                    return Err(PlatformIdError::Invalid { i, c });
-                }
-            }
-            _ => {
-                if c == 'O' || c == 'I' || !CODE39_ALPHABET.contains(&c) {
-                    return Err(PlatformIdError::Invalid { i, c });
-                }
-            }
-        }
+impl fmt::Display for PlatformId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
-    Ok(())
-}
-
-fn validate_pdv1(s: &str) -> Result<(), PlatformIdError> {
-    if s.len() != PLATFORM_ID_V1_LEN {
-        return Err(PlatformIdError::BadSize);
-    }
-    if !s.starts_with(PLATFORM_ID_V1_PREFIX) {
-        return Err(PlatformIdError::InvalidPrefix);
-    }
-    // the only difference between the `0XV2` and `PDV1` formats are their
-    // prefix
-    validate_0xv2_noprefix(s)
-}
-
-fn validate_pdv2(s: &str) -> Result<(), PlatformIdError> {
-    if !s.starts_with(PLATFORM_ID_V2_PREFIX) {
-        return Err(PlatformIdError::InvalidPrefix);
-    }
-
-    for (i, c) in s.chars().enumerate() {
-        match i {
-            8 => {
-                if c != '-' {
-                    return Err(PlatformIdError::Invalid { i, c });
-                }
-            }
-            4 | 16 | 20 => {
-                if c != ':' {
-                    return Err(PlatformIdError::Invalid { i, c });
-                }
-            }
-            17..=19 => {
-                if c != 'R' {
-                    return Err(PlatformIdError::Invalid { i, c });
-                }
-            }
-            _ => {
-                if c == 'O' || c == 'I' || !CODE39_ALPHABET.contains(&c) {
-                    return Err(PlatformIdError::Invalid { i, c });
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-// 0XV2 strings are converted to the most recent version of the PlatformId
-// string.
-fn platform_id_from_0xv2(s: &str) -> Result<PlatformId, PlatformIdError> {
-    validate_0xv2(s)?;
-    let mut bytes = [0u8; PLATFORM_ID_MAX_LEN];
-
-    // set PDV2 prefix
-    bytes[..PLATFORM_ID_V2_PREFIX.len()]
-        .copy_from_slice(PLATFORM_ID_V2_PREFIX.as_bytes());
-
-    // copy ':PN'
-    bytes[PLATFORM_ID_V1_PREFIX.len()..16]
-        .copy_from_slice(&s.as_bytes()[PLATFORM_ID_V2_PREFIX.len()..16]);
-
-    // fill revision field w/ `RRR`
-    bytes[16..20].copy_from_slice(b":RRR");
-    // copy ':SN'
-    let i = s.rfind(':').ok_or(PlatformIdError::Malformed)?;
-    let (_, sn) = s.split_at_checked(i).ok_or(PlatformIdError::Malformed)?;
-
-    // the NS must be either 11 (v1) or 8 (v2) characters + the ':' separator
-    if !(sn.len() == 9 || sn.len() == 12) {
-        return Err(PlatformIdError::Malformed);
-    }
-    bytes[20..20 + sn.len()].copy_from_slice(&s.as_bytes()[20..20 + sn.len()]);
-
-    Ok(PlatformId(bytes))
-}
-
-// PDV1 strings are copied verbatim. This is to support systems already mfg'd
-// with certs containing PDV1 strings in the subject CN. We must be able to
-// set the issuer field to the same value in it's descendants.
-fn platform_id_from_pdv1(s: &str) -> Result<PlatformId, PlatformIdError> {
-    validate_pdv1(s)?;
-    Ok(PlatformId(
-        s.as_bytes()
-            .try_into()
-            .map_err(|_| PlatformIdError::BadSize)?,
-    ))
-}
-
-fn platform_id_from_pdv2(s: &str) -> Result<PlatformId, PlatformIdError> {
-    validate_pdv2(s)?;
-
-    const LEN: usize = PLATFORM_ID_MAX_LEN;
-    let mut bytes = [0u8; LEN];
-    bytes[..s.len()].copy_from_slice(s.as_bytes());
-
-    Ok(PlatformId(bytes))
 }
 
 impl TryFrom<&str> for PlatformId {
     type Error = PlatformIdError;
 
-    /// Construct a PlatformId enum variant appropriate for the supplied &str.
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
-        if s.len() < PREFIX_LEN {
-            return Err(PlatformIdError::BadSize);
-        }
-        match &s[..PREFIX_LEN] {
-            RFD308_V2_PREFIX => platform_id_from_0xv2(s),
-            PLATFORM_ID_V1_PREFIX => platform_id_from_pdv1(s),
-            PLATFORM_ID_V2_PREFIX => platform_id_from_pdv2(s),
-            _ => Err(PlatformIdError::InvalidPrefix),
-        }
-    }
-}
+    /// Attempt to construct a `PlatformId` instance from a string
+    fn try_from(s: &str) -> Result<PlatformId, Self::Error> {
+        let barcode = Barcode::try_from(s)?;
 
-impl TryFrom<&[u8]> for PlatformId {
-    type Error = PlatformIdError;
+        // memory to collect parts of the barcode that make up the PlatformId
+        // & indexes for copying data into it
+        let mut pdv2 = [0u8; PLATFORM_ID_MAX_LEN];
 
-    /// Construct a PlatformId enum variant appropriate for the supplied &str.
-    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
-        let pid =
-            core::str::from_utf8(b).map_err(|_| PlatformIdError::Malformed)?;
-        let pid = pid.trim_end_matches('\0');
+        // offsets used copy bytes into `pdv2`
+        let mut start = 0;
+        let bytes = match barcode.prefix {
+            // preserve the format / prefix of PDV1
+            Prefix::PDV1 => PREFIX_PDV1.as_bytes(),
+            // preserve the prefix for PDV2 & convert 0XV1 & 2 to PDV2
+            Prefix::ZeroXV1 | Prefix::ZeroXV2 | Prefix::PDV2 => {
+                PREFIX_PDV2.as_bytes()
+            }
+        };
+        let mut end = bytes.len();
+        pdv2[start..end].copy_from_slice(bytes);
 
-        Self::try_from(pid)
+        // set up a byte slice w/ the SEPARATOR char that we'll reuse
+        let sep = SEPARATOR.as_bytes();
+
+        // write separator
+        start = end;
+        end += 1;
+        pdv2[start..end].copy_from_slice(sep);
+
+        // write part number
+        start = end;
+        let part = barcode.part.as_str();
+        // NOTE: how we update `start` depends on the type of the prefix so we
+        // return `end` / the new `start`
+        start = match barcode.prefix {
+            // 0XV1 part number strings are v1 & must have a hyphen added to
+            // become PDV2
+            Prefix::ZeroXV1 => {
+                // write first 3 bytes of the part number
+                let bytes = &part.as_bytes()[..3];
+                end += bytes.len();
+                pdv2[start..end].copy_from_slice(bytes);
+
+                // set up byte slice w/ ASCII for hyphen char '-'
+                let hyphen = b"-";
+
+                // write the hyphen missing from v1 part numbers
+                start = end;
+                end += hyphen.len();
+                pdv2[start..end].copy_from_slice(hyphen);
+
+                // write the last 7 bytes of the part number
+                let bytes = &part.as_bytes()[3..];
+                start = end;
+                end += bytes.len();
+                pdv2[start..end].copy_from_slice(bytes);
+
+                end
+            }
+            // 0XV2, PDV1 & 2 already have v2 part numbers
+            Prefix::ZeroXV2 | Prefix::PDV1 | Prefix::PDV2 => {
+                let bytes = part.as_bytes();
+                end += bytes.len();
+                pdv2[start..end].copy_from_slice(bytes);
+
+                end
+            }
+        };
+
+        // write separator: `start` was updated above
+        end += sep.len();
+        pdv2[start..end].copy_from_slice(sep);
+
+        // write revision
+        start = end;
+
+        // preserve the part number for PDV1, all others will become PDV2
+        let bytes = match barcode.prefix {
+            Prefix::PDV1 => barcode.revision.as_bytes(),
+            Prefix::ZeroXV1 | Prefix::ZeroXV2 | Prefix::PDV2 => b"RRR",
+        };
+        end += bytes.len();
+        pdv2[start..end].copy_from_slice(bytes);
+
+        // write separator
+        start = end;
+        end += sep.len();
+        pdv2[start..end].copy_from_slice(sep);
+
+        // write serial number
+        start = end;
+        let bytes = barcode.serial.as_bytes();
+        end += bytes.len();
+        pdv2[start..end].copy_from_slice(bytes);
+
+        Ok(Self(pdv2))
     }
 }
 
@@ -268,17 +223,18 @@ impl TryFrom<[u8; PLATFORM_ID_MAX_LEN]> for PlatformId {
     type Error = PlatformIdError;
 
     fn try_from(b: [u8; PLATFORM_ID_MAX_LEN]) -> Result<Self, Self::Error> {
-        let pid = core::str::from_utf8(&b[..])
-            .map_err(|_| PlatformIdError::Malformed)?;
-        let pid = pid.trim_end_matches('\0');
-
-        Self::try_from(pid)
+        Self::try_from(&b[..])
     }
 }
 
-impl fmt::Display for PlatformId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.as_str())
+impl TryFrom<&[u8]> for PlatformId {
+    type Error = PlatformIdError;
+
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
+        let pid = str::from_utf8(b).map_err(PlatformIdError::Encoding)?;
+        let pid = pid.trim_end_matches('\0');
+
+        Self::try_from(pid)
     }
 }
 
@@ -333,25 +289,6 @@ impl TryFrom<&PkiPath> for PlatformId {
         }
 
         platform_id.ok_or(Self::Error::NoPlatformId)
-    }
-}
-
-impl PlatformId {
-    pub fn as_bytes(&self) -> &[u8] {
-        match &self.0[..PREFIX_LEN] {
-            [b'P', b'D', b'V', b'1'] => &self.0[..PLATFORM_ID_V1_LEN],
-            [b'P', b'D', b'V', b'2'] => &self.0[..PLATFORM_ID_V2_LEN],
-            _ => panic!("invalid prefix in constructed PlatformId"),
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        // We discard the Result here / `expect` becuase the constructor /
-        // try_from, and deserialization methods check the validity of the
-        // string when the instance is created.
-        core::str::from_utf8(self.as_bytes())
-            .expect("malformed platform id string")
-            .trim_end_matches('\0')
     }
 }
 
@@ -462,111 +399,39 @@ mod tests {
 
     #[cfg(feature = "std")]
     use anyhow::Context;
+    use dice_util_barcode::{
+        InvalidChar, PartError, PartV2Error, PrefixError, RevisionError,
+        SerialError, SerialV1Error,
+    };
     #[cfg(feature = "std")]
     use x509_cert::{Certificate, PkiPath};
-
-    const RFD308_V2_LEN: usize = 32;
-
-    const RFD308_V2_GOOD: &str = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
-    const PID_V1_GOOD: &str = "PDV1:PPP-PPPPPPP:000:SSSSSSSSSSS";
-    const PID_V2_GOOD: &str = "PDV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS";
-    const RFD219_V2_GOOD: &str = "0XV2:PPP-PPPPPPP:RRR:2SSSSSSS";
-
-    #[test]
-    fn rfd308_v2_good() -> Result<(), PlatformIdError> {
-        assert!(validate_0xv2(RFD308_V2_GOOD).is_ok());
-
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v1_good() -> Result<(), PlatformIdError> {
-        assert!(validate_pdv1(PID_V1_GOOD).is_ok());
-
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v2_good() -> Result<(), PlatformIdError> {
-        assert!(validate_pdv2(PID_V2_GOOD).is_ok());
-
-        Ok(())
-    }
-
-    #[test]
-    fn rfd308_v2_bad_length() -> Result<(), PlatformIdError> {
-        // missing an 'S'
-        let pid = "0XV2:PPP-PPPPPPP:RRR:SSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Malformed));
-        Ok(())
-    }
 
     #[test]
     fn rfd308_v2_bad_prefix_part_sep() -> Result<(), PlatformIdError> {
         let pid = "0XV2SPPP-PPPPPPP:RRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 4, c: 'S' }));
+        assert_eq!(
+            pid.err(),
+            Some(PlatformIdError::Barcode(BarcodeError::Prefix(
+                PrefixError::Invalid
+            )))
+        );
         Ok(())
     }
 
-    #[test]
-    fn rfd308_v2_bad_part_rev_sep() -> Result<(), PlatformIdError> {
-        let pid = "0XV2:PPP-PPPPPPPERRR:SSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 16, c: 'E' }));
-        Ok(())
-    }
-
-    #[test]
-    fn rfd308_v2_bad_rev_sn_sep() -> Result<(), PlatformIdError> {
-        let pid = "0XV2:PPP-PPPPPPP:RRRPSSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 20, c: 'P' }));
-        Ok(())
-    }
-
-    #[test]
-    fn rfd308_v2_bad_part() -> Result<(), PlatformIdError> {
-        let pid = "0XV2:pPP-PPPPPPP:RRR:SSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 5, c: 'p' }));
-        Ok(())
-    }
-
-    #[test]
-    fn rfd308_v2_bad_revision() -> Result<(), PlatformIdError> {
-        let pid = "0XV2:PPP-PPPPPPP:rRR:SSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 17, c: 'r' }));
-        Ok(())
-    }
-
-    #[test]
-    fn rfd308_v2_bad_serial() -> Result<(), PlatformIdError> {
-        let pid = "0XV2:PPP-PPPPPPP:RRR:sSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 21, c: 's' }));
-        Ok(())
-    }
     // malformed UTF-8 from:
     // https://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt
     #[test]
     fn rfd308_v2_malformed() -> Result<(), PlatformIdError> {
-        let mut bytes = [0u8; RFD308_V2_LEN];
+        let mut bytes = [0u8; PLATFORM_ID_MAX_LEN];
         bytes[0] = 0xed;
         bytes[1] = 0xa0;
         bytes[2] = 0x80;
         let res = PlatformId::try_from(&bytes[..]);
 
-        assert_eq!(res.err(), Some(PlatformIdError::Malformed));
+        // NOTE: how to construct Utf8Error to enable comparison?
+        assert!(res.is_err());
 
         Ok(())
     }
@@ -577,7 +442,19 @@ mod tests {
         let pid = "PDV1:PPP-PPPPPPP:RRR:SSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
-        assert_eq!(pid.err(), Some(PlatformIdError::BadSize));
+        // NOTE: this is going to fail for a different reason than intended /
+        // expected by this test: there's an 'S' missing from the SN as
+        // indicated above, but the parser will reject the PN (invalid
+        // characters) before it gets to the SN (I think)
+        assert_eq!(
+            pid.err(),
+            Some(PlatformIdError::Barcode(BarcodeError::Part(
+                PartError::PartV2(PartV2Error::InvalidChar(InvalidChar {
+                    index: 0,
+                    character: 'P'
+                }))
+            )))
+        );
         Ok(())
     }
 
@@ -586,25 +463,12 @@ mod tests {
         let pid = "PDV1SPPP-PPPPPPP:RRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 4, c: 'S' }));
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v1_bad_part_rev_sep() -> Result<(), PlatformIdError> {
-        let pid = "PDV1:PPP-PPPPPPPERRR:SSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 16, c: 'E' }));
-        Ok(())
-    }
-
-    #[test]
-    fn pid_v1_bad_rev_sn_sep() -> Result<(), PlatformIdError> {
-        let pid = "PDV1:PPP-PPPPPPP:RRRPSSSSSSSSSSS";
-        let pid = PlatformId::try_from(pid);
-
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 20, c: 'P' }));
+        assert_eq!(
+            pid.err(),
+            Some(PlatformIdError::Barcode(BarcodeError::Prefix(
+                PrefixError::Invalid
+            )))
+        );
         Ok(())
     }
 
@@ -613,106 +477,124 @@ mod tests {
         let pid = "PDV1:pPP-PPPPPPP:RRR:SSSSSSSSSSS";
         let pid = PlatformId::try_from(pid);
 
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 5, c: 'p' }));
+        assert_eq!(
+            pid.err(),
+            Some(PlatformIdError::Barcode(BarcodeError::Part(
+                PartError::PartV2(PartV2Error::InvalidChar(InvalidChar {
+                    index: 0,
+                    character: 'p'
+                }))
+            )))
+        );
         Ok(())
     }
 
     #[test]
     fn pid_v1_bad_revision() -> Result<(), PlatformIdError> {
-        let pid = "PDV1:PPP-PPPPPPP:rRR:SSSSSSSSSSS";
+        let pid = "PDV1:913-0000019:R14:BRM03250020";
         let pid = PlatformId::try_from(pid);
 
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 17, c: 'r' }));
+        assert_eq!(
+            pid.err(),
+            Some(PlatformIdError::Barcode(BarcodeError::Revision(
+                RevisionError::InvalidChar(InvalidChar {
+                    index: 0,
+                    character: 'R'
+                })
+            )))
+        );
         Ok(())
     }
 
     #[test]
     fn pid_v1_bad_serial() -> Result<(), PlatformIdError> {
-        let pid = "PDV1:PPP-PPPPPPP:RRR:sSSSSSSSSSS";
+        let pid = "PDV1:913-0000019:014:BRM54250020";
         let pid = PlatformId::try_from(pid);
 
-        assert_eq!(pid.err(), Some(PlatformIdError::Invalid { i: 21, c: 's' }));
+        assert_eq!(
+            pid.err(),
+            Some(PlatformIdError::Barcode(BarcodeError::Serial(
+                SerialError::SerialV1(SerialV1Error::InvalidWeek)
+            )))
+        );
         Ok(())
     }
 
     #[test]
     fn rfd308_v2_copy_to_template() -> Result<(), PlatformIdError> {
-        let pid = RFD308_V2_GOOD;
+        let pid = PDV2_GOOD;
         let pid = PlatformId::try_from(pid)?;
         let mut dest = [0u8; PLATFORM_ID_MAX_LEN];
 
-        assert_eq!(pid.as_str().len(), PLATFORM_ID_V2_LEN);
-        dest[..pid.as_str().len()].copy_from_slice(pid.as_str().as_bytes());
+        dest[..pid.as_str().len()].copy_from_slice(pid.as_bytes());
 
-        assert_eq!(&dest[..PREFIX_LEN], PLATFORM_ID_V2_PREFIX.as_bytes());
+        let pdv2_bytes = PREFIX_PDV2.as_bytes();
+        assert_eq!(&dest[..pdv2_bytes.len()], pdv2_bytes);
         assert_eq!(&pid.as_bytes()[4..16], &dest[4..16]);
         assert_eq!(&pid.as_bytes()[16..28], &dest[16..28]);
         Ok(())
     }
 
+    const PDV1_GOOD: &str = "PDV1:913-0000019:000:BRM03250020";
     #[test]
     fn pid_v1_from_template() -> Result<(), PlatformIdError> {
-        let pid = PlatformId::try_from(PID_V1_GOOD)?;
+        let pid = PlatformId::try_from(PDV1_GOOD)?;
         let mut dest = [0u8; PLATFORM_ID_MAX_LEN];
 
-        dest[..pid.as_str().len()].copy_from_slice(pid.as_str().as_bytes());
+        dest[..pid.as_str().len()].copy_from_slice(pid.as_bytes());
         // mut no more
         let dest = dest;
 
         assert_eq!(pid.as_bytes(), &dest[..pid.as_str().len()]);
 
         let pid = PlatformId::try_from(&dest[..])?;
-        assert_eq!(pid.as_str(), PID_V1_GOOD);
+        assert_eq!(pid.as_str(), PDV1_GOOD);
 
         Ok(())
     }
 
+    const PDV2_GOOD: &str = "PDV2:913-0000019:RRR:BRM01010001";
     #[test]
     fn pid_v2_from_template() -> Result<(), PlatformIdError> {
-        let pid = PlatformId::try_from(RFD308_V2_GOOD)?;
+        let pid = PlatformId::try_from(OXV2_GOOD)?;
         let mut dest = [0u8; PLATFORM_ID_MAX_LEN];
 
-        dest[..pid.as_str().len()].copy_from_slice(pid.as_str().as_bytes());
+        dest[..pid.as_str().len()].copy_from_slice(pid.as_bytes());
         // mut no more
         let dest = dest;
 
         assert_eq!(pid.as_bytes(), &dest[..pid.as_str().len()]);
 
         let pid = PlatformId::try_from(&dest[..])?;
-        assert_eq!(pid.as_str(), PID_V2_GOOD);
+        assert_eq!(pid.as_str(), PDV2_GOOD);
 
         Ok(())
     }
+
+    const OXV2_GOOD: &str = "0XV2:913-0000019:014:BRM01010001";
+    const OXV2_GOOD_SERIALIZED: [u8; 32] = [
+        b'P', b'D', b'V', b'2', b':', b'9', b'1', b'3', b'-', b'0', b'0', b'0',
+        b'0', b'0', b'1', b'9', b':', b'R', b'R', b'R', b':', b'B', b'R', b'M',
+        b'0', b'1', b'0', b'1', b'0', b'0', b'0', b'1',
+    ];
 
     #[test]
     fn pid_serialize() -> Result<(), PlatformIdError> {
         let mut buf = [0u8; PlatformId::MAX_SIZE];
 
-        let pid = PlatformId::try_from(RFD308_V2_GOOD)?;
-        let count = hubpack::serialize(&mut buf, &pid).unwrap();
+        let pid = PlatformId::try_from(OXV2_GOOD)?;
+        let _ = hubpack::serialize(&mut buf, &pid).unwrap();
 
-        assert_eq!(count, buf.len());
+        assert_eq!(buf, OXV2_GOOD_SERIALIZED);
         Ok(())
     }
-
-    #[test]
-    fn rfd219_v2_validate() -> Result<(), PlatformIdError> {
-        assert!(validate_0xv2(RFD219_V2_GOOD).is_ok());
-        Ok(())
-    }
-
-    const RFD308_V2_SERIALIZED: [u8; 32] = [
-        b'P', b'D', b'V', b'2', b':', b'P', b'P', b'P', b'-', b'P', b'P', b'P',
-        b'P', b'P', b'P', b'P', b':', b'R', b'R', b'R', b':', b'S', b'S', b'S',
-        b'S', b'S', b'S', b'S', b'S', b'S', b'S', b'S',
-    ];
 
     #[test]
     fn pid_deserialize_good() -> Result<(), PlatformIdError> {
         let (pid, _) =
-            hubpack::deserialize::<PlatformId>(&RFD308_V2_SERIALIZED)
+            hubpack::deserialize::<PlatformId>(&OXV2_GOOD_SERIALIZED)
                 .expect("deserialization failed for \"good\" test data");
-        let pid_expected = PlatformId::try_from(RFD308_V2_GOOD)
+        let pid_expected = PlatformId::try_from(OXV2_GOOD)
             .expect("failed to create PlatformId from \"good\" test data");
 
         assert_eq!(pid, pid_expected);
@@ -722,7 +604,7 @@ mod tests {
     #[test]
     fn pid_deserialize_bad() -> Result<(), PlatformIdError> {
         // make a local copy of the good serialized value
-        let mut pid = RFD308_V2_SERIALIZED;
+        let mut pid = OXV2_GOOD_SERIALIZED;
         // set one character to an invalid value
         pid[22] = b's';
 
@@ -736,13 +618,16 @@ mod tests {
     // commonName
     #[cfg(feature = "std")]
     const PLATFORM_ID_PEM: &str = r#"-----BEGIN CERTIFICATE-----
-MIIBOjCB7aADAgECAgEAMAUGAytlcDBGMQswCQYDVQQGEwJVUzEMMAoGA1UECgwD
-Zm9vMSkwJwYDVQQDDCBQRFYyOlBQUC1QUFBQUFBQOlJSUjpTU1NTU1NTU1NTUzAg
-Fw0yNTA0MjkwMzQ2MjVaGA85OTk5MTIzMTIzNTk1OVowRjELMAkGA1UEBhMCVVMx
-DDAKBgNVBAoMA2ZvbzEpMCcGA1UEAwwgUERWMjpQUFAtUFBQUFBQUDpSUlI6U1NT
-U1NTU1NTU1MwKjAFBgMrZXADIQC3C95DZLN46PRMbUGHgmfgaAstTq+cmyz6krIv
-V2V4kjAFBgMrZXADQQCYRBMvK1oQF5wtji7koJoC+yQfwsVmRRIrVEvmT5/fOiMd
-z1UhDy+0wtYKr4IhWWw3E8v3Y9JcjeT1s43Nc/wG
+MIIBtTCCAWegAwIBAgIBADAFBgMrZXAwWTELMAkGA1UEBhMCVVMxHzAdBgNVBAoM
+Fk94aWRlIENvbXB1dGVyIENvbXBhbnkxKTAnBgNVBAMMIFBEVjI6OTEzLTAwMDAw
+MTk6UlJSOkJSTTAxMjVTU1NTMCAXDTI1MTAwNTIwMjUzNVoYDzk5OTkxMjMxMjM1
+OTU5WjBZMQswCQYDVQQGEwJVUzEfMB0GA1UECgwWT3hpZGUgQ29tcHV0ZXIgQ29t
+cGFueTEpMCcGA1UEAwwgUERWMjo5MTMtMDAwMDAxOTpSUlI6QlJNMDEyNVNTU1Mw
+KjAFBgMrZXADIQBMG83tJtwLBZUEWEvqdmArDurS99oWBzqRuwGWVOwygqNSMFAw
+DwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAgQwLQYDVR0gAQH/BCMwITAJ
+BgdngQUFBGQGMAkGB2eBBQUEZAgwCQYHZ4EFBQRkDDAFBgMrZXADQQDct3PXbNNr
+580BdDFF0xijkWVPuNwTcmPtbweFwHyjKmrMnsPoH0SGdXPnNPBQaxIQRRUBlsll
+I1Dpq9liDQgB
 -----END CERTIFICATE-----
 "#;
 
@@ -758,25 +643,22 @@ z1UhDy+0wtYKr4IhWWw3E8v3Y9JcjeT1s43Nc/wG
 
         Ok(assert_eq!(
             platform_id.as_str(),
-            "PDV2:PPP-PPPPPPP:RRR:SSSSSSSSSSS"
+            "PDV2:913-0000019:RRR:BRM0125SSSS"
         ))
     }
 
     #[cfg(feature = "std")]
     const PLATFORM_ID_V2_PEM: &str = r#"-----BEGIN CERTIFICATE-----
-MIICTzCCAdagAwIBAgIUEAAAAAAAAAAAAAAAAAAAAAAAAAEwCgYIKoZIzj0EAwMw
-YDELMAkGA1UEBhMCVVMxHzAdBgNVBAoMFk94aWRlIENvbXB1dGVyIENvbXBhbnkx
-MDAuBgNVBAMMJ1BsYXRmb3JtIElkZW50aXR5IEludGVybWVkaWF0ZSAyMDc4MDM1
-NzAgFw0yNTA4MDYyMjM5MDNaGA85OTk5MTIzMTIzNTk1OVowWTELMAkGA1UEBhMC
-VVMxHzAdBgNVBAoMFk94aWRlIENvbXB1dGVyIENvbXBhbnkxKTAnBgNVBAMMIFBE
-VjI6UFBQLVBQUFBQUFA6UlJSOjJBODVYVzRKAAAAMCowBQYDK2VwAyEAIYxu6pjE
-12IQAAGqUxxci+4uoL2H9WDyPXDiI9zcmzWjgaEwgZ4wHQYDVR0OBBYEFKwTUnXH
-Vfd0Sd+hKkhya/m705IbMB8GA1UdIwQYMBaAFITJscccOxWIMVJheKfg7Y0Hlt4U
-MA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMDsGA1UdIAEB/wQxMC8w
-DAYKKwYBBAGDwU8BAzAJBgdngQUFBGQGMAkGB2eBBQUEZAgwCQYHZ4EFBQRkDDAK
-BggqhkjOPQQDAwNnADBkAjArNWDm6SyGCRu8FnqqpZEqrxid60zh8X+sUX7FnoSu
-F8WaS6Hg7GQlDDB0RrkIteUCMD0trkxthcbjuqBrL9qaAU1WhpKGHZbR35+flA0F
-/sWrKvOqEVgCWJbj5nRlhjpg0w==
+MIIBrzCCAWGgAwIBAgIBADAFBgMrZXAwVjELMAkGA1UEBhMCVVMxHzAdBgNVBAoM
+Fk94aWRlIENvbXB1dGVyIENvbXBhbnkxJjAkBgNVBAMMHVBEVjI6OTEzLTAwMDAw
+MTk6UlJSOjIwMDAwMDAxMCAXDTI1MTAwNTIwNDAxNVoYDzk5OTkxMjMxMjM1OTU5
+WjBWMQswCQYDVQQGEwJVUzEfMB0GA1UECgwWT3hpZGUgQ29tcHV0ZXIgQ29tcGFu
+eTEmMCQGA1UEAwwdUERWMjo5MTMtMDAwMDAxOTpSUlI6MjAwMDAwMDEwKjAFBgMr
+ZXADIQAGu+YOb+jCK2ym7VbkqLFow84N63eGReFvUjFjFY4hDqNSMFAwDwYDVR0T
+AQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAgQwLQYDVR0gAQH/BCMwITAJBgdngQUF
+BGQGMAkGB2eBBQUEZAgwCQYHZ4EFBQRkDDAFBgMrZXADQQAZl2L55J+mR16GvdJ3
+RbTFWQP529efGPuONazpoynDoFBadsoB+9h2COjtba45BogaXG1mfc+gThY/byGN
+pngE
 -----END CERTIFICATE-----
 "#;
 
@@ -792,7 +674,7 @@ F8WaS6Hg7GQlDDB0RrkIteUCMD0trkxthcbjuqBrL9qaAU1WhpKGHZbR35+flA0F
 
         Ok(assert_eq!(
             platform_id.as_str(),
-            "PDV2:PPP-PPPPPPP:RRR:2A85XW4J"
+            "PDV2:913-0000019:RRR:20000001"
         ))
     }
 

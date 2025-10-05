@@ -615,12 +615,25 @@ dependencies = [
  "anyhow",
  "const-oid",
  "corncobs",
+ "dice-util-barcode",
  "hubpack",
  "serde",
  "serde-big-array",
  "thiserror 2.0.12",
  "x509-cert",
  "zerocopy",
+]
+
+[[package]]
+name = "dice-util-barcode"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "const-oid",
+ "slog",
+ "slog-error-chain",
+ "thiserror 2.0.12",
+ "x509-cert",
 ]
 
 [[package]]
@@ -737,6 +750,17 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "erased-serde"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "259d404d09818dec19332e31d94558aeb442fea04c817006456c24b5460bbd4b"
+dependencies = [
+ "serde",
+ "serde_core",
+ "typeid",
+]
 
 [[package]]
 name = "errno"
@@ -1671,6 +1695,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "slog"
+version = "2.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "713701148774f80b669126b7f7becffcab60d78bfc5ff1e18c02baabbf8b1ff9"
+dependencies = [
+ "anyhow",
+ "erased-serde",
+ "rustversion",
+ "serde_core",
+]
+
+[[package]]
+name = "slog-error-chain"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/slog-error-chain?rev=15f69041f45774602108e47fb25e705dc23acfb2#15f69041f45774602108e47fb25e705dc23acfb2"
+dependencies = [
+ "slog",
+ "slog-error-chain-derive",
+]
+
+[[package]]
+name = "slog-error-chain-derive"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/slog-error-chain?rev=15f69041f45774602108e47fb25e705dc23acfb2#15f69041f45774602108e47fb25e705dc23acfb2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.99",
+]
+
+[[package]]
 name = "smawk"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1922,6 +1977,12 @@ dependencies = [
  "quote",
  "syn 2.0.99",
 ]
+
+[[package]]
+name = "typeid"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc7d623258602320d5c55d1bc22793b57daff0ec7efc270ea7d55ce1d5f5471c"
 
 [[package]]
 name = "typenum"

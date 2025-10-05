@@ -4,6 +4,7 @@ version = "0.3.0"
 edition = "2021"
 
 [dependencies]
+dice-util-barcode.path = "../barcode"
 const-oid = { workspace = true, optional = true }
 corncobs.workspace = true
 hubpack.workspace = true
