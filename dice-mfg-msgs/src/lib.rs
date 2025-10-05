@@ -77,41 +77,16 @@ const CODE39_ALPHABET: [char; CODE39_LEN] = [
     'U', 'V', 'W', 'X', 'Y', 'Z', '-', '.', ' ', '$', '/', '+', '%',
 ];
 
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, thiserror::Error, PartialEq)]
 pub enum PlatformIdError {
-    #[cfg_attr(feature = "std", error("PID string length not supported"))]
+    #[error("PID string length not supported")]
     BadSize,
-    #[cfg_attr(feature = "std", error("invalid char '{c:?}' at offset {i:?}"))]
+    #[error("invalid char '{c:?}' at offset {i:?}")]
     Invalid { i: usize, c: char },
-    #[cfg_attr(feature = "std", error("PID string has invalid prefix"))]
+    #[error("PID string has invalid prefix")]
     InvalidPrefix,
-    #[cfg_attr(feature = "std", error("PID string is malformed"))]
+    #[error("PID string is malformed")]
     Malformed,
-}
-
-// `thiserror` is used to derive a `Display` impl when we have access to the
-// standard library. When we build for `no_std` we use this compatible
-// `Display` impl to satisfy the serde try_from container attribute used on the
-// `PlatformId` type.
-#[cfg(not(feature = "std"))]
-impl fmt::Display for PlatformIdError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            PlatformIdError::BadSize => {
-                write!(f, "PlatformId string is the wrong length")
-            }
-            PlatformIdError::Invalid { .. } => {
-                write!(f, "invalid character in PlatformId")
-            }
-            PlatformIdError::InvalidPrefix => {
-                write!(f, "Unknown prefix on PlatformId")
-            }
-            PlatformIdError::Malformed => {
-                write!(f, "PlatformId string contains non-UTF8 characters")
-            }
-        }
-    }
 }
 
 // see RFD 308 § 4.3.1
@@ -308,8 +283,7 @@ impl fmt::Display for PlatformId {
 }
 
 #[cfg(feature = "std")]
-#[cfg_attr(any(test, feature = "std"), derive(thiserror::Error))]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum PlatformIdPkiPathError {
     #[error("Failed to decode CountryName")]
     CountryNameDecode(DerError),
@@ -388,19 +362,15 @@ pub enum KeySlotStatus {
     Revoked,
 }
 
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum Error {
-    #[cfg_attr(feature = "std", error("Failed to decode corncobs message"))]
+    #[error("Failed to decode corncobs message")]
     Decode,
-    #[cfg_attr(
-        feature = "std",
-        error("Failed to deserialize hubpack message")
-    )]
+    #[error("Failed to deserialize hubpack message")]
     Deserialize,
-    #[cfg_attr(feature = "std", error("Failed to serialize hubpack message"))]
+    #[error("Failed to serialize hubpack message")]
     Serialize,
-    #[cfg_attr(feature = "std", error("Slice too large for SizedBuf"))]
+    #[error("Slice too large for SizedBuf")]
     SliceTooBig,
 }
 
