@@ -1,0 +1,17 @@
+[package]
+name = "dice-util-barcode"
+version = "0.1.0"
+edition = "2024"
+
+[dev-dependencies]
+anyhow.workspace = true
+
+[dependencies]
+const-oid = { workspace = true, optional = true }
+slog = { workspace = true, optional = true }
+slog-error-chain = { workspace = true, optional = true }
+thiserror.workspace = true
+x509-cert = { workspace = true, optional = true }
+
+[features]
+std = ["const-oid/db", "slog", "slog-error-chain/derive", "x509-cert/pem", "x509-cert/std"]

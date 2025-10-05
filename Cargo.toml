@@ -2,12 +2,13 @@
 
 members = [
     "attest-data",
+    "attest-mock",
+    "barcode",
     "dice-cert-tmpl",
     "dice-mfg",
     "dice-mfg-msgs",
     "yhsm-audit",
     "verifier-cli",
-    "attest-mock",
 ]
 resolver = "2"
 
@@ -43,6 +44,8 @@ serde_with = { version = "3.12.0", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
 sha2 = "0.10.9"
 sha3 = { version = "0.10.8", default-features = false }
+slog = { version = "2.8.0", default-features = false }
+slog-error-chain = { git = "https://github.com/oxidecomputer/slog-error-chain", rev = "15f69041f45774602108e47fb25e705dc23acfb2" }
 static_assertions = { version = "1.1.0", default-features = false }
 string-error = "0.1"
 tempfile = { version = "3.20.0", default-features = false }
