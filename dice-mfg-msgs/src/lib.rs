@@ -792,6 +792,7 @@ z1UhDy+0wtYKr4IhWWw3E8v3Y9JcjeT1s43Nc/wG
         ))
     }
 
+    #[cfg(feature = "std")]
     const PLATFORM_ID_V2_PEM: &str = r#"-----BEGIN CERTIFICATE-----
 MIICTzCCAdagAwIBAgIUEAAAAAAAAAAAAAAAAAAAAAAAAAEwCgYIKoZIzj0EAwMw
 YDELMAkGA1UEBhMCVVMxHzAdBgNVBAoMFk94aWRlIENvbXB1dGVyIENvbXBhbnkx
