@@ -9,7 +9,7 @@ corncobs.workspace = true
 hubpack.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde-big-array.workspace = true
-thiserror = { workspace = true, optional = true }
+thiserror.workspace = true
 x509-cert = { workspace = true, optional = true }
 zerocopy.workspace = true
 
@@ -17,4 +17,4 @@ zerocopy.workspace = true
 anyhow.workspace = true
 
 [features]
-std = ["const-oid/db", "thiserror", "x509-cert/pem", "x509-cert/std"]
+std = ["const-oid/db", "x509-cert/pem", "x509-cert/std"]
