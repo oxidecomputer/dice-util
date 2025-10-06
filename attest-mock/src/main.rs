@@ -45,11 +45,11 @@ fn main() -> Result<()> {
 
     let out = match args.cmd {
         Command::Corim => {
-            let doc = corim::parse(&name, &kdl)?;
+            let doc = corim::parse(name, &kdl)?;
             corim::mock(doc)?
         }
         Command::Log => {
-            let doc = log::parse(&name, &kdl)?;
+            let doc = log::parse(name, &kdl)?;
             log::mock(doc)?
         }
     };
