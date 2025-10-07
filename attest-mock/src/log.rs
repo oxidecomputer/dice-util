@@ -7,13 +7,13 @@ use hubpack::SerializedSize;
 use miette::{IntoDiagnostic, Result, miette};
 
 #[derive(knuffel::Decode, Debug)]
-struct Document {
+pub struct Document {
     #[knuffel(children)]
     pub measurements: Vec<Measurement>,
 }
 
 #[derive(knuffel::Decode, Debug)]
-struct Measurement {
+pub struct Measurement {
     #[knuffel(child, unwrap(argument))]
     pub algorithm: String,
 
@@ -21,12 +21,17 @@ struct Measurement {
     pub digest: String,
 }
 
-/// Parse the KDL in from string `kdl`, convert it to an `attest_data::Log`
-/// instance. NOTE: The `name` param should be the name of the file that the
+/// Parse the KDL in from string `kdl`
+///
+/// NOTE: The `name` param should be the name of the file that the
 /// `kdl` string was read from. This is used in error reporting.
-pub fn mock(name: &str, kdl: &str) -> Result<Vec<u8>> {
-    let doc: Document = knuffel::parse(name, kdl)?;
+pub fn parse(name: &str, kdl: &str) -> Result<Document> {
+    let doc = knuffel::parse(name, kdl)?;
+    Ok(doc)
+}
 
+/// Convert `doc` to an `attest_data::Log` instance
+pub fn mock(doc: Document) -> Result<Vec<u8>> {
     let mut log = Log::default();
     for measurement in doc.measurements {
         let measurement = if measurement.algorithm == "sha3-256" {
