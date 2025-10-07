@@ -7,9 +7,8 @@ use miette::{IntoDiagnostic, Result, miette};
 use std::{
     fs,
     io::{self, Write},
+    path::PathBuf,
 };
-
-use camino::Utf8PathBuf;
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -19,7 +18,7 @@ struct Args {
     cmd: Command,
 
     /// path to KDL file
-    kdl: Utf8PathBuf,
+    kdl: PathBuf,
 }
 
 /// Known types
@@ -38,7 +37,8 @@ mod log;
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let name = args.kdl.as_str();
+    let cow_name = args.kdl.to_string_lossy();
+    let name = cow_name.as_ref();
     let kdl = fs::read_to_string(name)
         .into_diagnostic()
         .map_err(|e| miette!("failed to read file {name} to string: {e}"))?;

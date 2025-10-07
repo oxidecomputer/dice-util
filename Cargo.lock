@@ -169,7 +169,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "attest-data",
- "camino",
  "clap",
  "hex",
  "hubpack",
@@ -271,15 +270,6 @@ name = "bumpalo"
 version = "3.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ff69b9dd49fd426c69a0db9fc04dd934cdb6645ff000864d98f7e2af8830eaa"
-
-[[package]]
-name = "camino"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "276a59bf2b2c967788139340c9f0c5b12d7fd6630315c15c217e559de85d2609"
-dependencies = [
- "serde_core",
-]
 
 [[package]]
 name = "cbc"
