@@ -35,4 +35,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - run: sudo apt-get update
       - run: sudo apt-get install -y pkg-config libudev-dev
-      - run: cargo doc --all-features --locked
+      - run: cargo doc --all-features --locked --no-deps
