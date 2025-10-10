@@ -52,7 +52,8 @@ pub const SEPARATOR: &str = ":";
 /// This type holds information about invalid characters found in our various
 /// identifiers. We provide both the index of the character in the string and
 /// the offending character.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub struct InvalidChar {
     pub index: usize,
     pub character: char,
@@ -93,6 +94,7 @@ pub const PREFIX_PDV2: &str = "PDV2";
 /// This type identifies the possible errors encountered while parsing the
 /// prefix extracted from a barcode / identity string
 #[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub enum PrefixError {
     #[error("Invalid prefix")]
     Invalid,
@@ -151,11 +153,16 @@ fn find_invalid_char_in_dict(s: &str, dict: &[char]) -> Option<InvalidChar> {
 /// A type representing the errors that can be encountered while parsing a v1
 /// part number.
 #[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub enum PartV1Error {
     #[error("Length of string is not 10 characters")]
     InvalidLength,
-    #[error("Invalid character: {0}")]
-    InvalidChar(InvalidChar),
+    #[cfg_attr(
+        not(feature = "std"),
+        error("v1 part number has invalid character: {0}")
+    )]
+    #[cfg_attr(feature = "std", error("v1 part number has invalid character"))]
+    InvalidChar(#[source] InvalidChar),
 }
 
 /// This is a utility function to check the validity of a string holding a v1 /
@@ -200,11 +207,16 @@ impl<'a> TryFrom<&'a str> for PartV1<'a> {
 /// A type representing the errors that can be encountered while parsing a v2
 /// part number.
 #[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub enum PartV2Error {
     #[error("Length of string is not 11 characters")]
     InvalidLength,
-    #[error("Invalid character: {0}")]
-    InvalidChar(InvalidChar),
+    #[cfg_attr(
+        not(feature = "std"),
+        error("v2 part number has invalid character: {0}")
+    )]
+    #[cfg_attr(feature = "std", error("v2 part number has invalid character"))]
+    InvalidChar(#[source] InvalidChar),
     #[error("Missing hyphen character at index 3")]
     NoHyphen,
 }
@@ -265,11 +277,19 @@ impl<'a> TryFrom<&'a str> for PartV2<'a> {
 /// A type representing the errors that can be encountered while parsing a
 /// Terra part number.
 #[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub enum PartTerraError {
     #[error("Length of string is not 7 characters")]
     InvalidLength,
-    #[error("Invalid character: {0}")]
-    InvalidChar(InvalidChar),
+    #[cfg_attr(
+        not(feature = "std"),
+        error("Terra part number has invalid character: {0}")
+    )]
+    #[cfg_attr(
+        feature = "std",
+        error("Terra part number has invalid character")
+    )]
+    InvalidChar(#[source] InvalidChar),
     #[error("Leading digit is 0")]
     LeadingZero,
 }
@@ -322,14 +342,27 @@ impl<'a> TryFrom<&'a str> for PartTerra<'a> {
 /// various part number formats. This type wraps the error types from `PartV1`,
 /// `PartV2`, and `Terra` formatted part numbers.
 #[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub enum PartError {
     #[error("Part str is the wrong length")]
     InvalidLength,
-    #[error("Error parsing V1 part number: {0}")]
+    #[cfg_attr(
+        not(feature = "std"),
+        error("Failed to parse v1 part number: {0}")
+    )]
+    #[cfg_attr(feature = "std", error("Failed to parse v1 part number"))]
     PartV1(#[from] PartV1Error),
-    #[error("Error parsing V2 part number: {0}")]
+    #[cfg_attr(
+        not(feature = "std"),
+        error("Failed to parse v2 part number: {0}")
+    )]
+    #[cfg_attr(feature = "std", error("Failed to parse v2 part number"))]
     PartV2(#[from] PartV2Error),
-    #[error("Error parsing Terra part number: {0}")]
+    #[cfg_attr(
+        not(feature = "std"),
+        error("Failed to parse Terra part number: {0}")
+    )]
+    #[cfg_attr(feature = "std", error("Failed to parse Terra part number"))]
     PartTerra(#[from] PartTerraError),
 }
 
@@ -392,9 +425,14 @@ fn rev_fmt_check(s: &str) -> Result<&str, RevisionError> {
 /// A type representing the errors that can be encountered while parsing a
 /// revision number string.
 #[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub enum RevisionError {
-    #[error("Invalid character: {0}")]
-    InvalidChar(InvalidChar),
+    #[cfg_attr(
+        not(feature = "std"),
+        error("revision number has invalid character: {0}")
+    )]
+    #[cfg_attr(feature = "std", error("revision number has invalid character"))]
+    InvalidChar(#[source] InvalidChar),
     #[error("Part str is the wrong length")]
     InvalidLength,
 }
@@ -516,17 +554,29 @@ impl<'a> TryFrom<&'a str> for Revision<'a> {
 /// A type representing errors that can be encountered while parsing a v1
 /// serial number string.
 #[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub enum SerialV1Error {
     #[error("Serial number v1 str is the wrong length")]
     InvalidLength,
     #[error("Invalid serial number v1 location")]
     InvalidLocation,
-    #[error("invalid serial number v1 year")]
-    InvalidYear(ParseIntError),
+    #[cfg_attr(
+        not(feature = "std"),
+        error("v1 serial number is not an integer: {0}")
+    )]
+    #[cfg_attr(feature = "std", error("v1 serial number is not an integer"))]
+    InvalidYear(#[source] ParseIntError),
     #[error("invalid serial number v1 week")]
     InvalidWeek,
-    #[error("invalid character in serial number v1 week")]
-    InvalidWeekChar(ParseIntError),
+    #[cfg_attr(
+        not(feature = "std"),
+        error("v1 serial number has an invalid character: {0}")
+    )]
+    #[cfg_attr(
+        feature = "std",
+        error("v1 serial number has an invalid character")
+    )]
+    InvalidWeekChar(#[source] ParseIntError),
     #[error("Serial number v1 contains an invalid unique id")]
     InvalidId,
 }
@@ -589,9 +639,17 @@ impl<'a> TryFrom<&'a str> for SerialV1<'a> {
 /// A type representing errors that can be encountered while parsing a v2
 /// serial number string.
 #[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub enum SerialV2Error {
-    #[error("Invalid character: {0}")]
-    InvalidChar(InvalidChar),
+    #[cfg_attr(
+        not(feature = "std"),
+        error("v2 serial number has an invalid character: {0}")
+    )]
+    #[cfg_attr(
+        feature = "std",
+        error("v2 serial number has an invalid character")
+    )]
+    InvalidChar(#[source] InvalidChar),
     #[error("Serial number v2 str is the wrong length")]
     InvalidLength,
     #[error("Serial number v2 str has the wrong leading digit")]
@@ -647,12 +705,21 @@ impl<'a> TryFrom<&'a str> for SerialV2<'a> {
 /// A type representing the errors that can be encountered while parsing a
 /// serial number string.
 #[derive(Debug, thiserror::Error, PartialEq)]
+#[cfg_attr(feature = "std", derive(SlogInlineError))]
 pub enum SerialError {
-    #[error("Part str is the wrong length")]
+    #[error("Serial number is the wrong length")]
     InvalidLength,
-    #[error("Error parsing V1 serial number: {0}")]
+    #[cfg_attr(
+        not(feature = "std"),
+        error("Failed to parse v1 serial number: {0}")
+    )]
+    #[cfg_attr(feature = "std", error("Failed to parse v1 serial number"))]
     SerialV1(#[from] SerialV1Error),
-    #[error("Error parsing V2 serial number: {0}")]
+    #[cfg_attr(
+        not(feature = "std"),
+        error("Failed to parse v2 serial number: {0}")
+    )]
+    #[cfg_attr(feature = "std", error("Failed to parse v2 serial number"))]
     SerialV2(#[from] SerialV2Error),
 }
 
@@ -835,7 +902,7 @@ pub enum BaseboardIdPkiPathError {
         error("Failed to decode CountryName: {0}")
     )]
     #[cfg_attr(feature = "std", error("Failed to decode CountryName"))]
-    CountryNameDecode(DerError),
+    CountryNameDecode(#[source] DerError),
     #[error("Expected CountryName \"US\", got {0}")]
     InvalidCountryName(String),
     #[cfg_attr(
