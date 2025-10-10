@@ -4,7 +4,7 @@
 
 //! This crate provides types that represent a Barcode. A barcode is a string
 //! that's made up of a number of substrings separated by a `:` char. Of the
-//! known prefixes each contians:
+//! known prefixes each contains:
 //! - prefix: A string (typically 4 characters) that identify the format of the
 //!   rest of the barcode.
 //! - part number: A string of variable length that identifies the type of the
