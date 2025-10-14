@@ -108,6 +108,7 @@ pub fn check_csr(csr: &PathBuf, pid: &PlatformId) -> Result<bool> {
         for atv in dn.0.iter() {
             if CN_OID == atv.oid {
                 let cn_str = str::from_utf8(atv.value.value())?;
+                let cn_str = cn_str.trim_end_matches('\0');
                 let cn_pid = PlatformId::try_from(cn_str)?;
                 if &cn_pid == pid {
                     info!(
