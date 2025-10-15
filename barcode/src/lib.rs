@@ -835,12 +835,12 @@ impl<'a> TryFrom<&'a str> for Barcode<'a> {
 
         // the prefix determines permitted formats for the part number
         match prefix {
-            // 0XV1 must be in v1 format
+            // must be in v1 format
             Prefix::ZeroXV1 => match part {
                 Part::V1(_) => (),
                 _ => return Err(Self::Error::PartNotV1),
             },
-            // 0XV1, 0XV2 and PDV2 must be in v2 format
+            // must be in v2 format
             Prefix::PDV1 | Prefix::ZeroXV2 | Prefix::PDV2 => match part {
                 Part::V2(_) => (),
                 _ => return Err(Self::Error::PartNotV2),
@@ -867,12 +867,12 @@ impl<'a> TryFrom<&'a str> for Barcode<'a> {
 
         // the prefix determines permitted formats for the serial number
         match prefix {
-            // 0XV1 or PDV1: must be in v1 format
+            // must be in v1 format
             Prefix::ZeroXV1 | Prefix::PDV1 => match serial {
                 Serial::V1(_) => (),
                 _ => return Err(Self::Error::SerialNotV1),
             },
-            // 0XV2 or PDV2: may be in v1 or v2 format
+            // may be in v1 or v2 format
             Prefix::ZeroXV2 | Prefix::PDV2 => match serial {
                 Serial::V1(_) | Serial::V2(_) => (),
             },
