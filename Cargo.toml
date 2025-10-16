@@ -27,7 +27,7 @@ getrandom = "0.3.3"
 hex.version = "0.4"
 hubpack = "0.1"
 knuffel = "3.2.0"
-libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "524eb8f125003dff50b9703900c6b323f00f9e1b" }
+libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "dbaad520e1f5ae32c10db16ce176f9c24de95652" }
 log = { version = "0.4.27", features = ["std"] }
 # pin miette to same version used by knuffel
 miette = { version = "5.10", features = ["fancy"] }
