@@ -1093,7 +1093,7 @@ checksum = "875b3680cb2f8f71bdcf9a30f38d48282f5d3c95cbf9b3fa57269bb5d5c06828"
 [[package]]
 name = "libipcc"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/ipcc-rs?rev=524eb8f125003dff50b9703900c6b323f00f9e1b#524eb8f125003dff50b9703900c6b323f00f9e1b"
+source = "git+https://github.com/oxidecomputer/ipcc-rs?rev=dbaad520e1f5ae32c10db16ce176f9c24de95652#dbaad520e1f5ae32c10db16ce176f9c24de95652"
 dependencies = [
  "cfg-if",
  "libc",
