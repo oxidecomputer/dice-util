@@ -196,7 +196,7 @@ impl TryFrom<&str> for PlatformId {
         // write revision
         start = end;
 
-        // preserve the part number for PDV1, all others will become PDV2
+        // preserve the revision number for PDV1, all others will become PDV2
         let bytes = match barcode.prefix {
             Prefix::PDV1 => barcode.revision.as_bytes(),
             Prefix::ZeroXV1 | Prefix::ZeroXV2 | Prefix::PDV2 => b"RRR",
