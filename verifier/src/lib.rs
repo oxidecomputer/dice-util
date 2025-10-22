@@ -448,6 +448,15 @@ impl MeasurementSet {
     }
 }
 
+impl std::iter::IntoIterator for MeasurementSet {
+    type Item = Measurement;
+    type IntoIter = <HashSet<Measurement> as std::iter::IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 /// A collection of measurement values that is used as a source of truth when
 /// appraising the set of measurements derived from an attestation.
 pub struct ReferenceMeasurements(pub(crate) HashSet<Measurement>);
