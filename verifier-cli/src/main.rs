@@ -144,6 +144,9 @@ enum AttestCommand {
         #[clap(env)]
         corpus: PathBuf,
     },
+    /// Show the set of measurements currently on the RoT. This includes
+    /// the cert chain and the measurement log
+    MeasurementSet,
 }
 
 /// An enum of the possible routes to the `Attest` task.
@@ -209,6 +212,7 @@ fn main() -> Result<()> {
             let cert_chain = attest
                 .get_certificates()
                 .context("Getting attestation certificate chain")?;
+
             for cert in cert_chain {
                 let cert = cert
                     .to_pem(LineEnding::default())
@@ -299,9 +303,43 @@ fn main() -> Result<()> {
         } => {
             verify_measurements(&cert_chain, &log, &corpus)?;
         }
+        AttestCommand::MeasurementSet => {
+            let set = measurement_set(attest.as_ref())?;
+            for item in set.into_iter() {
+                println!("* {item}");
+            }
+        }
     }
 
     Ok(())
+}
+
+fn measurement_set(attest: &dyn Attest) -> Result<MeasurementSet> {
+    info!("getting measurement log");
+    let log = attest
+        .get_measurement_log()
+        .context("Get measurement log from attestor")?;
+    let mut cert_chain = Vec::new();
+
+    let certs = attest
+        .get_certificates()
+        .context("Get certificate chain from attestor")?;
+
+    for (index, cert) in certs.iter().enumerate() {
+        info!("writing cert[{index}]");
+        let pem = cert
+            .to_pem(LineEnding::default())
+            .context(format!("Encode cert {index} as PEM"))?;
+        cert_chain
+            .write_all(pem.as_bytes())
+            .context(format!("Write cert {index}",))?;
+    }
+
+    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+        .context("loading PkiPath from PEM cert chain")?;
+
+    MeasurementSet::from_artifacts(&cert_chain, &log)
+        .context("MeasurementSet from PkiPath")
 }
 
 // Check that the measurments in `cert_chain` and `log` are all present in
