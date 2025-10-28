@@ -15,7 +15,7 @@ resolver = "2"
 [workspace.dependencies]
 anyhow = { version = "1.0.100", default-features = false }
 attest.path = "attest"
-chrono = { version = "0.4.41", default-features=false }
+chrono = { version = "0.4.42", default-features=false }
 clap = { version = "4.5.39", features = ["derive", "env"] }
 const-oid = { version = "0.9.6", default-features = false }
 corncobs = "0.1"
