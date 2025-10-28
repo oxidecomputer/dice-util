@@ -49,7 +49,7 @@ slog-error-chain = { git = "https://github.com/oxidecomputer/slog-error-chain", 
 static_assertions = { version = "1.1.0", default-features = false }
 string-error = "0.1"
 tempfile = { version = "3.20.0", default-features = false }
-thiserror = { version = "2.0.12", default-features = false }
+thiserror = { version = "2.0.17", default-features = false }
 x509-cert = { version = "0.2.5", default-features = false }
 yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs", branch="v0.42.0-with-audit", features = ["default", "usb"] }
 zerocopy = "0.8.25"
