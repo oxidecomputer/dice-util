@@ -13,7 +13,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-anyhow = { version = "1.0.98", default-features = false }
+anyhow = { version = "1.0.100", default-features = false }
 attest.path = "attest"
 chrono = { version = "0.4.41", default-features=false }
 clap = { version = "4.5.39", features = ["derive", "env"] }
