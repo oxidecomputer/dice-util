@@ -25,6 +25,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+// ensure at least one of the barcode types has been enabled
+cfg_if::cfg_if! {
+    if #[cfg(not(any(feature = "oxv1", feature = "oxv2", feature = "pdv1", feature = "pdv2")))] {
+        compile_error!("At least one barcode feature must be enabled");
+    }
+}
+
 #[cfg(feature = "std")]
 use const_oid::db::rfc4519::COMMON_NAME;
 use core::{fmt, num::ParseIntError};
@@ -41,6 +48,7 @@ const DIGITS: [char; 10] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 /// The dictionary of ASCII characters that are allowed in 0xide defined
 /// serial numbers (RFD 219).
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 const SNV2_DICT: [char; 28] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'C', 'D', 'E', 'F',
     'G', 'H', 'J', 'K', 'M', 'N', 'P', 'R', 'T', 'V', 'W', 'X', 'Y',
@@ -103,9 +111,13 @@ pub enum PrefixError {
 /// A type representing all supported barcode string prefixes
 #[derive(Debug, PartialEq)]
 pub enum Prefix {
+    #[cfg(feature = "oxv1")]
     ZeroXV1,
+    #[cfg(feature = "oxv2")]
     ZeroXV2,
+    #[cfg(feature = "pdv1")]
     PDV1,
+    #[cfg(feature = "pdv2")]
     PDV2,
 }
 
@@ -113,9 +125,13 @@ impl Prefix {
     /// Get the string representation for the `Prefix` variant
     pub fn as_str(&self) -> &str {
         match self {
+            #[cfg(feature = "oxv1")]
             Prefix::ZeroXV1 => PREFIX_0XV1,
+            #[cfg(feature = "oxv2")]
             Prefix::ZeroXV2 => PREFIX_0XV2,
+            #[cfg(feature = "pdv1")]
             Prefix::PDV1 => PREFIX_PDV1,
+            #[cfg(feature = "pdv2")]
             Prefix::PDV2 => PREFIX_PDV2,
         }
     }
@@ -127,9 +143,13 @@ impl TryFrom<&str> for Prefix {
     /// Construct an instance of the `Prefix` type for the given string
     fn try_from(s: &str) -> Result<Prefix, Self::Error> {
         Ok(match s {
+            #[cfg(feature = "oxv1")]
             PREFIX_0XV1 => Prefix::ZeroXV1,
+            #[cfg(feature = "oxv2")]
             PREFIX_0XV2 => Prefix::ZeroXV2,
+            #[cfg(feature = "pdv1")]
             PREFIX_PDV1 => Prefix::PDV1,
+            #[cfg(feature = "pdv2")]
             PREFIX_PDV2 => Prefix::PDV2,
             _ => return Err(Self::Error::Invalid),
         })
@@ -154,6 +174,7 @@ fn find_invalid_char_in_dict(s: &str, dict: &[char]) -> Option<InvalidChar> {
 /// part number.
 #[derive(Debug, thiserror::Error, PartialEq)]
 #[cfg_attr(feature = "std", derive(SlogInlineError))]
+#[cfg(feature = "oxv1")]
 pub enum PartV1Error {
     #[error("Length of string is not 10 characters")]
     InvalidLength,
@@ -167,6 +188,7 @@ pub enum PartV1Error {
 
 /// This is a utility function to check the validity of a string holding a v1 /
 /// 0XV1 part number.
+#[cfg(feature = "oxv1")]
 fn pn_fmt_check_0xv1(s: &str) -> Result<&str, PartV1Error> {
     if s.len() != 10 {
         return Err(PartV1Error::InvalidLength);
@@ -180,9 +202,11 @@ fn pn_fmt_check_0xv1(s: &str) -> Result<&str, PartV1Error> {
 }
 
 /// A type representing a v1 / 0XV1 part number
+#[cfg(feature = "oxv1")]
 #[derive(Debug, PartialEq)]
 pub struct PartV1<'a>(&'a str);
 
+#[cfg(feature = "oxv1")]
 impl<'a> PartV1<'a> {
     /// Get the v2 part number as a string
     fn as_str(&'a self) -> &'a str {
@@ -195,6 +219,7 @@ impl<'a> PartV1<'a> {
     }
 }
 
+#[cfg(feature = "oxv1")]
 impl<'a> TryFrom<&'a str> for PartV1<'a> {
     type Error = PartV1Error;
 
@@ -208,6 +233,7 @@ impl<'a> TryFrom<&'a str> for PartV1<'a> {
 /// part number.
 #[derive(Debug, thiserror::Error, PartialEq)]
 #[cfg_attr(feature = "std", derive(SlogInlineError))]
+#[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
 pub enum PartV2Error {
     #[error("Length of string is not 11 characters")]
     InvalidLength,
@@ -224,6 +250,7 @@ pub enum PartV2Error {
 /// This is a utility function to check the validity of a string holding a v2 /
 /// 0XV2 part number. A v2 PN is a v1 PN with a '-' inserted as the 4th
 /// character.
+#[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
 fn pn_fmt_check_0xv2(s: &str) -> Result<&str, PartV2Error> {
     if s.len() != 11 {
         return Err(PartV2Error::InvalidLength);
@@ -251,8 +278,10 @@ fn pn_fmt_check_0xv2(s: &str) -> Result<&str, PartV2Error> {
 
 /// A type representing a v2 / 0XV2 part number
 #[derive(Debug, PartialEq)]
+#[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
 pub struct PartV2<'a>(&'a str);
 
+#[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
 impl<'a> PartV2<'a> {
     /// Get the v2 part number as a string
     fn as_str(&'a self) -> &'a str {
@@ -265,6 +294,7 @@ impl<'a> PartV2<'a> {
     }
 }
 
+#[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
 impl<'a> TryFrom<&'a str> for PartV2<'a> {
     type Error = PartV2Error;
 
@@ -278,6 +308,7 @@ impl<'a> TryFrom<&'a str> for PartV2<'a> {
 /// Terra part number.
 #[derive(Debug, thiserror::Error, PartialEq)]
 #[cfg_attr(feature = "std", derive(SlogInlineError))]
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 pub enum PartTerraError {
     #[error("Length of string is not 7 characters")]
     InvalidLength,
@@ -297,6 +328,7 @@ pub enum PartTerraError {
 /// This is a utility function to check the validity of a string holding a
 /// part number formatted for Terra. A Terra PN is a string of 7 ASCII digits
 /// with the first digit != 0.
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 fn pn_fmt_check_terra(s: &str) -> Result<&str, PartTerraError> {
     if s.len() != 7 {
         return Err(PartTerraError::InvalidLength);
@@ -315,8 +347,10 @@ fn pn_fmt_check_terra(s: &str) -> Result<&str, PartTerraError> {
 
 /// A type representing a Terra part number
 #[derive(Debug, PartialEq)]
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 pub struct PartTerra<'a>(&'a str);
 
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 impl<'a> PartTerra<'a> {
     /// Get the Terra part number as a string
     fn as_str(&'a self) -> &'a str {
@@ -329,6 +363,7 @@ impl<'a> PartTerra<'a> {
     }
 }
 
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 impl<'a> TryFrom<&'a str> for PartTerra<'a> {
     type Error = PartTerraError;
 
@@ -351,26 +386,32 @@ pub enum PartError {
         error("Failed to parse v1 part number: {0}")
     )]
     #[cfg_attr(feature = "std", error("Failed to parse v1 part number"))]
+    #[cfg(feature = "oxv1")]
     PartV1(#[from] PartV1Error),
     #[cfg_attr(
         not(feature = "std"),
         error("Failed to parse v2 part number: {0}")
     )]
     #[cfg_attr(feature = "std", error("Failed to parse v2 part number"))]
+    #[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
     PartV2(#[from] PartV2Error),
     #[cfg_attr(
         not(feature = "std"),
         error("Failed to parse Terra part number: {0}")
     )]
     #[cfg_attr(feature = "std", error("Failed to parse Terra part number"))]
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     PartTerra(#[from] PartTerraError),
 }
 
 /// A data bearing enum wrapping part number strings
 #[derive(Debug, PartialEq)]
 pub enum Part<'a> {
+    #[cfg(feature = "oxv1")]
     V1(PartV1<'a>),
+    #[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
     V2(PartV2<'a>),
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     Terra(PartTerra<'a>),
 }
 
@@ -378,8 +419,11 @@ impl<'a> Part<'a> {
     /// Get the part number as a string
     pub fn as_str(&'a self) -> &'a str {
         match self {
+            #[cfg(feature = "oxv1")]
             Part::V1(p) => p.as_str(),
+            #[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
             Part::V2(p) => p.as_str(),
+            #[cfg(any(feature = "oxv2", feature = "pdv2"))]
             Part::Terra(p) => p.as_str(),
         }
     }
@@ -387,8 +431,11 @@ impl<'a> Part<'a> {
     /// Get the part number string as a byte slice
     pub fn as_bytes(&'a self) -> &'a [u8] {
         match self {
+            #[cfg(feature = "oxv1")]
             Part::V1(p) => p.as_bytes(),
+            #[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
             Part::V2(p) => p.as_bytes(),
+            #[cfg(any(feature = "oxv2", feature = "pdv2"))]
             Part::Terra(p) => p.as_bytes(),
         }
     }
@@ -400,8 +447,11 @@ impl<'a> TryFrom<&'a str> for Part<'a> {
     /// Attempt to construct a `Part` type from a string
     fn try_from(s: &'a str) -> Result<Part<'a>, Self::Error> {
         match s.len() {
+            #[cfg(any(feature = "oxv2", feature = "pdv2"))]
             7 => Ok(Part::Terra(PartTerra::try_from(s)?)),
+            #[cfg(feature = "oxv1")]
             10 => Ok(Part::V1(PartV1::try_from(s)?)),
+            #[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
             11 => Ok(Part::V2(PartV2::try_from(s)?)),
             _ => Err(Self::Error::InvalidLength),
         }
@@ -410,6 +460,7 @@ impl<'a> TryFrom<&'a str> for Part<'a> {
 
 /// This is a utility function to check the validity of a string holding a
 /// revision number. A revision number is a string of 3 ASCII digits.
+#[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
 fn rev_fmt_check(s: &str) -> Result<&str, RevisionError> {
     if s.len() != 3 {
         return Err(RevisionError::InvalidLength);
@@ -439,8 +490,10 @@ pub enum RevisionError {
 
 /// A type representing a revision number
 #[derive(Debug, PartialEq)]
+#[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
 pub struct RevisionNumber<'a>(&'a str);
 
+#[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
 impl<'a> TryFrom<&'a str> for RevisionNumber<'a> {
     type Error = RevisionError;
 
@@ -450,6 +503,7 @@ impl<'a> TryFrom<&'a str> for RevisionNumber<'a> {
     }
 }
 
+#[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
 impl<'a> RevisionNumber<'a> {
     /// Get the serial number as a string
     pub fn as_str(&'a self) -> &'a str {
@@ -462,10 +516,12 @@ impl<'a> RevisionNumber<'a> {
     }
 }
 
+#[cfg(feature = "pdv2")]
 const REV_NULL: &str = "RRR";
 
 /// This is a utility function to check the validity of a string holding a
 /// NULL revision number.
+#[cfg(feature = "pdv2")]
 fn rev_null_fmt_check(s: &str) -> Result<&str, RevisionError> {
     if s.len() != 3 {
         return Err(RevisionError::InvalidLength);
@@ -485,20 +541,27 @@ fn rev_null_fmt_check(s: &str) -> Result<&str, RevisionError> {
 /// manufacturer may result in a revision number change after the platform
 /// identity had been issued. As a work around we simply replace the revision
 /// number w/ the string "RRR".
-#[derive(Debug, PartialEq)]
-pub struct RevisionNull;
+#[derive(Debug, Default, PartialEq)]
+#[cfg(feature = "pdv2")]
+pub struct RevisionNull<'a> {
+    // private phantom data to give RevisionNull a lifetime allowing it to fit
+    // into the `Revision` type
+    _phantom: core::marker::PhantomData<&'a str>,
+}
 
-impl TryFrom<&str> for RevisionNull {
+#[cfg(feature = "pdv2")]
+impl<'a> TryFrom<&'a str> for RevisionNull<'a> {
     type Error = RevisionError;
 
     /// Attempt to construct a `Part` type from a string
-    fn try_from(s: &str) -> Result<RevisionNull, Self::Error> {
+    fn try_from(s: &'a str) -> Result<RevisionNull<'a>, Self::Error> {
         rev_null_fmt_check(s)?;
-        Ok(Self)
+        Ok(Self::default())
     }
 }
 
-impl RevisionNull {
+#[cfg(feature = "pdv2")]
+impl RevisionNull<'_> {
     /// Get the serial number as a string
     pub fn as_str(&self) -> &str {
         REV_NULL
@@ -513,15 +576,19 @@ impl RevisionNull {
 /// A data bearing enum wrapping the possible part number strings
 #[derive(Debug, PartialEq)]
 pub enum Revision<'a> {
+    #[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
     Number(RevisionNumber<'a>),
-    Null(RevisionNull),
+    #[cfg(feature = "pdv2")]
+    Null(RevisionNull<'a>),
 }
 
 impl<'a> Revision<'a> {
     /// Get the serial number as a string
     pub fn as_str(&'a self) -> &'a str {
         match self {
+            #[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
             Revision::Number(s) => s.as_str(),
+            #[cfg(feature = "pdv2")]
             Revision::Null(s) => s.as_str(),
         }
     }
@@ -529,7 +596,9 @@ impl<'a> Revision<'a> {
     /// Get the serial number string as a byte slice
     pub fn as_bytes(&'a self) -> &'a [u8] {
         match self {
+            #[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
             Revision::Number(s) => s.as_bytes(),
+            #[cfg(feature = "pdv2")]
             Revision::Null(s) => s.as_bytes(),
         }
     }
@@ -540,14 +609,20 @@ impl<'a> TryFrom<&'a str> for Revision<'a> {
 
     /// Attempt to construct a `Revision` instance from a string
     fn try_from(s: &'a str) -> Result<Revision<'a>, Self::Error> {
-        if rev_null_fmt_check(s).is_ok() {
-            return Ok(Self::Null(RevisionNull));
+        #[cfg(feature = "pdv2")]
+        match rev_null_fmt_check(s) {
+            Ok(_) => Ok(Self::Null(RevisionNull::default())),
+            #[cfg(not(any(
+                feature = "oxv1",
+                feature = "oxv2",
+                feature = "pdv1"
+            )))]
+            Err(e) => return Err(e),
+            #[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
+            _ => Ok(rev_fmt_check(s).map(|s| Self::Number(RevisionNumber(s)))?),
         }
-
-        match rev_fmt_check(s) {
-            Ok(s) => Ok(Self::Number(RevisionNumber(s))),
-            Err(e) => Err(e),
-        }
+        #[cfg(not(feature = "pdv2"))]
+        rev_fmt_check(s).map(|s| Self::Number(RevisionNumber(s)))
     }
 }
 
@@ -640,6 +715,7 @@ impl<'a> TryFrom<&'a str> for SerialV1<'a> {
 /// serial number string.
 #[derive(Debug, thiserror::Error, PartialEq)]
 #[cfg_attr(feature = "std", derive(SlogInlineError))]
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 pub enum SerialV2Error {
     #[cfg_attr(
         not(feature = "std"),
@@ -658,6 +734,7 @@ pub enum SerialV2Error {
 
 /// This utility function checks the validity of a string holding a v2 serial
 /// number
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 fn snv2_fmt_check(s: &str) -> Result<&str, SerialV2Error> {
     // v2 serial numbers must be 8 characters long
     if s.len() != 8 {
@@ -679,8 +756,10 @@ fn snv2_fmt_check(s: &str) -> Result<&str, SerialV2Error> {
 
 /// This type represents a v2 serial number
 #[derive(Debug, PartialEq)]
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 pub struct SerialV2<'a>(&'a str);
 
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 impl<'a> SerialV2<'a> {
     /// Get the v2 serial number as a string
     fn as_str(&'a self) -> &'a str {
@@ -693,6 +772,7 @@ impl<'a> SerialV2<'a> {
     }
 }
 
+#[cfg(any(feature = "oxv2", feature = "pdv2"))]
 impl<'a> TryFrom<&'a str> for SerialV2<'a> {
     type Error = SerialV2Error;
 
@@ -720,6 +800,7 @@ pub enum SerialError {
         error("Failed to parse v2 serial number: {0}")
     )]
     #[cfg_attr(feature = "std", error("Failed to parse v2 serial number"))]
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     SerialV2(#[from] SerialV2Error),
 }
 
@@ -727,6 +808,7 @@ pub enum SerialError {
 #[derive(Debug, PartialEq)]
 pub enum Serial<'a> {
     V1(SerialV1<'a>),
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     V2(SerialV2<'a>),
 }
 
@@ -735,6 +817,7 @@ impl<'a> Serial<'a> {
     pub fn as_str(&'a self) -> &'a str {
         match self {
             Serial::V1(s) => s.as_str(),
+            #[cfg(any(feature = "oxv2", feature = "pdv2"))]
             Serial::V2(s) => s.as_str(),
         }
     }
@@ -743,6 +826,7 @@ impl<'a> Serial<'a> {
     pub fn as_bytes(&'a self) -> &'a [u8] {
         match self {
             Serial::V1(s) => s.as_bytes(),
+            #[cfg(any(feature = "oxv2", feature = "pdv2"))]
             Serial::V2(s) => s.as_bytes(),
         }
     }
@@ -754,6 +838,7 @@ impl<'a> TryFrom<&'a str> for Serial<'a> {
     /// Attempt to construct a `Serial` instance from a string
     fn try_from(s: &'a str) -> Result<Serial<'a>, Self::Error> {
         match s.len() {
+            #[cfg(any(feature = "oxv2", feature = "pdv2"))]
             8 => Ok(Serial::V2(SerialV2::try_from(s)?)),
             11 => Ok(Serial::V1(SerialV1::try_from(s)?)),
             _ => Err(Self::Error::InvalidLength),
@@ -788,8 +873,10 @@ pub enum BarcodeError {
     #[cfg_attr(feature = "std", error("Revision is invalid"))]
     Revision(#[from] RevisionError),
     #[error("Barcode has NULL revision but prefix requires a revision number")]
+    #[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
     RevisionIsNull,
     #[error("Barcode has revision number but prefix requires a NULL revision")]
+    #[cfg(feature = "pdv2")]
     RevisionNotNull,
     #[cfg_attr(not(feature = "std"), error("Serial number is invalid: {0}"))]
     #[cfg_attr(feature = "std", error("Serial number is invalid"))]
@@ -797,6 +884,7 @@ pub enum BarcodeError {
     #[error(
         "Barcodes with the 0XV1 or PDV1 prefix must have v1 serial numbers"
     )]
+    #[cfg(any(feature = "oxv1", feature = "pdv1"))]
     SerialNotV1,
 }
 
@@ -836,13 +924,38 @@ impl<'a> TryFrom<&'a str> for Barcode<'a> {
         // the prefix determines permitted formats for the part number
         match prefix {
             // must be in v1 format
+            #[cfg(feature = "oxv1")]
             Prefix::ZeroXV1 => match part {
                 Part::V1(_) => (),
+                #[cfg(any(
+                    feature = "oxv2",
+                    feature = "pdv1",
+                    feature = "pdv2"
+                ))]
                 _ => return Err(Self::Error::PartNotV1),
             },
             // must be in v2 format
-            Prefix::PDV1 | Prefix::ZeroXV2 | Prefix::PDV2 => match part {
+            #[cfg(feature = "oxv2")]
+            Prefix::ZeroXV2 => match part {
+                Part::V2(_) | Part::Terra(_) => (),
+                #[cfg(feature = "oxv1")]
+                _ => return Err(Self::Error::PartNotV2),
+            },
+
+            #[cfg(feature = "pdv1")]
+            Prefix::PDV1 => match part {
                 Part::V2(_) => (),
+                #[cfg(any(feature = "oxv2", feature = "pdv2"))]
+                Part::Terra(_) => (),
+                #[cfg(feature = "oxv1")]
+                _ => return Err(Self::Error::PartNotV2),
+            },
+
+            #[cfg(feature = "pdv2")]
+            Prefix::PDV2 => match part {
+                Part::V2(_) => (),
+                Part::Terra(_) => (),
+                #[cfg(feature = "oxv1")]
                 _ => return Err(Self::Error::PartNotV2),
             },
         }
@@ -852,12 +965,20 @@ impl<'a> TryFrom<&'a str> for Barcode<'a> {
 
         // the prefix determines the permitted formats for the revision number
         match prefix {
+            #[cfg(feature = "pdv2")]
             Prefix::PDV2 => match revision {
                 Revision::Null(_) => (),
+                #[cfg(any(
+                    feature = "oxv1",
+                    feature = "oxv2",
+                    feature = "pdv1"
+                ))]
                 _ => return Err(Self::Error::RevisionNotNull),
             },
+            #[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
             _ => match revision {
                 Revision::Number(_) => (),
+                #[cfg(feature = "pdv2")]
                 _ => return Err(Self::Error::RevisionIsNull),
             },
         }
@@ -868,12 +989,25 @@ impl<'a> TryFrom<&'a str> for Barcode<'a> {
         // the prefix determines permitted formats for the serial number
         match prefix {
             // must be in v1 format
-            Prefix::ZeroXV1 | Prefix::PDV1 => match serial {
+            #[cfg(feature = "oxv1")]
+            Prefix::ZeroXV1 => match serial {
                 Serial::V1(_) => (),
+                #[cfg(any(feature = "oxv2", feature = "pdv2"))]
+                _ => return Err(Self::Error::SerialNotV1),
+            },
+            #[cfg(feature = "pdv1")]
+            Prefix::PDV1 => match serial {
+                Serial::V1(_) => (),
+                #[cfg(any(feature = "oxv2", feature = "pdv2"))]
                 _ => return Err(Self::Error::SerialNotV1),
             },
             // may be in v1 or v2 format
-            Prefix::ZeroXV2 | Prefix::PDV2 => match serial {
+            #[cfg(feature = "oxv2")]
+            Prefix::ZeroXV2 => match serial {
+                Serial::V1(_) | Serial::V2(_) => (),
+            },
+            #[cfg(feature = "pdv2")]
+            Prefix::PDV2 => match serial {
                 Serial::V1(_) | Serial::V2(_) => (),
             },
         }
@@ -996,32 +1130,38 @@ mod tests {
 
     // not many prefixes so we can test exhaustively
     #[test]
+    #[cfg(feature = "oxv1")]
     fn prefix_0xv1() {
         let result = Prefix::try_from("0XV1");
         assert_eq!(result, Ok(Prefix::ZeroXV1));
     }
 
     #[test]
+    #[cfg(feature = "oxv2")]
     fn prefix_0xv2() {
         let result = Prefix::try_from("0XV2");
         assert_eq!(result, Ok(Prefix::ZeroXV2));
     }
 
     #[test]
+    #[cfg(feature = "pdv1")]
     fn prefix_pdv1() {
         let result = Prefix::try_from(PREFIX_PDV1);
         assert_eq!(result, Ok(Prefix::PDV1));
     }
 
     #[test]
+    #[cfg(feature = "pdv2")]
     fn prefix_pdv2() {
         let result = Prefix::try_from("PDV2");
         assert_eq!(result, Ok(Prefix::PDV2));
     }
 
-    const PN_V1_BAD_CHAR: &str = "913-000019";
     #[test]
-    fn pn_0xv1_bad_char() {
+    #[cfg(feature = "oxv1")]
+    fn pnv1_bad_char() {
+        const PN_V1_BAD_CHAR: &str = "913-000019";
+
         let result = PartV1::try_from(PN_V1_BAD_CHAR);
         assert_eq!(
             result,
@@ -1029,23 +1169,29 @@ mod tests {
         );
     }
 
-    const PN_V1_GOOD: &str = "9130000019";
     #[test]
-    fn pn_0xv1_good() {
+    #[cfg(feature = "oxv1")]
+    fn pnv1_good() {
+        const PN_V1_GOOD: &str = "9130000019";
+
         let result = PartV1::try_from(PN_V1_GOOD);
         assert!(result.is_ok());
     }
 
+    #[cfg(feature = "oxv2")]
     const PN_V2_NO_HYPHEN: &str = "91300000019";
     #[test]
+    #[cfg(feature = "oxv2")]
     fn pn_0xv2_no_hyphen() {
         let result = PartV2::try_from(PN_V2_NO_HYPHEN);
         assert_eq!(result, Err(PartV2Error::NoHyphen));
     }
 
+    #[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
     const PN_V2_BAD_CHAR_PREFIX: &str = "9a3-0000019";
     #[test]
-    fn pn_0xv2_bad_char_prefix() {
+    #[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
+    fn pnv2_bad_char_prefix() {
         let result = PartV2::try_from(PN_V2_BAD_CHAR_PREFIX);
         assert_eq!(
             result,
@@ -1053,9 +1199,11 @@ mod tests {
         );
     }
 
+    #[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
     const PN_V2_BAD_CHAR_SUFFIX: &str = "913-000_019";
     #[test]
-    fn pn_0xv2_bad_char_suffix() {
+    #[cfg(any(feature = "oxv2", feature = "pdv1", feature = "pdv2"))]
+    fn pnv2_bad_char_suffix() {
         let result = PartV2::try_from(PN_V2_BAD_CHAR_SUFFIX);
         assert_eq!(
             result,
@@ -1064,16 +1212,20 @@ mod tests {
     }
 
     // tests for Terra CPNs: 7 digits, leading digit must be > 0
-    const PN_TERRA_LEADING_ZERO: &str = "0000000";
     #[test]
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     fn pn_terra_leading_zero() {
+        const PN_TERRA_LEADING_ZERO: &str = "0000000";
+
         let result = PartTerra::try_from(PN_TERRA_LEADING_ZERO);
         assert_eq!(result, Err(PartTerraError::LeadingZero));
     }
 
-    const PN_TERRA_ALPHA: &str = "300A000";
     #[test]
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     fn pn_terra_alpha() {
+        const PN_TERRA_ALPHA: &str = "300A000";
+
         let result = PartTerra::try_from(PN_TERRA_ALPHA);
         assert_eq!(
             result,
@@ -1081,9 +1233,11 @@ mod tests {
         );
     }
 
-    const PN_TERRA_GOOD: &str = "3000000";
     #[test]
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     fn pn_terra_good() {
+        const PN_TERRA_GOOD: &str = "3000000";
+
         let result = PartTerra::try_from(PN_TERRA_GOOD);
         assert!(result.is_ok());
     }
@@ -1102,9 +1256,11 @@ mod tests {
         assert_eq!(result, Err(RevisionError::InvalidLength));
     }
 
-    const REV_INVALID_CHAR: &str = "66a";
     #[test]
+    #[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
     fn rev_invalid_char() {
+        const REV_INVALID_CHAR: &str = "66a";
+
         let result = Revision::try_from(REV_INVALID_CHAR);
         assert_eq!(
             result,
@@ -1112,32 +1268,55 @@ mod tests {
         );
     }
 
-    const REV_GOOD: &str = "012";
     #[test]
+    #[cfg(any(feature = "oxv1", feature = "oxv2", feature = "pdv1"))]
     fn rev_good() {
+        const REV_GOOD: &str = "012";
+
         let result = Revision::try_from(REV_GOOD);
         assert!(result.is_ok());
     }
 
-    const SNV1_BAD_LENGTH: &str = "BRZ0125FFFFG";
     #[test]
+    #[cfg(any(
+        feature = "oxv1",
+        feature = "oxv2",
+        feature = "pdv1",
+        feature = "pdv2"
+    ))]
     fn snv1_bad_length() {
+        const SNV1_BAD_LENGTH: &str = "BRZ0125FFFFG";
+
         let result = SerialV1::try_from(SNV1_BAD_LENGTH);
         assert_eq!(result, Err(SerialV1Error::InvalidLength));
     }
 
-    const SNV1_BAD_LOCATION: &str = "BRZ0125FFFF";
     #[test]
+    #[cfg(any(
+        feature = "oxv1",
+        feature = "oxv2",
+        feature = "pdv1",
+        feature = "pdv2"
+    ))]
     fn snv1_bad_location() {
+        const SNV1_BAD_LOCATION: &str = "BRZ0125FFFF";
+
         let result = SerialV1::try_from(SNV1_BAD_LOCATION);
         assert_eq!(result, Err(SerialV1Error::InvalidLocation));
     }
 
-    use core::num::IntErrorKind::InvalidDigit;
-
-    const SNV1_BAD_WEEK: &str = "BRM0f25FFFF";
     #[test]
+    #[cfg(any(
+        feature = "oxv1",
+        feature = "oxv2",
+        feature = "pdv1",
+        feature = "pdv2"
+    ))]
     fn snv1_bad_week() {
+        use core::num::IntErrorKind::InvalidDigit;
+
+        const SNV1_BAD_WEEK: &str = "BRM0f25FFFF";
+
         let result = SerialV1::try_from(SNV1_BAD_WEEK);
         assert!(result.is_err());
 
@@ -1152,9 +1331,18 @@ mod tests {
         }
     }
 
-    const SNV1_BAD_YEAR: &str = "BRM01f5FFFF";
     #[test]
+    #[cfg(any(
+        feature = "oxv1",
+        feature = "oxv2",
+        feature = "pdv1",
+        feature = "pdv2"
+    ))]
     fn snv1_bad_year() {
+        use core::num::IntErrorKind::InvalidDigit;
+
+        const SNV1_BAD_YEAR: &str = "BRM01f5FFFF";
+
         let result = SerialV1::try_from(SNV1_BAD_YEAR);
         assert!(result.is_err());
 
@@ -1169,30 +1357,43 @@ mod tests {
         }
     }
 
-    const SNV1_BAD_ID: &str = "BRM0125😒";
     #[test]
+    #[cfg(any(
+        feature = "oxv1",
+        feature = "oxv2",
+        feature = "pdv1",
+        feature = "pdv2"
+    ))]
     fn snv1_bad_id() {
+        const SNV1_BAD_ID: &str = "BRM0125😒";
+
         let result = SerialV1::try_from(SNV1_BAD_ID);
         assert_eq!(result, Err(SerialV1Error::InvalidId));
     }
 
-    const SNV2_BAD_LENGTH: &str = "2555555";
     #[test]
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     fn snv2_bad_length() {
+        const SNV2_BAD_LENGTH: &str = "2555555";
+
         let result = SerialV2::try_from(SNV2_BAD_LENGTH);
         assert_eq!(result, Err(SerialV2Error::InvalidLength));
     }
 
-    const SNV2_BAD_VERSION: &str = "15555555";
     #[test]
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     fn snv2_bad_version() {
+        const SNV2_BAD_VERSION: &str = "15555555";
+
         let result = SerialV2::try_from(SNV2_BAD_VERSION);
         assert_eq!(result, Err(SerialV2Error::WrongVersion));
     }
 
-    const SNV2_INVALID_CHAR: &str = "2555U555";
     #[test]
+    #[cfg(any(feature = "oxv2", feature = "pdv2"))]
     fn snv2_bad_char() {
+        const SNV2_INVALID_CHAR: &str = "2555U555";
+
         let result = SerialV2::try_from(SNV2_INVALID_CHAR);
         assert_eq!(
             result,
@@ -1200,14 +1401,14 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "pdv2"))]
     use anyhow::Context;
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "pdv2"))]
     use x509_cert::Certificate;
 
     // a self signed cert with a platform id string in the the Subject
     // commonName
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "pdv2"))]
     const PLATFORM_ID_PEM: &str = r#"-----BEGIN CERTIFICATE-----
 MIIBtTCCAWegAwIBAgIBADAFBgMrZXAwWTELMAkGA1UEBhMCVVMxHzAdBgNVBAoM
 Fk94aWRlIENvbXB1dGVyIENvbXBhbnkxKTAnBgNVBAMMIFBEVjI6OTEzLTAwMDAw
@@ -1222,8 +1423,8 @@ I1Dpq9liDQgB
 -----END CERTIFICATE-----
 "#;
 
-    #[cfg(feature = "std")]
     #[test]
+    #[cfg(all(feature = "std", feature = "pdv2"))]
     fn pid_from_pki_path() -> anyhow::Result<()> {
         let bytes = PLATFORM_ID_PEM.as_bytes();
         let cert_chain: PkiPath = Certificate::load_pem_chain(bytes)
@@ -1236,7 +1437,7 @@ I1Dpq9liDQgB
         Ok(assert_eq!(baseboard_id.serial_number, "BRM0125SSSS"))
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "pdv2"))]
     const PLATFORM_ID_V2_PEM: &str = r#"-----BEGIN CERTIFICATE-----
 MIIBrzCCAWGgAwIBAgIBADAFBgMrZXAwVjELMAkGA1UEBhMCVVMxHzAdBgNVBAoM
 Fk94aWRlIENvbXB1dGVyIENvbXBhbnkxJjAkBgNVBAMMHVBEVjI6OTEzLTAwMDAw
@@ -1251,8 +1452,8 @@ pngE
 -----END CERTIFICATE-----
 "#;
 
-    #[cfg(feature = "std")]
     #[test]
+    #[cfg(all(feature = "std", feature = "pdv2"))]
     fn pid_from_pki_path_v2() -> anyhow::Result<()> {
         let bytes = PLATFORM_ID_V2_PEM.as_bytes();
         let cert_chain: PkiPath = Certificate::load_pem_chain(bytes)
@@ -1265,8 +1466,8 @@ pngE
         Ok(assert_eq!(baseboard_id.serial_number, "20000001"))
     }
 
-    #[cfg(feature = "std")]
     #[test]
+    #[cfg(all(feature = "std", feature = "pdv2"))]
     fn pid_from_pki_path_multiple() -> anyhow::Result<()> {
         // Create a cert chain w/ multiple PlatformIds. This chain is invalid
         // but it's useful for testing and a good example of why we need to
@@ -1286,7 +1487,7 @@ pngE
         ))
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "pdv2"))]
     const NO_PLATFORM_ID_PEM: &str = r#"-----BEGIN CERTIFICATE-----
 MIIBADCBs6ADAgECAgEAMAUGAytlcDApMQswCQYDVQQGEwJVUzEMMAoGA1UECgwD
 Zm9vMQwwCgYDVQQDDANiYXIwIBcNMjUwNDI5MDUyMzE5WhgPOTk5OTEyMzEyMzU5
@@ -1297,8 +1498,8 @@ cANBAFleiVB2JzLpysPIJkia4DYodkTc0KuelpNqV0ycemgQqD30O085W7xZ+c/X
 -----END CERTIFICATE-----
 "#;
 
-    #[cfg(feature = "std")]
     #[test]
+    #[cfg(all(feature = "std", feature = "pdv2"))]
     fn pid_from_pki_path_none() -> anyhow::Result<()> {
         let bytes = NO_PLATFORM_ID_PEM.as_bytes();
         let cert_chain: PkiPath = Certificate::load_pem_chain(bytes)

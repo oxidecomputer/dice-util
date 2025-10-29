@@ -7,6 +7,7 @@ edition = "2024"
 anyhow.workspace = true
 
 [dependencies]
+cfg-if.workspace = true
 const-oid = { workspace = true, optional = true }
 slog = { workspace = true, optional = true }
 slog-error-chain = { workspace = true, optional = true }
@@ -14,4 +15,9 @@ thiserror.workspace = true
 x509-cert = { workspace = true, optional = true }
 
 [features]
+oxv1 = []
+oxv2 = []
+pdv1 = []
+pdv2 = []
 std = ["const-oid/db", "slog", "slog-error-chain/derive", "x509-cert/pem", "x509-cert/std"]
+default = ["std", "oxv1", "oxv2", "pdv1", "pdv2"]
