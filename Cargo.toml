@@ -52,5 +52,5 @@ tempfile = { version = "3.20.0", default-features = false }
 thiserror = { version = "2.0.17", default-features = false }
 x509-cert = { version = "0.2.5", default-features = false }
 yubihsm = { git = "https://github.com/oxidecomputer/yubihsm.rs", branch="v0.42.0-with-audit", features = ["default", "usb"] }
-zerocopy = "0.8.25"
+zerocopy = "0.8.27"
 zeroize = { version = "1.8.1", default-features = false }
