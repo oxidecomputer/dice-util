@@ -8,8 +8,12 @@
 use const_oid::db::rfc4519::COMMON_NAME;
 use core::{fmt, str::Utf8Error};
 use dice_util_barcode::{
-    Barcode, BarcodeError, Prefix, PREFIX_PDV1, PREFIX_PDV2, SEPARATOR,
+    Barcode, BarcodeError, Prefix, SEPARATOR,
 };
+#[cfg(not(feature = "pdv2"))]
+use dice_util_barcode::{PREFIX_PDV1, PREFIX_PDV2};
+#[cfg(feature = "pdv2")]
+use dice_util_barcode::PREFIX_PDV2;
 use hubpack::SerializedSize;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
@@ -132,11 +136,12 @@ impl TryFrom<&str> for PlatformId {
         let mut start = 0;
         let bytes = match barcode.prefix {
             // preserve the format / prefix of PDV1
+            #[cfg(not(feature = "pdv2"))]
             Prefix::PDV1 => PREFIX_PDV1.as_bytes(),
             // preserve the prefix for PDV2 & convert 0XV1 & 2 to PDV2
-            Prefix::ZeroXV1 | Prefix::ZeroXV2 | Prefix::PDV2 => {
-                PREFIX_PDV2.as_bytes()
-            }
+            #[cfg(not(feature = "pdv2"))]
+            Prefix::ZeroXV1 | Prefix::ZeroXV2 => PREFIX_PDV2.as_bytes(),
+            Prefix::PDV2 => PREFIX_PDV2.as_bytes(),
         };
         let mut end = bytes.len();
         pdv2[start..end].copy_from_slice(bytes);
@@ -157,6 +162,7 @@ impl TryFrom<&str> for PlatformId {
         start = match barcode.prefix {
             // 0XV1 part number strings are v1 & must have a hyphen added to
             // become PDV2
+            #[cfg(not(feature = "pdv2"))]
             Prefix::ZeroXV1 => {
                 // write first 3 bytes of the part number
                 let bytes = &part.as_bytes()[..3];
@@ -180,7 +186,16 @@ impl TryFrom<&str> for PlatformId {
                 end
             }
             // 0XV2, PDV1 & 2 already have v2 part numbers
+            #[cfg(not(feature = "pdv2"))]
             Prefix::ZeroXV2 | Prefix::PDV1 | Prefix::PDV2 => {
+                let bytes = part.as_bytes();
+                end += bytes.len();
+                pdv2[start..end].copy_from_slice(bytes);
+
+                end
+            }
+            #[cfg(feature = "pdv2")]
+            Prefix::PDV2 => {
                 let bytes = part.as_bytes();
                 end += bytes.len();
                 pdv2[start..end].copy_from_slice(bytes);
@@ -198,8 +213,12 @@ impl TryFrom<&str> for PlatformId {
 
         // preserve the revision number for PDV1, all others will become PDV2
         let bytes = match barcode.prefix {
+            #[cfg(not(feature = "pdv2"))]
             Prefix::PDV1 => barcode.revision.as_bytes(),
+            #[cfg(not(feature = "pdv2"))]
             Prefix::ZeroXV1 | Prefix::ZeroXV2 | Prefix::PDV2 => b"RRR",
+            #[cfg(feature = "pdv2")]
+            Prefix::PDV2 => b"RRR",
         };
         end += bytes.len();
         pdv2[start..end].copy_from_slice(bytes);
