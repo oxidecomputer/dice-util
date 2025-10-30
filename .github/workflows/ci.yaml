@@ -30,6 +30,22 @@ jobs:
       - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,pdv1,pdv2
       - run: cargo build --package dice-util-barcode --no-default-features --features oxv2,pdv1,pdv2
       - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,oxv2,pdv1,pdv2
+      # now with `std`
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv2,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features pdv1,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features pdv2,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,oxv2,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,pdv1,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,pdv2,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv2,pdv1,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv2,pdv2,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features pdv1,pdv2,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,oxv2,pdv1,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,oxv2,pdv2,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,pdv1,pdv2,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv2,pdv1,pdv2,std
+      - run: cargo build --package dice-util-barcode --no-default-features --features oxv1,oxv2,pdv1,pdv2,std
 
   test:
     name: cargo test
@@ -58,6 +74,22 @@ jobs:
       - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,pdv1,pdv2
       - run: cargo test --package dice-util-barcode --no-default-features --features oxv2,pdv1,pdv2
       - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,oxv2,pdv1,pdv2
+      # now with `std`
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv2,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features pdv1,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features pdv2,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,oxv2,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,pdv1,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,pdv2,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv2,pdv1,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv2,pdv2,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features pdv1,pdv2,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,oxv2,pdv1,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,oxv2,pdv2,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,pdv1,pdv2,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv2,pdv1,pdv2,std
+      - run: cargo test --package dice-util-barcode --no-default-features --features oxv1,oxv2,pdv1,pdv2,std
   doc:
     name: cargo doc
     runs-on: ubuntu-latest
