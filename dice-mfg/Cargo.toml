@@ -1,6 +1,6 @@
 [package]
 name = "dice-mfg"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "A command line tool for creating and programming device identities for Oxide RoTs."
 license = "MPL-2.0"
