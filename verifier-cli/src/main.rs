@@ -93,9 +93,17 @@ enum AttestCommand {
         #[clap(long, env = "VERIFIER_CLI_WORK_DIR")]
         work_dir: Option<PathBuf>,
 
+        /// Skip measurement log appraisal.
+        #[clap(
+            long,
+            default_value_t = false,
+            env = "VERIFIER_CLI_SKIP_APPRAISAL"
+        )]
+        skip_appraisal: bool,
+
         /// Path to file holding the reference measurement corpus
         #[clap(env, env = "VERIFIER_CLI_CORPUS")]
-        corpus: PathBuf,
+        corpus: Option<PathBuf>,
     },
     /// Verify signature over Attestation
     VerifyAttestation {
@@ -255,6 +263,7 @@ fn main() -> Result<()> {
             ca_cert,
             corpus,
             self_signed,
+            skip_appraisal,
             work_dir,
         } => {
             // Use the directory provided by the caller to hold intermediate
@@ -263,16 +272,19 @@ fn main() -> Result<()> {
                 Some(w) => verify(
                     attest.as_ref(),
                     ca_cert.as_deref(),
-                    &corpus,
+                    corpus.as_deref(),
                     self_signed,
                     &w,
                 )?,
                 None => {
+                    if corpus.is_none() && !skip_appraisal {
+                        return Err(anyhow!("no corpus provided but not instructed to skip measurement log appraisal"));
+                    }
                     let work_dir = tempfile::tempdir()?;
                     verify(
                         attest.as_ref(),
                         ca_cert.as_deref(),
-                        &corpus,
+                        corpus.as_deref(),
                         self_signed,
                         work_dir.as_ref(),
                     )?
@@ -380,7 +392,7 @@ fn verify_measurements(
 fn verify(
     attest: &dyn Attest,
     ca_cert: Option<&Path>,
-    corpus: &Path,
+    corpus: Option<&Path>,
     self_signed: bool,
     work_dir: &Path,
 ) -> Result<PlatformId> {
@@ -472,8 +484,12 @@ fn verify(
     )?;
     info!("attestation verified");
 
-    verify_measurements(&cert_chain_path, &log_path, corpus)?;
-    info!("measurements verified");
+    if let Some(corpus) = corpus {
+        verify_measurements(&cert_chain_path, &log_path, corpus)?;
+        info!("measurements verified");
+    } else {
+        warn!("measurement corpus is None: skipping log appraisal");
+    }
 
     let cert_chain = fs::read(&cert_chain_path).context(format!(
         "read cert chain from path: {}",
