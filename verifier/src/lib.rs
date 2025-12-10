@@ -457,6 +457,19 @@ impl std::iter::IntoIterator for MeasurementSet {
     }
 }
 
+impl std::fmt::Display for MeasurementSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "measurement set")?;
+        for m in &self.0 {
+            writeln!(f, " {}", m)?;
+        }
+        if self.0.is_empty() {
+            writeln!(f, "(set is empty)")?;
+        }
+        Ok(())
+    }
+}
+
 /// A collection of measurement values that is used as a source of truth when
 /// appraising the set of measurements derived from an attestation.
 pub struct ReferenceMeasurements(pub(crate) HashSet<Measurement>);
@@ -485,6 +498,19 @@ impl TryFrom<&[Corim]> for ReferenceMeasurements {
         }
 
         Ok(Self(set))
+    }
+}
+
+impl std::fmt::Display for ReferenceMeasurements {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Reference measurements")?;
+        for m in &self.0 {
+            writeln!(f, " {}", m)?;
+        }
+        if self.0.is_empty() {
+            writeln!(f, "(set is empty)")?;
+        }
+        Ok(())
     }
 }
 
