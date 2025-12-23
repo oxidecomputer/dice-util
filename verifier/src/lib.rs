@@ -298,6 +298,8 @@ pub enum PkiPathSignatureVerifierError {
     NoMatchingRoot,
     #[error("Signature verification failed: {0}")]
     VerifierFailed(#[from] CertVerifierError),
+    #[error("The chain is unexpectedly self-signed")]
+    UnexpectedSelfSigned,
 }
 
 /// This struct encapsulates the signature verification process for a PkiPath.
@@ -352,11 +354,21 @@ impl<'a> PkiPathSignatureVerifier<'a> {
                         Err(CertVerifierError::Signature(_)) => continue,
                         // if there's any other error return it
                         Err(e) => {
-                            return Err(
+                            // did we forget this was self-signed?
+                            let verifier =
+                                CertSigVerifierFactory::get_verifier(
+                                    &pki_path[0],
+                                )?;
+
+                            if verifier.verify(&pki_path[0]).is_ok() {
+                                return Err(PkiPathSignatureVerifierError::UnexpectedSelfSigned);
+                            } else {
+                                return Err(
                                 PkiPathSignatureVerifierError::VerifierFailed(
                                     e,
                                 ),
-                            )
+                            );
+                            }
                         }
                     }
                 }
