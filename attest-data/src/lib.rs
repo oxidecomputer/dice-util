@@ -197,7 +197,7 @@ impl Measurement {
     // intentional to indicate that this is unchecked and if you
     // are using it anywhere besides unit tests something has gone wrong!
     pub fn fake(bytes: [u8; 32]) -> Self {
-        Measurement::Sha3_256(Sha3_256Digest::try_from(bytes).unwrap())
+        Measurement::Sha3_256(Sha3_256Digest::from(bytes))
     }
 }
 
