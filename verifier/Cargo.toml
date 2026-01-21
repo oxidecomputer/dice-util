@@ -10,6 +10,7 @@ attest-data = { path = "../attest-data", features = ["std"] }
 const-oid.workspace = true
 ed25519-dalek = { workspace = true, features = ["std"] }
 env_logger.workspace = true
+hex = { workspace = true }
 hubpack.workspace = true
 libipcc = { workspace = true, optional = true }
 log.workspace = true

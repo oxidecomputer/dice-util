@@ -192,6 +192,15 @@ pub enum Measurement {
     Sha3_256(Sha3_256Digest),
 }
 
+impl Measurement {
+    // This is useful for unit tesitng purposes. The name here
+    // intentional to indicate that this is unchecked and if you
+    // are using it anywhere besides unit tests something has gone wrong!
+    pub fn fake(bytes: [u8; 32]) -> Self {
+        Measurement::Sha3_256(Sha3_256Digest::try_from(bytes).unwrap())
+    }
+}
+
 impl Default for Measurement {
     fn default() -> Self {
         Measurement::Sha3_256(Sha3_256Digest::default())
