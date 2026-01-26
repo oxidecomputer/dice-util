@@ -7,18 +7,13 @@ use attest_data::{
     Attestation, Log, Nonce,
 };
 pub use libipcc::IpccError;
-use libipcc::IpccHandle;
+use libipcc::{IpccHandle, IPCC_MAX_DATA_SIZE};
 use x509_cert::{
     der::{self, Decode, Encode, Reader},
     Certificate, PkiPath,
 };
 
 use crate::{Attest, AttestError};
-
-// A slight hack. These are only defined right now in the `ffi` part
-// of libipcc which isn't available on non-illumos targets. Probably
-// indicates those constants belong elsewhere...
-const IPCC_MAX_DATA_SIZE: usize = 4123 - 19;
 
 /// The `AttestIpcc` type communicates with the RoT `Attest` task through the
 /// IPCC interface / <https://github.com/oxidecomputer/ipcc-rs>
