@@ -194,8 +194,9 @@ pub enum Measurement {
 
 impl Measurement {
     // This is useful for unit tesitng purposes. The name here
-    // intentional to indicate that this is unchecked and if you
+    // is intentional to indicate that this is unchecked and if you
     // are using it anywhere besides unit tests something has gone wrong!
+    #[cfg(any(test, feature = "testing"))]
     pub fn fake(bytes: [u8; 32]) -> Self {
         Measurement::Sha3_256(Sha3_256Digest::from(bytes))
     }

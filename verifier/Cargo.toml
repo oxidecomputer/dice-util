@@ -21,6 +21,11 @@ tempfile.workspace = true
 thiserror.workspace = true
 x509-cert = { workspace = true, default-features = true }
 
+
+[dev-dependencies]
+attest-data = { path = "../attest-data", features = ["std", "testing"] }
+
 [features]
+testing = []
 ipcc = ["libipcc"]
 mock = ["ed25519-dalek/pem"]
