@@ -10,6 +10,7 @@ attest-data = { path = "../attest-data", features = ["std"] }
 const-oid.workspace = true
 ed25519-dalek = { workspace = true, features = ["std"] }
 env_logger.workspace = true
+hex = { workspace = true }
 hubpack.workspace = true
 libipcc = { workspace = true, optional = true }
 log.workspace = true
@@ -20,6 +21,11 @@ tempfile.workspace = true
 thiserror.workspace = true
 x509-cert = { workspace = true, default-features = true }
 
+
+[dev-dependencies]
+attest-data = { path = "../attest-data", features = ["std", "testing"] }
+
 [features]
+testing = []
 ipcc = ["libipcc"]
 mock = ["ed25519-dalek/pem"]

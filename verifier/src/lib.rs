@@ -404,6 +404,7 @@ pub enum MeasurementSetError {
 /// This is a collection to represent the measurements received from an
 /// attestor. These measurements will come from the measurement log and the
 /// DiceTcbInfo extension(s) in the attestation cert chain / pki path.
+#[derive(Debug, PartialEq)]
 pub struct MeasurementSet(HashSet<Measurement>);
 
 /// Construct a MeasurementSet from the provided artifacts. The
@@ -457,6 +458,22 @@ impl MeasurementSet {
     /// Thin wrapper over HashSet.is_subset w/ better type info
     pub fn is_subset(&self, corpus: &ReferenceMeasurements) -> bool {
         self.0.is_subset(&corpus.0)
+    }
+
+    /// Return the actual differences from the corpus, useful for debugging
+    pub fn difference(
+        &self,
+        corpus: &ReferenceMeasurements,
+    ) -> Option<MeasurementSet> {
+        if self.is_subset(corpus) {
+            None
+        } else {
+            let mut measurements = HashSet::new();
+            for measurement in self.0.difference(&corpus.0) {
+                measurements.insert(*measurement);
+            }
+            Some(MeasurementSet(measurements))
+        }
     }
 }
 
@@ -602,8 +619,8 @@ pub fn verify_attestation(
 /// process.
 #[derive(Debug, Error)]
 pub enum VerifyMeasurementsError {
-    #[error("Measurements are not a subset of reference measurements")]
-    NotSubset,
+    #[error("Measurements are not a subset of reference measurements: {0}")]
+    NotSubset(MeasurementSet),
 }
 
 /// This function implements the core of our attestation appraisal policy.
@@ -613,10 +630,13 @@ pub fn verify_measurements(
     measurements: &MeasurementSet,
     corpus: &ReferenceMeasurements,
 ) -> Result<(), VerifyMeasurementsError> {
-    if measurements.is_subset(corpus) {
-        Ok(())
+    // This should be equivallent to measurements.subset(corpus) but
+    // give us the entries that are not in the corpus for debugging
+    // purposes
+    if let Some(diff) = measurements.difference(corpus) {
+        Err(VerifyMeasurementsError::NotSubset(diff))
     } else {
-        Err(VerifyMeasurementsError::NotSubset)
+        Ok(())
     }
 }
 
@@ -784,5 +804,73 @@ ezRrVF9+9OkCymi+xqWG8UN87sN/9Qk=
         let res = verify_cert_chain(&cert_chain, None);
 
         assert!(res.is_err());
+    }
+
+    const MEASUREMENT_A: [u8; 32] = [0x1; 32];
+    const MEASUREMENT_B: [u8; 32] = [0x2; 32];
+    const MEASUREMENT_C: [u8; 32] = [0x3; 32];
+
+    #[test]
+    fn basic_measurement_set_tests() {
+        let measurement_a = Measurement::fake(MEASUREMENT_A);
+        let measurement_b = Measurement::fake(MEASUREMENT_B);
+        let measurement_c = Measurement::fake(MEASUREMENT_C);
+
+        let mut corpus = HashSet::new();
+
+        corpus.insert(measurement_a);
+        corpus.insert(measurement_b);
+        corpus.insert(measurement_c);
+
+        let corpus = ReferenceMeasurements(corpus);
+
+        let mut set_a = HashSet::new();
+        set_a.insert(measurement_a);
+        let set_a = MeasurementSet(set_a);
+
+        assert!(set_a.is_subset(&corpus));
+
+        let mut set_b = HashSet::new();
+        set_b.insert(measurement_b);
+        let set_b = MeasurementSet(set_b);
+
+        assert!(set_b.is_subset(&corpus));
+
+        let mut set_c = HashSet::new();
+        set_c.insert(measurement_c);
+        let set_c = MeasurementSet(set_c);
+
+        assert!(verify_measurements(&set_c, &corpus).is_ok());
+    }
+
+    #[test]
+    fn missing_measurement_set_tests() {
+        let measurement_a = Measurement::fake(MEASUREMENT_A);
+        let measurement_b = Measurement::fake(MEASUREMENT_B);
+        let measurement_c = Measurement::fake(MEASUREMENT_C);
+
+        let mut corpus = HashSet::new();
+
+        corpus.insert(measurement_a);
+        corpus.insert(measurement_b);
+
+        let corpus = ReferenceMeasurements(corpus);
+
+        let mut set_c = HashSet::new();
+        set_c.insert(measurement_c);
+        let set_c = MeasurementSet(set_c);
+
+        let mut other_c = HashSet::new();
+        other_c.insert(measurement_c);
+        let other_c = MeasurementSet(other_c);
+
+        match verify_measurements(&set_c, &corpus) {
+            Ok(()) => panic!("expected an error"),
+            Err(e) => match e {
+                VerifyMeasurementsError::NotSubset(set) => {
+                    assert!(other_c == set)
+                }
+            },
+        }
     }
 }

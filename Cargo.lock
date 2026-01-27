@@ -687,6 +687,7 @@ dependencies = [
  "const-oid",
  "ed25519-dalek",
  "env_logger",
+ "hex",
  "hubpack",
  "libipcc",
  "log",
