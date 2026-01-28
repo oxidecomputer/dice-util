@@ -11,13 +11,17 @@ attest-data = { path = "../attest-data", features = ["std"] }
 clap.workspace = true
 dice-mfg-msgs = { path = "../dice-mfg-msgs", features = ["std"] }
 ed25519-dalek = { workspace = true, features = ["std"] }
-env_logger.workspace = true
 hubpack.workspace = true
 log.workspace = true
 p384 = { workspace = true, default-features = true }
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
 rats-corim.workspace = true
 sha3.workspace = true
+slog.workspace = true
+slog-async.workspace = true
+slog-envlogger.workspace = true
+slog-stdlog.workspace = true
+slog-term.workspace = true
 tempfile.workspace = true
 dice-verifier.path = "../verifier"
 x509-cert = { workspace = true, default-features = true }
@@ -25,3 +29,4 @@ serde_json.workspace = true
 
 [features]
 ipcc = ["dice-verifier/ipcc"]
+sled-agent = ["dice-verifier/sled-agent"]
