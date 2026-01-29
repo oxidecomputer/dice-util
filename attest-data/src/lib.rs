@@ -328,7 +328,7 @@ impl<const N: usize> TryFrom<&[u8]> for MeasurementLog<N> {
     }
 }
 
-const LOG_CAPACITY: usize = 16;
+pub const LOG_CAPACITY: usize = 16;
 
 pub type Log = MeasurementLog<LOG_CAPACITY>;
 
