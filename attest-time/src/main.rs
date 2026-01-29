@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use dice_verifier::{
-    Attest, Nonce,
+    Attest, Nonce, Nonce32,
     hiffy::{AttestHiffy, AttestTask},
     ipcc::AttestIpcc,
 };
@@ -98,7 +98,7 @@ fn main() -> Result<()> {
 
     // we do not care about the nonce, all 0's will require the same amount of
     // work from the underlying impl
-    let nonce = Nonce { 0: [0u8; 32] };
+    let nonce = Nonce::N32(Nonce32 { 0: [0u8; 32] });
 
     // time calls to `VmInstanceAttestMock::attest`, output duration in µs
     let mut count: usize = 0;
