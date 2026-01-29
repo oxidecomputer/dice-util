@@ -2,8 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use attest_data::{AttestDataError, DiceTcbInfo, Measurement, DICE_TCB_INFO};
-pub use attest_data::{Attestation, Log, Nonce};
+use attest_data::{
+    AttestDataError, DiceTcbInfo, Measurement, NonceError, DICE_TCB_INFO,
+};
+pub use attest_data::{Attestation, Log, Nonce, Nonce32};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
 use hubpack::SerializedSize;
 #[cfg(feature = "ipcc")]
@@ -47,6 +49,8 @@ pub enum AttestError {
     Ipcc(#[from] IpccError),
     #[error(transparent)]
     Serialize(hubpack::Error),
+    #[error(transparent)]
+    Nonce(#[from] NonceError),
 }
 
 /// The `Attest` trait is implemented by types that provide access to the RoT
