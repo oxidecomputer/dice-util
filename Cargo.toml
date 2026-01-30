@@ -30,7 +30,7 @@ knuffel = "3.2.0"
 libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "7cdf2ab9c8d9e9267a8b366aa780c6c26f9a5ecf" }
 log = { version = "0.4.28", features = ["std"] }
 # pin miette to same version used by knuffel
-miette = { version = "5.10", features = ["fancy"] }
+miette = { version = "7.0", features = ["fancy"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "0.7.0", default-features = false }
 rats-corim.git = "https://github.com/oxidecomputer/rats-corim"
