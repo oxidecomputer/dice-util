@@ -1,0 +1,18 @@
+[package]
+name = "attest-time"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true, features = ["std"] }
+attest-data.path = "../attest-data"
+clap.workspace = true
+clap-verbosity.workspace = true
+ctrlc.workspace = true
+dice-verifier = { path = "../verifier" }
+env_logger.workspace = true
+log.workspace = true
+tokio = { workspace = true, features = ["full"] }
+
+[features]
+ipcc = ["dice-verifier/ipcc"]
