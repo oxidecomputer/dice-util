@@ -3,6 +3,7 @@
 members = [
     "attest-data",
     "attest-mock",
+    "attest-time",
     "barcode",
     "dice-cert-tmpl",
     "dice-mfg",
@@ -17,8 +18,10 @@ anyhow = { version = "1.0.100", default-features = false }
 attest.path = "attest"
 chrono = { version = "0.4.42", default-features=false }
 clap = { version = "4.5.51", features = ["derive", "env"] }
+clap-verbosity = "2.1.0"
 const-oid = { version = "0.9.6", default-features = false }
 corncobs = "0.1"
+ctrlc = "3.5.1"
 der = { version = "0.7.10", default-features = false }
 ecdsa = { version = "0.16", default-features = false }
 ed25519-dalek = { version = "2.1", default-features = false }
