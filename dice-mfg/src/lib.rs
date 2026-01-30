@@ -332,8 +332,25 @@ impl MfgDriver {
     /// should be locked, and whether the bits in the SYSCON set by the ROM
     /// indicate that it is currently locked.
     pub fn check_lock_status(&mut self) -> Result<(bool, bool)> {
-        self.send_msg(&MfgMessage::YouLockedBro)?;
-        let recv = self.recv_msg()?;
+        let mut retry = self.max_retry;
+
+        let recv = loop {
+            self.send_msg(&MfgMessage::YouLockedBro)?;
+            match self.recv_msg() {
+                Ok(r) => break r,
+                Err(e) => {
+                    info!("error: {e:?}");
+                    if retry > 0 {
+                        retry -= 1;
+                        continue;
+                    } else {
+                        return Err(
+                            e.context("RequrieLocked: retry limit exceeded")
+                        );
+                    }
+                }
+            }
+        };
 
         match recv {
             MfgMessage::LockStatus {
