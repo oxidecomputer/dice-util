@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use anyhow::{anyhow, Context, Result};
-use attest_data::{Attestation, Log, Nonce};
+use attest_data::{Attestation, Log, Nonce, Nonce32};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
 #[cfg(feature = "ipcc")]
@@ -398,8 +398,8 @@ fn verify(
 ) -> Result<PlatformId> {
     // generate nonce from RNG
     info!("getting Nonce from platform RNG");
-    let nonce =
-        Nonce::from_platform_rng().context("Nonce from platform RNG")?;
+    let nonce = Nonce::from_platform_rng(Nonce32::LENGTH)
+        .context("Nonce from platform RNG")?;
 
     // write nonce to temp dir
     let nonce_path = work_dir.join("nonce.bin");

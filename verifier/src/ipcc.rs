@@ -4,7 +4,7 @@
 
 use attest_data::{
     messages::{HostToRotCommand, RotToHost},
-    Attestation, Log, Nonce,
+    Attestation, Log, Nonce, Nonce32,
 };
 pub use libipcc::IpccError;
 use libipcc::{IpccHandle, IPCC_MAX_DATA_SIZE};
@@ -96,14 +96,15 @@ impl Attest for AttestIpcc {
     }
 
     fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+        let nonce: &Nonce32 = nonce.try_into()?;
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
         let len = attest_data::messages::serialize(
             &mut rot_message,
             &HostToRotCommand::Attest,
             |buf| {
-                buf[..nonce.0.len()].copy_from_slice(nonce.as_ref());
-                32
+                buf[..Nonce32::LENGTH].copy_from_slice(nonce.as_ref());
+                Nonce32::LENGTH
             },
         )
         .map_err(AttestError::Serialize)?;

@@ -36,11 +36,6 @@ pub mod messages;
 pub enum AttestDataError {
     #[cfg_attr(feature = "std", error("Deserialization failed"))]
     Deserialize,
-    #[cfg_attr(
-        feature = "std",
-        error("Failed to get random Nonce from the platform")
-    )]
-    GetRandom,
     #[cfg_attr(feature = "std", error("Slice is the wrong length"))]
     TryFromSliceError,
     #[cfg_attr(
@@ -50,6 +45,18 @@ pub enum AttestDataError {
     UnsupportedDigest,
     #[cfg_attr(feature = "std", error("CoRIM Digest contained tagged value"))]
     TaggedDigest,
+}
+
+#[cfg_attr(feature = "std", derive(Error))]
+#[derive(Debug, PartialEq)]
+pub enum NonceError {
+    #[cfg_attr(feature = "std", error("unsupported Nonce length ({0})"))]
+    UnsupportedLen(usize),
+    #[cfg_attr(
+        feature = "std",
+        error("Failed to get random Nonce from the platform")
+    )]
+    GetRandom,
 }
 
 /// Array is the type we use as a base for types that are constant sized byte
@@ -117,40 +124,96 @@ impl<const N: usize> AsRef<[u8]> for Array<N> {
 const SHA3_256_DIGEST_SIZE: usize =
     <Sha3_256Core as OutputSizeUser>::OutputSize::USIZE;
 
-const NONCE_SIZE: usize = SHA3_256_DIGEST_SIZE;
-
 /// An array of bytes sized appropriately for a sha3-256 digest.
 pub type Sha3_256Digest = Array<SHA3_256_DIGEST_SIZE>;
 
 /// An array of bytes sized appropriately for a sha3-256 digest.
 pub type Ed25519Signature = Array<SIGNATURE_SERIALIZED_LENGTH>;
 
-/// Nonce is a newtype around an appropriately sized byte array.
-pub type Nonce = Array<NONCE_SIZE>;
+pub type Nonce32 = Array<SHA3_256_DIGEST_SIZE>;
+
+/// A Nonce is supplied as part of the attestation challenge to guarantee
+/// freshness. Callers are expected to use a random Nonce with a length that's
+/// appropriate for the specific digest and signing algorithms in use. We may
+/// in the future extend this to accept arbitrarily sized values.
+#[derive(
+    Copy, Clone, Debug, Deserialize, PartialEq, Serialize, SerializedSize,
+)]
+pub enum Nonce {
+    /// A 32-byte Nonce value.
+    N32(Nonce32),
+}
 
 #[cfg(feature = "std")]
 impl fmt::Display for Nonce {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut out: Vec<String> = Vec::new();
-
-        for byte in self.0 {
-            out.push(format!("{byte}"));
-        }
-        let out = out.join(" ");
-
-        write!(f, "[{out}]")
+        write!(f, "Nonce({})", hex::encode(self.as_ref()))
     }
 }
 
 impl Nonce {
     #[cfg(feature = "std")]
-    pub fn from_platform_rng() -> Result<Self, AttestDataError> {
-        let mut nonce = [0u8; NONCE_SIZE];
-        getrandom::fill(&mut nonce[..])
-            .map_err(|_| AttestDataError::GetRandom)?;
-        let nonce = nonce;
+    pub fn from_platform_rng(len: usize) -> Result<Self, NonceError> {
+        // We currently only support 32-byte Nonce's
+        if len != Nonce32::LENGTH {
+            return Err(NonceError::UnsupportedLen(len));
+        }
+        let mut nonce = Array([0u8; Nonce32::LENGTH]);
+        getrandom::fill(nonce.0.as_mut_slice())
+            .map_err(|_| NonceError::GetRandom)?;
+        Ok(Nonce::N32(nonce))
+    }
+}
 
-        Ok(Self(nonce))
+#[cfg(feature = "std")]
+impl AsRef<[u8]> for Nonce {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            Nonce::N32(n) => n.as_ref(),
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for Nonce {
+    type Error = NonceError;
+
+    fn try_from(item: &[u8]) -> Result<Self, Self::Error> {
+        match item.len() {
+            Nonce32::LENGTH => {
+                // SAFETY: We've already checked the length is correct.
+                Ok(Nonce::N32(item.try_into().unwrap()))
+            }
+            len => Err(NonceError::UnsupportedLen(len)),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl TryFrom<Vec<u8>> for Nonce {
+    type Error = NonceError;
+
+    fn try_from(item: Vec<u8>) -> Result<Self, Self::Error> {
+        item[..].try_into()
+    }
+}
+
+impl TryFrom<Nonce> for Nonce32 {
+    type Error = NonceError;
+
+    fn try_from(item: Nonce) -> Result<Nonce32, Self::Error> {
+        match item {
+            Nonce::N32(n) => Ok(n),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a Nonce> for &'a Nonce32 {
+    type Error = NonceError;
+
+    fn try_from(item: &Nonce) -> Result<&Nonce32, Self::Error> {
+        match item {
+            Nonce::N32(n) => Ok(n),
+        }
     }
 }
 
@@ -436,5 +499,25 @@ mod tests {
             assert_eq!(measurement, &measurement_0);
         }
         assert_eq!(count, 1);
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn nonce_from_bytes() {
+        let empty_nonce = Nonce::try_from([].as_ref());
+        assert_eq!(empty_nonce, Err(NonceError::UnsupportedLen(0)));
+
+        let short_nonce = Nonce::try_from([1].as_ref());
+        assert_eq!(short_nonce, Err(NonceError::UnsupportedLen(1)));
+
+        let n32 = [0; 32];
+        let nonce = Nonce::try_from(n32.as_ref()).expect("32-byte Nonce");
+        assert_eq!(nonce, Nonce::N32(Array(n32)));
+
+        let nonce32 = Nonce32::try_from(nonce);
+        assert_eq!(nonce32, Ok(Array(n32)));
+
+        let _ = Nonce::from_platform_rng(Nonce32::LENGTH)
+            .expect("random 32-byte Nonce");
     }
 }
