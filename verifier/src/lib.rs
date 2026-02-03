@@ -554,9 +554,9 @@ pub enum VerifyAttestationError {
     Serialize(#[from] hubpack::error::Error),
     #[error("Alias public key is malformed: spki bit string has unused bits")]
     OddKey,
-    #[error("Failed to construct VerifyingKey from alias public key")]
+    #[error("Failed to construct VerifyingKey from alias public key: {0}")]
     KeyConversion(ed25519_dalek::ed25519::Error),
-    #[error("Failed to construct VerifyingKey from alias public key")]
+    #[error("Failed to verify Attestation with alias public key: {0}")]
     VerificationFailed(ed25519_dalek::ed25519::Error),
 }
 
