@@ -137,7 +137,16 @@ pub type Nonce32 = Array<SHA3_256_DIGEST_SIZE>;
 /// appropriate for the specific digest and signing algorithms in use. We may
 /// in the future extend this to accept arbitrarily sized values.
 #[derive(
-    Copy, Clone, Debug, Deserialize, PartialEq, Serialize, SerializedSize,
+    Copy,
+    Clone,
+    Debug,
+    Deserialize,
+    PartialEq,
+    // The current RoT Attest API takes the nonce bytes directly (i.e. a
+    // `Nonce32`/`Array<32>`) rather than this more generic `Nonce` type.
+    // To prevent accidentally accepting this type where it currently shouldn't
+    // be accepted, we omit these for now until hubris#2375 is fixed.
+    // Serialize, SerializedSize,
 )]
 pub enum Nonce {
     /// A 32-byte Nonce value.

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use attest_data::{Attestation, Log, Nonce};
+use attest_data::{Attestation, Log, Nonce, Nonce32};
 use hubpack::SerializedSize;
 use sha3::{Digest, Sha3_256};
 use std::{
@@ -23,7 +23,7 @@ pub trait AttestSprot {
     fn attest_len(&self) -> Result<u32, AttestHiffyError>;
     fn attest(
         &self,
-        nonce: &Nonce,
+        nonce: &Nonce32,
         out: &mut [u8],
     ) -> Result<(), AttestHiffyError>;
     fn cert_chain_len(&self) -> Result<u32, AttestHiffyError>;
@@ -34,7 +34,7 @@ pub trait AttestSprot {
     fn record(&self, data: &[u8]) -> Result<(), AttestHiffyError>;
 }
 
-/// The `AttestHiffy` type can speak to the `Attest` tasks eaither the RoT
+/// The `AttestHiffy` type can speak to the `Attest` tasks via either the RoT
 /// directly or through SpRot task in the SP. This enum is used to control
 /// which.
 #[derive(Clone, Debug)]
@@ -166,13 +166,13 @@ impl AttestHiffy {
 impl AttestSprot for AttestHiffy {
     fn attest(
         &self,
-        nonce: &Nonce,
+        nonce: &Nonce32,
         out: &mut [u8],
     ) -> Result<(), AttestHiffyError> {
         let mut attestation_tmp = tempfile::NamedTempFile::new()?;
         let mut nonce_tmp = tempfile::NamedTempFile::new()?;
 
-        let mut buf = [0u8; Nonce::MAX_SIZE];
+        let mut buf = [0u8; Nonce32::MAX_SIZE];
         hubpack::serialize(&mut buf, &nonce)
             .map_err(AttestHiffyError::Serialize)?;
         nonce_tmp.write_all(&buf)?;
@@ -324,6 +324,7 @@ impl Attest for AttestHiffy {
     }
 
     fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+        let nonce: &Nonce32 = nonce.try_into()?;
         let attest_len = self.attest_len()?;
         let mut out = vec![0u8; attest_len as usize];
         AttestSprot::attest(self, nonce, &mut out)?;
