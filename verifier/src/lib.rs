@@ -2,10 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use attest_data::{
-    AttestDataError, DiceTcbInfo, Measurement, NonceError, DICE_TCB_INFO,
-};
-pub use attest_data::{Attestation, Log, Nonce, Nonce32};
+use attest_data::{AttestDataError, DiceTcbInfo, NonceError, DICE_TCB_INFO};
+pub use attest_data::{Attestation, Log, Measurement, Nonce, Nonce32};
 use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
 use hubpack::SerializedSize;
 #[cfg(feature = "ipcc")]
