@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{Attest, AttestError};
-use attest_data::{Attestation, Ed25519Signature, Log, Nonce};
+use attest_data::{Attestation, Ed25519Signature, Log, Nonce, Nonce32};
 use ed25519_dalek::{
     pkcs8::{self, DecodePrivateKey},
     Signer, SigningKey,
@@ -64,6 +64,7 @@ impl Attest for AttestMock {
     }
 
     fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+        let nonce: &Nonce32 = nonce.try_into()?;
         let mut buf = vec![0u8; Log::MAX_SIZE];
         let len = hubpack::serialize(&mut buf, &self.log)
             .map_err(AttestError::Serialize)?;
