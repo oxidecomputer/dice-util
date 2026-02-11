@@ -23,6 +23,9 @@ use hiffy::AttestHiffyError;
 #[cfg(feature = "ipcc")]
 pub mod ipcc;
 
+#[cfg(feature = "sled-agent")]
+pub mod sled_agent;
+
 #[cfg(feature = "mock")]
 pub mod mock;
 #[cfg(feature = "mock")]
@@ -49,6 +52,11 @@ pub enum AttestError {
     Serialize(hubpack::Error),
     #[error(transparent)]
     Nonce(#[from] NonceError),
+    #[cfg(feature = "sled-agent")]
+    #[error(transparent)]
+    SledAgent(
+        #[from] sled_agent_client::Error<sled_agent_client::types::Error>,
+    ),
 }
 
 /// The `Attest` trait is implemented by types that provide access to the RoT

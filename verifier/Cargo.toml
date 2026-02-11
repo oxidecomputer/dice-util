@@ -17,6 +17,10 @@ log.workspace = true
 p384 = { workspace = true, default-features = true }
 rats-corim.workspace = true
 sha3.workspace = true
+sled-agent-client = { workspace = true, optional = true }
+sled-agent-types-versions = { workspace = true, optional = true }
+slog.workspace = true
+tokio = { workspace = true, features = [ "net", "rt", "time" ], optional = true }
 tempfile.workspace = true
 thiserror.workspace = true
 x509-cert = { workspace = true, default-features = true }
@@ -29,3 +33,4 @@ attest-data = { path = "../attest-data", features = ["std", "testing"] }
 testing = []
 ipcc = ["libipcc"]
 mock = ["ed25519-dalek/pem"]
+sled-agent = ["sled-agent-client", "sled-agent-types-versions", "tokio"]

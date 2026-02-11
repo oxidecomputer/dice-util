@@ -8,14 +8,16 @@ use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
 #[cfg(feature = "ipcc")]
 use dice_verifier::ipcc::AttestIpcc;
+#[cfg(feature = "sled-agent")]
+use dice_verifier::sled_agent::AttestSledAgent;
 use dice_verifier::{
     hiffy::{AttestHiffy, AttestTask},
     Attest, MeasurementSet, ReferenceMeasurements,
 };
-use env_logger::Builder;
-use log::{info, warn, LevelFilter};
+use log::{info, warn};
 use pem_rfc7468::LineEnding;
 use rats_corim::Corim;
+use slog::{Drain, FilterLevel, Logger};
 use std::{
     fmt::{self, Debug},
     fs::{self, File},
@@ -27,11 +29,16 @@ use x509_cert::{
     Certificate, PkiPath,
 };
 
-fn get_attest(interface: Interface) -> Result<Box<dyn Attest>> {
+fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
+    slog::info!(log, "attesting via {interface:?}");
     match interface {
         #[cfg(feature = "ipcc")]
         Interface::Ipcc => Ok(Box::new(AttestIpcc::new()?)),
         Interface::Rot => Ok(Box::new(AttestHiffy::new(AttestTask::Rot))),
+        #[cfg(feature = "sled-agent")]
+        Interface::SledAgent(addr) => {
+            Ok(Box::new(AttestSledAgent::new(addr, log)))
+        }
         Interface::Sprot => Ok(Box::new(AttestHiffy::new(AttestTask::Sprot))),
     }
 }
@@ -41,8 +48,12 @@ fn get_attest(interface: Interface) -> Result<Box<dyn Attest>> {
 #[clap(author, version, about, long_about = None)]
 struct Args {
     /// Interface used for communication with the Attest task.
-    #[clap(value_enum, long, env, default_value_t = Interface::Rot)]
-    interface: Interface,
+    #[clap(value_enum, long, env, default_value_t = InterfaceArg::Rot)]
+    interface: InterfaceArg,
+
+    #[cfg(feature = "sled-agent")]
+    #[clap(short, long, env, required_if_eq("interface", "sled-agent"))]
+    sled_addr: Option<std::net::SocketAddrV6>,
 
     /// Attest task command to execute.
     #[command(subcommand)]
@@ -157,12 +168,24 @@ enum AttestCommand {
     MeasurementSet,
 }
 
-/// An enum of the possible routes to the `Attest` task.
-#[derive(Clone, Debug, ValueEnum)]
+#[derive(Clone, Debug)]
 pub enum Interface {
     #[cfg(feature = "ipcc")]
     Ipcc,
     Rot,
+    #[cfg(feature = "sled-agent")]
+    SledAgent(std::net::SocketAddrV6),
+    Sprot,
+}
+
+/// An enum of the possible routes to the `Attest` task.
+#[derive(Clone, Debug, ValueEnum)]
+pub enum InterfaceArg {
+    #[cfg(feature = "ipcc")]
+    Ipcc,
+    Rot,
+    #[cfg(feature = "sled-agent")]
+    SledAgent,
     Sprot,
 }
 
@@ -185,16 +208,35 @@ impl fmt::Display for Encoding {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let mut builder = Builder::from_default_env();
+    let stderr_decorator = slog_term::TermDecorator::new().build();
+    let stderr_drain =
+        slog_term::FullFormat::new(stderr_decorator).build().fuse();
+    let drain = slog_envlogger::LogBuilder::new(stderr_drain)
+        .parse("RUST_LOG")
+        .filter(
+            None,
+            if args.verbose {
+                FilterLevel::Debug
+            } else {
+                FilterLevel::Warning
+            },
+        )
+        .build()
+        .fuse();
+    let drain = slog_async::Async::new(drain).build().fuse();
+    let logger = Logger::root(drain, slog::o!());
 
-    let level = if args.verbose {
-        LevelFilter::Debug
-    } else {
-        LevelFilter::Warn
+    let interface = match args.interface {
+        #[cfg(feature = "ipcc")]
+        InterfaceArg::Ipcc => Interface::Ipcc,
+        InterfaceArg::Rot => Interface::Rot,
+        #[cfg(feature = "sled-agent")]
+        InterfaceArg::SledAgent => {
+            Interface::SledAgent(args.sled_addr.unwrap())
+        }
+        InterfaceArg::Sprot => Interface::Sprot,
     };
-    builder.filter(None, level).init();
-
-    let attest = get_attest(args.interface)?;
+    let attest = get_attest(interface, &logger)?;
 
     match args.command {
         AttestCommand::Attest { nonce } => {
