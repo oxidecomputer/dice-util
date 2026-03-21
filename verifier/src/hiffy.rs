@@ -67,6 +67,11 @@ pub enum AttestHiffyError {
     Serialize(#[from] hubpack::Error),
     #[error("Failed to do something w/ a tempfile: {0}")]
     TempFile(#[from] std::io::Error),
+    // Failure to run `humility` yields a `std::io::Error` from
+    // `std::process::Command`, but it is distinctly *not* related to a tempfile
+    // in any way. Give this failure mode a more distinctive form.
+    #[error("Failed to run humility: {0}")]
+    Humility(std::io::Error),
 }
 
 /// A type to simplify the execution of the HIF operations exposed by the RoT
@@ -126,7 +131,7 @@ impl AttestHiffy {
             cmd.arg(format!("--arguments={a}"));
         }
 
-        let output = cmd.output()?;
+        let output = cmd.output().map_err(AttestHiffyError::Humility)?;
         Self::u32_from_cmd_output(output)
     }
 
