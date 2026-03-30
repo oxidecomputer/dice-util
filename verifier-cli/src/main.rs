@@ -315,13 +315,16 @@ async fn main() -> Result<()> {
             // Use the directory provided by the caller to hold intermediate
             // files, or fall back to a temp dir.
             let platform_id = match work_dir {
-                Some(w) => verify(
-                    attest.as_ref(),
-                    ca_cert.as_deref(),
-                    corpus.as_deref(),
-                    self_signed,
-                    &w,
-                ).await?,
+                Some(w) => {
+                    verify(
+                        attest.as_ref(),
+                        ca_cert.as_deref(),
+                        corpus.as_deref(),
+                        self_signed,
+                        &w,
+                    )
+                    .await?
+                }
                 None => {
                     if corpus.is_none() && !skip_appraisal {
                         return Err(anyhow!("no corpus provided but not instructed to skip measurement log appraisal"));
@@ -333,7 +336,8 @@ async fn main() -> Result<()> {
                         corpus.as_deref(),
                         self_signed,
                         work_dir.as_ref(),
-                    ).await?
+                    )
+                    .await?
                 }
             };
 
