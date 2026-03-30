@@ -81,6 +81,18 @@ pub trait Attest {
     fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError>;
 }
 
+/// All the same operations as `Attest` but provided as `async fn`. For some
+/// implementations ([`AttestSledAgent`]) this makes use implementation and use
+/// somewhat more straightforward.
+///
+/// See corresponding documentation on [`Attest`] for all items.
+#[async_trait::async_trait]
+pub trait AttestAsync {
+    async fn get_measurement_log(&self) -> Result<Log, AttestError>;
+    async fn get_certificates(&self) -> Result<PkiPath, AttestError>;
+    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError>;
+}
+
 /// Errors related to the creation of signature verifiers for certs in a
 /// `PkiPath`.
 #[derive(Debug, Error)]

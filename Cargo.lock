@@ -1081,6 +1081,7 @@ dependencies = [
 name = "dice-verifier"
 version = "0.3.0-pre0"
 dependencies = [
+ "async-trait",
  "attest-data",
  "const-oid",
  "ed25519-dalek",

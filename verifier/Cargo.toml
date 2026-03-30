@@ -7,6 +7,7 @@ license = "MPL-2.0"
 
 [dependencies]
 attest-data = { path = "../attest-data", features = ["std"] }
+async-trait.workspace = true
 const-oid.workspace = true
 ed25519-dalek = { workspace = true, features = ["std"] }
 env_logger.workspace = true
