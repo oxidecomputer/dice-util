@@ -9,10 +9,11 @@ use std::{
     fmt,
     io::{Read, Write},
     path::Path,
-    process::{Command, Output},
+    process::Output,
 };
 use tempfile::NamedTempFile;
 use thiserror::Error;
+use tokio::process::Command;
 use x509_cert::{der::Decode, Certificate, PkiPath};
 
 use crate::{Attest, AttestError};
@@ -136,7 +137,7 @@ impl AttestHiffy {
             cmd.arg(format!("--arguments={a}"));
         }
 
-        let output = cmd.output().map_err(AttestHiffyError::Humility)?;
+        let output = cmd.output().await.map_err(AttestHiffyError::Humility)?;
         Self::u32_from_cmd_output(output)
     }
 
@@ -164,7 +165,7 @@ impl AttestHiffy {
             cmd.arg(format!("--input={i}"));
         }
 
-        let output = cmd.output()?;
+        let output = cmd.output().await?;
         if output.status.success() {
             Ok(())
         } else {
@@ -309,7 +310,7 @@ impl AttestSprot for AttestHiffy {
         cmd.arg(format!("--input={}", tmp.path().to_string_lossy()));
         cmd.arg("--arguments=algorithm=Sha3_256");
 
-        let output = cmd.output()?;
+        let output = cmd.output().await?;
         if output.status.success() {
             Ok(())
         } else {
