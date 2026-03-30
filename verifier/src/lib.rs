@@ -319,10 +319,9 @@ struct PkiPathSignatureVerifier<'a> {
 }
 
 impl<'a> PkiPathSignatureVerifier<'a> {
-    /// Create a new `PkiPathSignatureVerifier` with the provided
-    /// `Certificate` acting as the root / trust anchor. If `None` is
-    /// provided then the `PkiPath`s verified by this verifier must be self-
-    /// signed.
+    /// Create a new `PkiPathSignatureVerifier` permitting any `Certificate`
+    /// in `roots` to be a root / trust anchor. If `None` is provided then the
+    /// `PkiPath`s verified by this verifier must be self-signed.
     fn new(
         roots: Option<&'a [Certificate]>,
     ) -> Result<Self, PkiPathSignatureVerifierError> {
@@ -418,11 +417,11 @@ pub enum MeasurementSetError {
 pub struct MeasurementSet(HashSet<Measurement>);
 
 /// Construct a MeasurementSet from the provided artifacts. The
-/// trustwirthiness of these artifacts must be established independently
+/// trustworthiness of these artifacts must be established independently
 /// (see `verify_cert_chain` and `verify_attestation`).
 impl MeasurementSet {
     /// Construct a MeasurementSet from the provided artifacts. The
-    /// trustwirthiness of these artifacts must be established independently
+    /// trustworthiness of these artifacts must be established independently
     /// (see `verify_cert_chain` and `verify_attestation`).
     pub fn from_artifacts(
         pki_path: &PkiPath,
@@ -558,7 +557,10 @@ impl std::fmt::Display for ReferenceMeasurements {
 pub enum VerifyAttestationError {
     #[error("Failed to hubpack the log: {0}")]
     Serialize(#[from] hubpack::error::Error),
-    #[error("Alias public key is malformed: spki bit string has unused bits")]
+    #[error(
+        "Alias public key is malformed: \
+        spki bit string does not end on octet boundary"
+    )]
     OddKey,
     #[error("Failed to construct VerifyingKey from alias public key: {0}")]
     KeyConversion(ed25519_dalek::ed25519::Error),
