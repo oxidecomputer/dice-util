@@ -18,19 +18,34 @@ use crate::{Attest, AttestError};
 /// The `AttestIpcc` type communicates with the RoT `Attest` task through the
 /// IPCC interface / <https://github.com/oxidecomputer/ipcc-rs>
 pub struct AttestIpcc {
-    handle: IpccHandle,
+    handle: tokio::sync::Mutex<IpccHandle>,
 }
 
 impl AttestIpcc {
     /// Creates a new `Ipcc` instance.
     pub fn new() -> Result<Self, IpccError> {
-        let handle = IpccHandle::new()?;
+        let handle = tokio::sync::Mutex::new(IpccHandle::new()?);
         Ok(Self { handle })
+    }
+
+    // Doing an actaul RoT request is mildly interesting, so this is a function to
+    // describe the interestingness once.
+    async fn do_rot_request(
+        &self,
+        message: &[u8],
+        response: &mut [u8],
+    ) -> Result<usize, IpccError> {
+        let handle = self.handle.lock().await;
+        // `block_in_place` for the request because it is possible the RoT is
+        // otherwise occupied and this request will synchronously block for some
+        // amount of time.
+        tokio::task::block_in_place(|| handle.rot_request(message, response))
     }
 }
 
+#[async_trait::async_trait]
 impl Attest for AttestIpcc {
-    fn get_measurement_log(&self) -> Result<Log, AttestError> {
+    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
         let len = attest_data::messages::serialize(
@@ -40,8 +55,8 @@ impl Attest for AttestIpcc {
         )
         .map_err(AttestError::Serialize)?;
         let len = self
-            .handle
-            .rot_request(&rot_message[..len], &mut rot_resp)?;
+            .do_rot_request(&rot_message[..len], &mut rot_resp)
+            .await?;
         let data = attest_data::messages::parse_response(
             &rot_resp[..len],
             RotToHost::RotMeasurementLog,
@@ -54,7 +69,7 @@ impl Attest for AttestIpcc {
         Ok(log)
     }
 
-    fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
         let len = attest_data::messages::serialize(
@@ -64,8 +79,8 @@ impl Attest for AttestIpcc {
         )
         .map_err(AttestError::Serialize)?;
         let len = self
-            .handle
-            .rot_request(&rot_message[..len], &mut rot_resp)?;
+            .do_rot_request(&rot_message[..len], &mut rot_resp)
+            .await?;
         let cert_chain_bytes = attest_data::messages::parse_response(
             &rot_resp[..len],
             RotToHost::RotCertificates,
@@ -95,7 +110,7 @@ impl Attest for AttestIpcc {
         Ok(certs)
     }
 
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
         let nonce: &Nonce32 = nonce.try_into()?;
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
@@ -109,8 +124,8 @@ impl Attest for AttestIpcc {
         )
         .map_err(AttestError::Serialize)?;
         let len = self
-            .handle
-            .rot_request(&rot_message[..len], &mut rot_resp)?;
+            .do_rot_request(&rot_message[..len], &mut rot_resp)
+            .await?;
         let data = attest_data::messages::parse_response(
             &rot_resp[..len],
             RotToHost::RotAttestation,

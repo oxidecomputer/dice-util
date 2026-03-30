@@ -62,34 +62,23 @@ pub enum AttestError {
 /// The `Attest` trait is implemented by types that provide access to the RoT
 /// attestation API. These types are generally proxies that shuttle data over
 /// some transport between the caller and the RoT.
+#[async_trait::async_trait]
 pub trait Attest {
     /// Get the measurement log from the attest task. The Log is transmitted
     /// with no integrity protection so its trustworthiness must be established
     /// by an external process (see `verify_attestation`).
-    fn get_measurement_log(&self) -> Result<Log, AttestError>;
+    async fn get_measurement_log(&self) -> Result<Log, AttestError>;
     /// Get the certificate chain from the attest task. This cert chain is a
     /// PKI path (per RFC 6066) starting with the leaf cert for the attestation
     /// signer and terminating at the intermediate before the root. The
     /// trustworthiness of this certificate chain must be established through
     /// an external process (see `verify_cert_chain`).
-    fn get_certificates(&self) -> Result<PkiPath, AttestError>;
+    async fn get_certificates(&self) -> Result<PkiPath, AttestError>;
     /// Get an attestation from the attest task. An attestation is a signature
     /// over the (hubpack serialized) measurement Log and the provided Nonce.
     /// To prevent replay attacks each Nonce used must be unique and
     /// unpredictable. Generally the Nonce should be generated from the
     /// platform's random number generator (see `Nonce::from_platform_rng`).
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError>;
-}
-
-/// All the same operations as `Attest` but provided as `async fn`. For some
-/// implementations ([`AttestSledAgent`]) this makes use implementation and use
-/// somewhat more straightforward.
-///
-/// See corresponding documentation on [`Attest`] for all items.
-#[async_trait::async_trait]
-pub trait AttestAsync {
-    async fn get_measurement_log(&self) -> Result<Log, AttestError>;
-    async fn get_certificates(&self) -> Result<PkiPath, AttestError>;
     async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError>;
 }
 
