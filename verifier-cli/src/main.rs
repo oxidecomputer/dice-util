@@ -205,7 +205,8 @@ impl fmt::Display for Encoding {
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
 
     let stderr_decorator = slog_term::TermDecorator::new().build();
@@ -246,6 +247,7 @@ fn main() -> Result<()> {
                 Nonce::try_from(nonce).context("Nonce from file contents")?;
             let attestation = attest
                 .attest(&nonce)
+                .await
                 .context("Getting attestation with provided Nonce")?;
 
             // serialize attestation to json & write to file
@@ -261,6 +263,7 @@ fn main() -> Result<()> {
         AttestCommand::CertChain => {
             let cert_chain = attest
                 .get_certificates()
+                .await
                 .context("Getting attestation certificate chain")?;
 
             for cert in cert_chain {
@@ -277,6 +280,7 @@ fn main() -> Result<()> {
         AttestCommand::Log => {
             let log = attest
                 .get_measurement_log()
+                .await
                 .context("Getting attestation measurement log")?;
             let mut log = serde_json::to_string(&log)
                 .context("Encode measurement log as JSON")?;
@@ -317,7 +321,7 @@ fn main() -> Result<()> {
                     corpus.as_deref(),
                     self_signed,
                     &w,
-                )?,
+                ).await?,
                 None => {
                     if corpus.is_none() && !skip_appraisal {
                         return Err(anyhow!("no corpus provided but not instructed to skip measurement log appraisal"));
@@ -329,7 +333,7 @@ fn main() -> Result<()> {
                         corpus.as_deref(),
                         self_signed,
                         work_dir.as_ref(),
-                    )?
+                    ).await?
                 }
             };
 
@@ -358,7 +362,7 @@ fn main() -> Result<()> {
             verify_measurements(&cert_chain, &log, &corpus)?;
         }
         AttestCommand::MeasurementSet => {
-            let set = measurement_set(attest.as_ref())?;
+            let set = measurement_set(attest.as_ref()).await?;
             for item in set.into_iter() {
                 println!("* {item}");
             }
@@ -368,15 +372,17 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn measurement_set(attest: &dyn Attest) -> Result<MeasurementSet> {
+async fn measurement_set(attest: &dyn Attest) -> Result<MeasurementSet> {
     info!("getting measurement log");
     let log = attest
         .get_measurement_log()
+        .await
         .context("Get measurement log from attestor")?;
     let mut cert_chain = Vec::new();
 
     let certs = attest
         .get_certificates()
+        .await
         .context("Get certificate chain from attestor")?;
 
     for (index, cert) in certs.iter().enumerate() {
@@ -431,7 +437,7 @@ fn verify_measurements(
         .context("Verify measurements")
 }
 
-fn verify(
+async fn verify(
     attest: &dyn Attest,
     ca_cert: Option<&Path>,
     corpus: Option<&Path>,
@@ -453,6 +459,7 @@ fn verify(
     info!("getting attestation");
     let attestation = attest
         .attest(&nonce)
+        .await
         .context("Get attestation with nonce")?;
 
     // serialize attestation to json & write to file
@@ -471,6 +478,7 @@ fn verify(
     info!("getting measurement log");
     let log = attest
         .get_measurement_log()
+        .await
         .context("Get measurement log from attestor")?;
     let mut log = serde_json::to_string(&log)
         .context("Serialize measurement log to JSON")?;
@@ -494,6 +502,7 @@ fn verify(
 
     let certs = attest
         .get_certificates()
+        .await
         .context("Get certificate chain from attestor")?;
 
     // the first cert in the chain / the leaf cert is the one

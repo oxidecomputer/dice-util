@@ -5775,6 +5775,7 @@ dependencies = [
  "slog-stdlog",
  "slog-term",
  "tempfile",
+ "tokio",
  "x509-cert",
 ]
 

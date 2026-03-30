@@ -26,6 +26,7 @@ tempfile.workspace = true
 dice-verifier.path = "../verifier"
 x509-cert = { workspace = true, default-features = true }
 serde_json.workspace = true
+tokio = { workspace = true, features = ["rt", "macros", "full"] }
 
 [features]
 ipcc = ["dice-verifier/ipcc"]
