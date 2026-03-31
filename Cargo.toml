@@ -34,7 +34,7 @@ miette = { version = "5.10", features = ["fancy"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "0.7.0", default-features = false }
 rats-corim.git = "https://github.com/oxidecomputer/rats-corim"
-ron = "0.8"
+ron = "0.12"
 rpassword = "7.4.0"
 salty = { version = "0.3", default-features = false }
 serde = { version = "1.0.228", default-features = false }
