@@ -9,7 +9,7 @@ license = "MPL-2.0"
 anyhow = { workspace = true, features = ["std"] }
 chrono = { workspace = true, features = ["clock", "std"] }
 clap.workspace = true
-const-oid = { version = "0.9.6", features = ["std", "db"] }
+const-oid = { version = "0.10.2", features = ["std", "db"] }
 corncobs.workspace = true
 dice-mfg-msgs = { path = "../dice-mfg-msgs", features = ["std"] }
 env_logger.workspace = true
