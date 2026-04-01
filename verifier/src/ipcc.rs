@@ -16,34 +16,52 @@ use x509_cert::{
 use crate::{Attest, AttestError};
 
 /// The `AttestIpcc` type communicates with the RoT `Attest` task through the
-/// IPCC interface / <https://github.com/oxidecomputer/ipcc-rs>
-pub struct AttestIpcc {
-    handle: IpccHandle,
-}
+/// IPCC interface / <https://github.com/oxidecomputer/ipcc-rs>.
+///
+/// The actual handle to the IPCC interface is created and released on-demand.
+pub struct AttestIpcc {}
 
 impl AttestIpcc {
     /// Creates a new `Ipcc` instance.
-    pub fn new() -> Result<Self, IpccError> {
-        let handle = IpccHandle::new()?;
-        Ok(Self { handle })
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    // Doing an actual RoT request is mildly interesting, so this is a function to
+    // describe the interestingness once.
+    async fn do_rot_request(
+        &self,
+        message: Vec<u8>,
+    ) -> Result<Vec<u8>, IpccError> {
+        // `spawn_blocking` for the request because it is possible the RoT is
+        // otherwise occupied and opening or doing the request will
+        // synchronously block for some amount of time.
+        let req = tokio::task::spawn_blocking(move || {
+            let handle = IpccHandle::new()?;
+            let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
+            let len = handle.rot_request(message.as_slice(), &mut rot_resp)?;
+            rot_resp.truncate(len);
+            Ok(rot_resp)
+        });
+        req.await
+            .expect("handle is not aborted, and we propagate panics")
     }
 }
 
+#[async_trait::async_trait]
 impl Attest for AttestIpcc {
-    fn get_measurement_log(&self) -> Result<Log, AttestError> {
+    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
-        let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
         let len = attest_data::messages::serialize(
             &mut rot_message,
             &HostToRotCommand::GetMeasurementLog,
             |_| 0,
         )
         .map_err(AttestError::Serialize)?;
-        let len = self
-            .handle
-            .rot_request(&rot_message[..len], &mut rot_resp)?;
+        rot_message.truncate(len);
+        let rot_resp = self.do_rot_request(rot_message).await?;
         let data = attest_data::messages::parse_response(
-            &rot_resp[..len],
+            &rot_resp,
             RotToHost::RotMeasurementLog,
         )
         .map_err(AttestError::HostToRot)?;
@@ -54,20 +72,18 @@ impl Attest for AttestIpcc {
         Ok(log)
     }
 
-    fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
-        let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
         let len = attest_data::messages::serialize(
             &mut rot_message,
             &HostToRotCommand::GetCertificates,
             |_| 0,
         )
         .map_err(AttestError::Serialize)?;
-        let len = self
-            .handle
-            .rot_request(&rot_message[..len], &mut rot_resp)?;
+        rot_message.truncate(len);
+        let rot_resp = self.do_rot_request(rot_message).await?;
         let cert_chain_bytes = attest_data::messages::parse_response(
-            &rot_resp[..len],
+            &rot_resp,
             RotToHost::RotCertificates,
         )
         .map_err(AttestError::HostToRot)?;
@@ -95,10 +111,9 @@ impl Attest for AttestIpcc {
         Ok(certs)
     }
 
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
         let nonce: &Nonce32 = nonce.try_into()?;
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
-        let mut rot_resp = vec![0; IPCC_MAX_DATA_SIZE];
         let len = attest_data::messages::serialize(
             &mut rot_message,
             &HostToRotCommand::Attest,
@@ -108,11 +123,10 @@ impl Attest for AttestIpcc {
             },
         )
         .map_err(AttestError::Serialize)?;
-        let len = self
-            .handle
-            .rot_request(&rot_message[..len], &mut rot_resp)?;
+        rot_message.truncate(len);
+        let rot_resp = self.do_rot_request(rot_message).await?;
         let data = attest_data::messages::parse_response(
-            &rot_resp[..len],
+            &rot_resp,
             RotToHost::RotAttestation,
         )
         .map_err(AttestError::HostToRot)?;

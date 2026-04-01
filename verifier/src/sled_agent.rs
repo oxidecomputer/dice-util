@@ -9,37 +9,30 @@ use std::net::SocketAddrV6;
 use attest_data::{Attestation, Log, Measurement, Nonce};
 use sled_agent_client::Client as SledAgentClient;
 use sled_agent_types_versions::latest::rot as SledAgentTypes;
-use tokio::runtime::{Builder, Runtime};
 use x509_cert::{der::DecodePem, Certificate, PkiPath};
 
 pub struct AttestSledAgent {
     client: SledAgentClient,
-    rt: Runtime,
 }
 
 impl AttestSledAgent {
     pub fn new(addr: SocketAddrV6, log: &slog::Logger) -> Self {
-        let rt = Builder::new_current_thread()
-            .enable_time()
-            .enable_io()
-            .build()
-            .unwrap();
         let client = SledAgentClient::new(
             &format!("http://{addr}"),
             log.new(slog::o!("SledAgentClient" => addr.to_string())),
         );
-        Self { client, rt }
+        Self { client }
     }
 }
 
+#[async_trait::async_trait]
 impl Attest for AttestSledAgent {
-    fn get_measurement_log(&self) -> Result<Log, AttestError> {
+    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
         let mut log = Log::default();
         let measurments = self
-            .rt
-            .block_on(
-                self.client.rot_measurement_log(&SledAgentTypes::Rot::Oxide),
-            )?
+            .client
+            .rot_measurement_log(&SledAgentTypes::Rot::Oxide)
+            .await?
             .into_inner();
         for m in measurments.0 {
             assert!(log.push(match m {
@@ -51,13 +44,11 @@ impl Attest for AttestSledAgent {
         Ok(log)
     }
 
-    fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
         let certs = self
-            .rt
-            .block_on(
-                self.client
-                    .rot_certificate_chain(&SledAgentTypes::Rot::Oxide),
-            )?
+            .client
+            .rot_certificate_chain(&SledAgentTypes::Rot::Oxide)
+            .await?
             .into_inner();
         Ok(certs
             .0
@@ -66,14 +57,15 @@ impl Attest for AttestSledAgent {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
         let &Nonce::N32(nonce) = nonce;
         let attestation = self
-            .rt
-            .block_on(self.client.rot_attest(
+            .client
+            .rot_attest(
                 &SledAgentTypes::Rot::Oxide,
                 &SledAgentTypes::Nonce::N32(nonce.0),
-            ))?
+            )
+            .await?
             .into_inner();
         let attestation = match attestation {
             SledAgentTypes::Attestation::Ed25519(d) => {

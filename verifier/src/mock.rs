@@ -54,16 +54,17 @@ impl AttestMock {
     }
 }
 
+#[async_trait::async_trait]
 impl Attest for AttestMock {
-    fn get_measurement_log(&self) -> Result<Log, AttestError> {
+    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
         Ok(self.log.clone())
     }
 
-    fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
         Ok(self.certs.clone())
     }
 
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
         let nonce: &Nonce32 = nonce.try_into()?;
         let mut buf = vec![0u8; Log::MAX_SIZE];
         let len = hubpack::serialize(&mut buf, &self.log)
