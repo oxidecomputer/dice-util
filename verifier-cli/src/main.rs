@@ -33,7 +33,7 @@ fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
     slog::info!(log, "attesting via {interface:?}");
     match interface {
         #[cfg(feature = "ipcc")]
-        Interface::Ipcc => Ok(Box::new(AttestIpcc::new()?)),
+        Interface::Ipcc => Ok(Box::new(AttestIpcc::new())),
         Interface::Rot => Ok(Box::new(AttestHiffy::new(AttestTask::Rot))),
         #[cfg(feature = "sled-agent")]
         Interface::SledAgent(addr) => {
@@ -205,7 +205,7 @@ impl fmt::Display for Encoding {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Args::parse();
 
