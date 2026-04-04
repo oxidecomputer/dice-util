@@ -45,7 +45,7 @@ serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "il
 sha2 = "0.10.9"
 sha3 = { version = "0.10.8", default-features = false }
 sled-agent-client = { git = "https://github.com/oxidecomputer/omicron", rev = "becbbb616f5f18b59cc42e511c148734c2ba3831" }
-sled-agent-types-versions = { git = "https://github.com/oxidecomputer/omicron", rev = "becbbb616f5f18b59cc42e511c148734c2ba3831" }
+sled-agent-types-versions = { git = "https://github.com/oxidecomputer/omicron", rev = "f232730b4e177944d59197edb2b48725adb1aced" }
 slog = { version = "2.8.2", default-features = false }
 slog-async = "2.8.0"
 slog-envlogger = "2.2.0"
