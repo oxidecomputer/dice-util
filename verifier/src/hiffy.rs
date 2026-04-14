@@ -9,29 +9,35 @@ use std::{
     fmt,
     io::{Read, Write},
     path::Path,
-    process::{Command, Output},
+    process::Output,
 };
 use tempfile::NamedTempFile;
 use thiserror::Error;
+use tokio::process::Command;
 use x509_cert::{der::Decode, Certificate, PkiPath};
 
 use crate::{Attest, AttestError};
 
 /// This trait implements the hubris attestation API exposed by the `attest`
 /// task in the RoT and proxied through the `sprot` task in the SP.
+#[async_trait::async_trait]
 pub trait AttestSprot {
-    fn attest_len(&self) -> Result<u32, AttestHiffyError>;
-    fn attest(
+    async fn attest_len(&self) -> Result<u32, AttestHiffyError>;
+    async fn attest(
         &self,
         nonce: &Nonce32,
         out: &mut [u8],
     ) -> Result<(), AttestHiffyError>;
-    fn cert_chain_len(&self) -> Result<u32, AttestHiffyError>;
-    fn cert_len(&self, index: u32) -> Result<u32, AttestHiffyError>;
-    fn cert(&self, index: u32, out: &mut [u8]) -> Result<(), AttestHiffyError>;
-    fn log(&self, out: &mut [u8]) -> Result<(), AttestHiffyError>;
-    fn log_len(&self) -> Result<u32, AttestHiffyError>;
-    fn record(&self, data: &[u8]) -> Result<(), AttestHiffyError>;
+    async fn cert_chain_len(&self) -> Result<u32, AttestHiffyError>;
+    async fn cert_len(&self, index: u32) -> Result<u32, AttestHiffyError>;
+    async fn cert(
+        &self,
+        index: u32,
+        out: &mut [u8],
+    ) -> Result<(), AttestHiffyError>;
+    async fn log(&self, out: &mut [u8]) -> Result<(), AttestHiffyError>;
+    async fn log_len(&self) -> Result<u32, AttestHiffyError>;
+    async fn record(&self, data: &[u8]) -> Result<(), AttestHiffyError>;
 }
 
 /// The `AttestHiffy` type can speak to the `Attest` tasks via either the RoT
@@ -115,7 +121,7 @@ impl AttestHiffy {
     /// This convenience function encapsulates a pattern common to
     /// the hiffy command line for the `Attest` operations that get the
     /// lengths of the data returned in leases.
-    fn get_len_cmd(
+    async fn get_len_cmd(
         &self,
         op: &str,
         args: Option<String>,
@@ -131,13 +137,13 @@ impl AttestHiffy {
             cmd.arg(format!("--arguments={a}"));
         }
 
-        let output = cmd.output().map_err(AttestHiffyError::Humility)?;
+        let output = cmd.output().await.map_err(AttestHiffyError::Humility)?;
         Self::u32_from_cmd_output(output)
     }
 
     /// This convenience function encapsulates a pattern common to the hiffy
     /// command line for the `Attest` operations that return blobs in chunks.
-    fn get_chunk(
+    async fn get_chunk(
         &self,
         op: &str,
         length: usize,
@@ -159,7 +165,7 @@ impl AttestHiffy {
             cmd.arg(format!("--input={i}"));
         }
 
-        let output = cmd.output()?;
+        let output = cmd.output().await?;
         if output.status.success() {
             Ok(())
         } else {
@@ -168,8 +174,9 @@ impl AttestHiffy {
     }
 }
 
+#[async_trait::async_trait]
 impl AttestSprot for AttestHiffy {
-    fn attest(
+    async fn attest(
         &self,
         nonce: &Nonce32,
         out: &mut [u8],
@@ -188,28 +195,34 @@ impl AttestSprot for AttestHiffy {
             attestation_tmp.path(),
             None,
             Some(&nonce_tmp.path().to_string_lossy()),
-        )?;
+        )
+        .await?;
         Ok(attestation_tmp.read_exact(&mut out[..])?)
     }
 
     /// Get length of the measurement log in bytes.
-    fn attest_len(&self) -> Result<u32, AttestHiffyError> {
-        self.get_len_cmd("attest_len", None)
+    async fn attest_len(&self) -> Result<u32, AttestHiffyError> {
+        self.get_len_cmd("attest_len", None).await
     }
 
     /// Get length of the certificate chain from the Attest task. This cert
     /// chain may be self signed or will terminate at the intermediate before
     /// the root.
-    fn cert_chain_len(&self) -> Result<u32, AttestHiffyError> {
-        self.get_len_cmd("cert_chain_len", None)
+    async fn cert_chain_len(&self) -> Result<u32, AttestHiffyError> {
+        self.get_len_cmd("cert_chain_len", None).await
     }
 
     /// Get length of the certificate at the provided index in bytes.
-    fn cert_len(&self, index: u32) -> Result<u32, AttestHiffyError> {
+    async fn cert_len(&self, index: u32) -> Result<u32, AttestHiffyError> {
         self.get_len_cmd("cert_len", Some(format!("index={index}")))
+            .await
     }
 
-    fn cert(&self, index: u32, out: &mut [u8]) -> Result<(), AttestHiffyError> {
+    async fn cert(
+        &self,
+        index: u32,
+        out: &mut [u8],
+    ) -> Result<(), AttestHiffyError> {
         for offset in
             (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
         {
@@ -220,7 +233,8 @@ impl AttestSprot for AttestHiffy {
                 tmp.path(),
                 Some(&format!("index={index},offset={offset}")),
                 None,
-            )?;
+            )
+            .await?;
             tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
         }
 
@@ -234,7 +248,8 @@ impl AttestSprot for AttestHiffy {
                 tmp.path(),
                 Some(&format!("index={index},offset={offset}")),
                 None,
-            )?;
+            )
+            .await?;
             tmp.read_exact(&mut out[offset..])?;
         }
 
@@ -243,7 +258,7 @@ impl AttestSprot for AttestHiffy {
 
     /// Get measurement log. This function assumes that the slice provided
     /// is sufficiently large to hold the log.
-    fn log(&self, out: &mut [u8]) -> Result<(), AttestHiffyError> {
+    async fn log(&self, out: &mut [u8]) -> Result<(), AttestHiffyError> {
         for offset in
             (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
         {
@@ -254,7 +269,8 @@ impl AttestSprot for AttestHiffy {
                 tmp.path(),
                 Some(&format!("offset={offset}")),
                 None,
-            )?;
+            )
+            .await?;
             tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
         }
 
@@ -268,7 +284,8 @@ impl AttestSprot for AttestHiffy {
                 tmp.path(),
                 Some(&format!("offset={offset}")),
                 None,
-            )?;
+            )
+            .await?;
             tmp.read_exact(&mut out[offset..])?;
         }
 
@@ -276,12 +293,12 @@ impl AttestSprot for AttestHiffy {
     }
 
     /// Get length of the measurement log in bytes.
-    fn log_len(&self) -> Result<u32, AttestHiffyError> {
-        self.get_len_cmd("log_len", None)
+    async fn log_len(&self) -> Result<u32, AttestHiffyError> {
+        self.get_len_cmd("log_len", None).await
     }
 
     /// Record the sha3 hash of a file.
-    fn record(&self, data: &[u8]) -> Result<(), AttestHiffyError> {
+    async fn record(&self, data: &[u8]) -> Result<(), AttestHiffyError> {
         let digest = Sha3_256::digest(data);
         let mut tmp = NamedTempFile::new()?;
         tmp.write_all(digest.as_slice())?;
@@ -293,7 +310,7 @@ impl AttestSprot for AttestHiffy {
         cmd.arg(format!("--input={}", tmp.path().to_string_lossy()));
         cmd.arg("--arguments=algorithm=Sha3_256");
 
-        let output = cmd.output()?;
+        let output = cmd.output().await?;
         if output.status.success() {
             Ok(())
         } else {
@@ -302,23 +319,24 @@ impl AttestSprot for AttestHiffy {
     }
 }
 
+#[async_trait::async_trait]
 impl Attest for AttestHiffy {
-    fn get_measurement_log(&self) -> Result<Log, AttestError> {
-        let log_len = self.log_len()?;
+    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
+        let log_len = self.log_len().await?;
         let mut log = vec![0u8; log_len as usize];
-        self.log(&mut log)?;
+        self.log(&mut log).await?;
         let (log, _): (Log, _) =
             hubpack::deserialize(&log).map_err(AttestError::Deserialize)?;
 
         Ok(log)
     }
 
-    fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
         let mut cert_chain = PkiPath::new();
-        for index in 0..self.cert_chain_len()? {
-            let cert_len = self.cert_len(index)?;
+        for index in 0..self.cert_chain_len().await? {
+            let cert_len = self.cert_len(index).await?;
             let mut cert = vec![0u8; cert_len as usize];
-            self.cert(index, &mut cert)?;
+            self.cert(index, &mut cert).await?;
 
             let cert = Certificate::from_der(&cert)?;
 
@@ -328,11 +346,11 @@ impl Attest for AttestHiffy {
         Ok(cert_chain)
     }
 
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
         let nonce: &Nonce32 = nonce.try_into()?;
-        let attest_len = self.attest_len()?;
+        let attest_len = self.attest_len().await?;
         let mut out = vec![0u8; attest_len as usize];
-        AttestSprot::attest(self, nonce, &mut out)?;
+        AttestSprot::attest(self, nonce, &mut out).await?;
 
         let (attestation, _): (Attestation, _) =
             hubpack::deserialize(&out).map_err(AttestError::Deserialize)?;
