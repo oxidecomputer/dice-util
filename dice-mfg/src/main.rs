@@ -113,8 +113,8 @@ enum Command {
     },
     /// Turn a CSR into a cert. This is a thin wrapper around either the
     /// `openssl ca` command (whose behavior will depend on the openssl.cnf
-    /// provided by the caller), or `permslip sign` (whose behavior will be
-    /// governed by a previously set key context and batch of approvals).
+    /// provided by the caller), or `permslip sign-platform-identiyt-csr`
+    /// (whose behavior will be governed by a batch of approvals).
     SignCert {
         /// Path to input CSR file.
         #[clap(env)]
@@ -298,11 +298,10 @@ fn generate_cert(
         }
         CertificateAuthority::Permslip(cfg) => {
             let output = Process::new("permslip")
-                .arg("sign")
+                .arg("sign-platform-identity-csr")
                 .arg(cfg.key_name)
                 .arg(csr)
                 .arg("--sshauth")
-                .arg("--batch-approved")
                 .arg("--out")
                 .arg(cert)
                 .spawn()
