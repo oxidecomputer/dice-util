@@ -133,7 +133,7 @@ fn do_hash<R: Read>(reader: &mut R, inform: Encoding) -> Result<()> {
         }
     };
 
-    debug!("buf: {:?}", &buf);
+    debug!("buf: {:?}", buf);
     debug!("hashing {:?}", &buf[..16]);
 
     let mut hasher = Sha256::new();
