@@ -550,7 +550,7 @@ impl CertSigner {
             fs::canonicalize(&self.openssl_cnf).with_context(|| {
                 format!(
                     "failed to canonicalize path to OpenSSL config: {}",
-                    &self.openssl_cnf.display()
+                    self.openssl_cnf.display()
                 )
             })?;
         let csr_in = fs::canonicalize(csr_in).with_context(|| {
