@@ -5,30 +5,30 @@
 use miette::{IntoDiagnostic, Result, miette};
 use rats_corim::CorimBuilder;
 
-#[derive(knuffel::Decode, Debug)]
+#[derive(knus::Decode, Debug)]
 pub struct Measurement {
-    #[knuffel(child, unwrap(argument))]
+    #[knus(child, unwrap(argument))]
     pub mkey: String,
 
-    #[knuffel(child, unwrap(argument))]
+    #[knus(child, unwrap(argument))]
     pub algorithm: usize,
 
-    #[knuffel(child, unwrap(argument))]
+    #[knus(child, unwrap(argument))]
     pub digest: String,
 }
 
-#[derive(knuffel::Decode, Debug)]
+#[derive(knus::Decode, Debug)]
 pub struct Document {
-    #[knuffel(child, unwrap(argument))]
+    #[knus(child, unwrap(argument))]
     pub vendor: String,
 
-    #[knuffel(child, unwrap(argument))]
+    #[knus(child, unwrap(argument))]
     pub tag_id: String,
 
-    #[knuffel(child, unwrap(argument))]
+    #[knus(child, unwrap(argument))]
     pub id: String,
 
-    #[knuffel(children)]
+    #[knus(children)]
     pub measurements: Vec<Measurement>,
 }
 
@@ -37,7 +37,7 @@ pub struct Document {
 /// NOTE: The `name` param should be the name of the file that the
 /// `kdl` string was read from. This is used in error reporting.
 pub fn parse(name: &str, kdl: &str) -> Result<Document> {
-    let doc = knuffel::parse(name, kdl)?;
+    let doc = knus::parse(name, kdl)?;
     Ok(doc)
 }
 

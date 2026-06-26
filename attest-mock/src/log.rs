@@ -6,18 +6,18 @@ use attest_data::{Log, Sha3_256Digest};
 use hubpack::SerializedSize;
 use miette::{IntoDiagnostic, Result, miette};
 
-#[derive(knuffel::Decode, Debug)]
+#[derive(knus::Decode, Debug)]
 pub struct Document {
-    #[knuffel(children)]
+    #[knus(children)]
     pub measurements: Vec<Measurement>,
 }
 
-#[derive(knuffel::Decode, Debug)]
+#[derive(knus::Decode, Debug)]
 pub struct Measurement {
-    #[knuffel(child, unwrap(argument))]
+    #[knus(child, unwrap(argument))]
     pub algorithm: String,
 
-    #[knuffel(child, unwrap(argument))]
+    #[knus(child, unwrap(argument))]
     pub digest: String,
 }
 
@@ -26,7 +26,7 @@ pub struct Measurement {
 /// NOTE: The `name` param should be the name of the file that the
 /// `kdl` string was read from. This is used in error reporting.
 pub fn parse(name: &str, kdl: &str) -> Result<Document> {
-    let doc = knuffel::parse(name, kdl)?;
+    let doc = knus::parse(name, kdl)?;
     Ok(doc)
 }
 

@@ -11,7 +11,7 @@ attest-data = { path = "../attest-data", features = ["std"] }
 clap.workspace = true
 hex.workspace = true
 hubpack.workspace = true
-knuffel.workspace = true
+knus.workspace = true
 miette.workspace = true
 rats-corim.workspace = true
 serde_json.workspace = true
