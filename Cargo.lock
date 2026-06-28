@@ -233,7 +233,7 @@ dependencies = [
  "salty",
  "serde",
  "serde_with",
- "sha3",
+ "sha3 0.12.0",
  "static_assertions",
  "thiserror 2.0.17",
 ]
@@ -448,7 +448,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_with",
- "sha3",
+ "sha3 0.10.8",
  "sled-hardware-types",
  "slog",
  "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
@@ -1119,7 +1119,7 @@ dependencies = [
  "rpassword",
  "serde_json",
  "serialport",
- "sha3",
+ "sha3 0.12.0",
  "string-error",
  "tempfile",
  "x509-cert",
@@ -1171,7 +1171,7 @@ dependencies = [
  "log",
  "p384",
  "rats-corim",
- "sha3",
+ "sha3 0.12.0",
  "sled-agent-client",
  "sled-agent-types-versions",
  "slog",
@@ -2431,6 +2431,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
 dependencies = [
  "cpufeatures 0.2.12",
+]
+
+[[package]]
+name = "keccak"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e24a010dd405bd7ed803e5253182815b41bf2e6a80cc3bfc066658e03a198aa"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
 ]
 
 [[package]]
@@ -4539,7 +4549,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
 dependencies = [
  "digest 0.10.7",
- "keccak",
+ "keccak 0.1.5",
+]
+
+[[package]]
+name = "sha3"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc9bad02c26382724b2d2692c6f179285e4b54eeecd7968f52a50059c3c11759"
+dependencies = [
+ "digest 0.11.3",
+ "keccak 0.2.0",
+ "sponge-cursor",
 ]
 
 [[package]]
@@ -4678,7 +4699,7 @@ dependencies = [
  "serde_human_bytes",
  "serde_json",
  "serde_with",
- "sha3",
+ "sha3 0.10.8",
  "sled-hardware-types",
  "slog",
  "strum 0.27.2",
@@ -4894,6 +4915,12 @@ dependencies = [
  "base64ct",
  "der",
 ]
+
+[[package]]
+name = "sponge-cursor"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a0219bd7d979d58245a4f41f695e1ac9f8befdffadd7f61f1bae9e39abc6620"
 
 [[package]]
 name = "stable_deref_trait"
@@ -5882,7 +5909,7 @@ dependencies = [
  "pem-rfc7468",
  "rats-corim",
  "serde_json",
- "sha3",
+ "sha3 0.12.0",
  "slog",
  "slog-async",
  "slog-envlogger",
