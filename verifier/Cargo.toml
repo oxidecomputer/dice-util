@@ -26,6 +26,10 @@ tempfile.workspace = true
 thiserror.workspace = true
 x509-cert = { workspace = true, default-features = true }
 
+[build-dependencies]
+anyhow.workspace = true
+camino.workspace = true
+pki-playground.workspace = true
 
 [dev-dependencies]
 attest-data = { path = "../attest-data", features = ["std", "testing"] }
