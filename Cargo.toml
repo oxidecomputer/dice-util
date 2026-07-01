@@ -36,7 +36,7 @@ log = { version = "0.4.33", features = ["std"] }
 miette = { version = "7.6.0", features = ["fancy"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "0.7.0", default-features = false }
-rats-corim.git = "https://github.com/oxidecomputer/rats-corim"
+rats-corim = { git = "https://github.com/oxidecomputer/rats-corim", rev = "f0d5d5168d3d31487a56df32c676b0c6240bcc6b" }
 ron = "0.8"
 rpassword = "7.4.0"
 salty = { version = "0.3", default-features = false }
