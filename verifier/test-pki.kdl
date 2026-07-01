@@ -1,0 +1,250 @@
+key-pair "root-a" {
+    p384
+}
+
+entity "root-a" {
+    country-name "US"
+    organization-name "Oxide Computer Company"
+    common-name "root-a"
+}
+
+certificate "root-a" {
+    issuer-entity "root-a"
+    issuer-key "root-a"
+
+    subject-entity "root-a"
+    subject-key "root-a"
+
+    digest-algorithm "sha-384"
+    not-after "9999-12-31T23:59:59Z"
+    serial-number "00"
+
+    extensions {
+        subject-key-identifier critical=false
+
+        basic-constraints critical=true ca=true
+        key-usage critical=true {
+            key-cert-sign
+            crl-sign
+        }
+        certificate-policies critical=true {
+            oana-platform-identity
+            tcg-dice-kp-identity-init
+            tcg-dice-kp-attest-init
+            tcg-dice-kp-eca
+        }
+    }
+}
+
+key-pair "intermediate" {
+    p384
+}
+
+entity "intermediate" {
+    country-name "US"
+    organization-name "Oxide Computer Company"
+    common-name "intermediate"
+}
+
+certificate "intermediate" {
+    issuer-certificate "root-a"
+    issuer-key "root-a"
+
+    subject-entity "intermediate"
+    subject-key "intermediate"
+
+    digest-algorithm "sha-384"
+    not-after "9999-12-31T23:59:59Z"
+    serial-number "01"
+
+    extensions {
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+
+        basic-constraints critical=true ca=true
+        key-usage critical=true {
+            key-cert-sign
+            crl-sign
+        }
+        certificate-policies critical=true {
+            oana-platform-identity
+            tcg-dice-kp-identity-init
+            tcg-dice-kp-attest-init
+            tcg-dice-kp-eca
+        }
+    }
+}
+
+key-pair "platform-id" {
+    ed25519
+}
+
+entity "platform-id" {
+    country-name "US"
+    organization-name "Oxide Computer Company"
+    common-name "PDV2:913-0000019:RRR:20000001"
+}
+
+certificate "platform-id" {
+    issuer-certificate "intermediate"
+    issuer-key "intermediate"
+
+    subject-entity "platform-id"
+    subject-key "platform-id"
+
+    digest-algorithm "sha-384"
+    not-after "9999-12-31T23:59:59Z"
+    serial-number "1001"
+
+    extensions {
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+
+        basic-constraints critical=true ca=true
+        key-usage critical=true {
+            key-cert-sign
+            crl-sign
+        }
+        certificate-policies critical=true {
+            oana-platform-identity
+            tcg-dice-kp-identity-init
+            tcg-dice-kp-attest-init
+            tcg-dice-kp-eca
+        }
+    }
+}
+
+key-pair "device-id" {
+    ed25519
+}
+
+entity "device-id" {
+    country-name "US"
+    organization-name "Oxide Computer Company"
+    common-name "device-id"
+}
+
+certificate "device-id" {
+    issuer-certificate "platform-id"
+    issuer-key "platform-id"
+
+    subject-entity "device-id"
+    subject-key "device-id"
+
+    digest-algorithm "sha-512"
+    not-after "9999-12-31T23:59:59Z"
+    serial-number "2001"
+
+    extensions {
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+
+        basic-constraints critical=true ca=true
+        key-usage critical=true {
+            key-cert-sign
+            crl-sign
+        }
+        certificate-policies critical=true {
+            oana-platform-identity
+            tcg-dice-kp-identity-init
+            tcg-dice-kp-attest-init
+            tcg-dice-kp-eca
+        }
+    }
+}
+
+key-pair "alias" {
+    ed25519
+}
+
+entity "alias" {
+    country-name "US"
+    organization-name "Oxide Computer Company"
+    common-name "alias"
+}
+
+certificate "alias" {
+    issuer-certificate "device-id"
+    issuer-key "device-id"
+
+    subject-entity "alias"
+    subject-key "alias"
+
+    not-after "9999-12-31T23:59:59Z"
+    serial-number "00"
+
+    extensions {
+        basic-constraints critical=true ca=false
+        key-usage critical=true {
+            digital-signature
+        }
+        certificate-policies critical=true {
+            tcg-dice-kp-attest-init
+        }
+        dice-tcb-info critical=true {
+            fwid-list {
+                fwid {
+                    digest-algorithm "sha3-256"
+                    digest "72fa8f8ea84a42251031366002cbb36281d0131f78cd680436116a720cdd9de5"
+                }
+            }
+        }
+    }
+}
+
+certificate-list "alias" \
+    "alias" \
+    "device-id" \
+    "platform-id" \
+    "intermediate"
+
+certificate-list "alias-swap" \
+    "alias" \
+    "platform-id" \
+    "device-id" \
+    "intermediate"
+
+// self-signed cert for negative tests
+key-pair "root-b" {
+    p384
+}
+
+entity "root-b" {
+    country-name "US"
+    organization-name "Oxide Computer Company"
+    common-name "root-b"
+}
+
+certificate "root-b" {
+    issuer-entity "root-b"
+    issuer-key "root-b"
+
+    subject-entity "root-b"
+    subject-key "root-b"
+
+    digest-algorithm "sha-384"
+    not-after "9999-12-31T23:59:59Z"
+    serial-number "00"
+
+    extensions {
+        subject-key-identifier critical=false
+
+        basic-constraints critical=true ca=true
+        key-usage critical=true {
+            key-cert-sign
+            crl-sign
+        }
+        certificate-policies critical=true {
+            oana-platform-identity
+            tcg-dice-kp-identity-init
+            tcg-dice-kp-attest-init
+            tcg-dice-kp-eca
+        }
+    }
+}
