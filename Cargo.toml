@@ -18,7 +18,7 @@ anyhow = { version = "1.0.103", default-features = false }
 async-trait = "0.1.89"
 attest.path = "attest"
 chrono = { version = "0.4.45", default-features=false }
-clap = { version = "4.5.51", features = ["derive", "env"] }
+clap = { version = "4.6.1", features = ["derive", "env"] }
 clap-verbosity = "2.1.0"
 const-oid = { version = "0.9.6", default-features = false }
 corncobs = "0.1"
