@@ -286,7 +286,7 @@ dependencies = [
  "getrandom 0.2.12",
  "instant",
  "pin-project-lite",
- "rand 0.8.5",
+ "rand 0.8.6",
  "tokio",
 ]
 
@@ -446,7 +446,7 @@ dependencies = [
  "hkdf",
  "omicron-common",
  "omicron-workspace-hack",
- "rand 0.8.5",
+ "rand 0.8.6",
  "secrecy",
  "serde",
  "serde_with",
@@ -3834,9 +3834,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "rand"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
@@ -5721,7 +5721,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "rand 0.8.5",
+ "rand 0.8.6",
  "sha1",
  "thiserror 1.0.58",
  "url",
@@ -5991,7 +5991,7 @@ dependencies = [
  "curve25519-dalek",
  "elliptic-curve",
  "hex",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "serde",
