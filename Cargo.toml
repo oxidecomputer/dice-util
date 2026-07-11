@@ -33,7 +33,6 @@ hubpack = "0.1"
 knus = "3.4.0"
 libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "7cdf2ab9c8d9e9267a8b366aa780c6c26f9a5ecf" }
 log = { version = "0.4.33", features = ["std"] }
-miette = { version = "7.6.0", features = ["fancy"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "1.0.0", default-features = false }
 rats-corim.git = "https://github.com/oxidecomputer/rats-corim"

@@ -2,8 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use miette::{IntoDiagnostic, Result, miette};
 use rats_corim::CorimBuilder;
+
+use crate::{MockData, MockError};
 
 #[derive(knus::Decode, Debug)]
 pub struct Measurement {
@@ -18,7 +19,7 @@ pub struct Measurement {
 }
 
 #[derive(knus::Decode, Debug)]
-pub struct Document {
+pub struct MockCorim {
     #[knus(child, unwrap(argument))]
     pub vendor: String,
 
@@ -32,36 +33,48 @@ pub struct Document {
     pub measurements: Vec<Measurement>,
 }
 
-/// Parse the KDL in from string `kdl`
-///
-/// NOTE: The `name` param should be the name of the file that the
-/// `kdl` string was read from. This is used in error reporting.
-pub fn parse(name: &str, kdl: &str) -> Result<Document> {
-    let doc = knus::parse(name, kdl)?;
-    Ok(doc)
+#[derive(Debug, thiserror::Error)]
+pub enum MockCorimError {
+    #[error("Failed to decode hex from config: {hex_str}")]
+    HexDecode {
+        hex_str: String,
+        #[source]
+        err: hex::FromHexError,
+    },
+
+    #[error("CorimBuilder failed: {0}")]
+    CorimBuild(#[from] rats_corim::Error),
 }
 
-/// Convert `doc` to an `rats_corim::Corim` instance
-pub fn mock(doc: Document) -> Result<Vec<u8>> {
-    let mut corim_builder = CorimBuilder::new();
-    corim_builder.vendor(doc.vendor);
-    corim_builder.tag_id(doc.tag_id);
-    corim_builder.id(doc.id);
+impl MockData for MockCorim {
+    type Error = MockCorimError;
 
-    for measurement in doc.measurements {
-        let digest = hex::decode(measurement.digest)
-            .into_diagnostic()
-            .map_err(|e| miette!("decode digest hex: {e}"))?;
-        corim_builder.add_hash(measurement.mkey, measurement.algorithm, digest)
+    fn parse(name: &str, kdl: &str) -> Result<Self, MockError> {
+        Ok(knus::parse(name, kdl)?)
     }
 
-    let corim = corim_builder
-        .build()
-        .into_diagnostic()
-        .map_err(|e| miette!("building CoRIM from config: {e}"))?;
+    /// Produce a CoRIM document (serialized CBOR) from a `MockCorim` instance
+    fn to_bytes(&self) -> Result<Vec<u8>, Self::Error> {
+        let mut corim_builder = CorimBuilder::new();
+        corim_builder.vendor(self.vendor.clone());
+        corim_builder.tag_id(self.tag_id.clone());
+        corim_builder.id(self.id.clone());
 
-    corim
-        .to_vec()
-        .into_diagnostic()
-        .map_err(|e| miette!("CoRIM to bytes: {e}"))
+        for measurement in &self.measurements {
+            let digest = hex::decode(&measurement.digest).map_err(|e| {
+                Self::Error::HexDecode {
+                    hex_str: measurement.digest.clone(),
+                    err: e,
+                }
+            })?;
+            corim_builder.add_hash(
+                measurement.mkey.clone(),
+                measurement.algorithm,
+                digest,
+            )
+        }
+
+        let corim = corim_builder.build()?;
+        Ok(corim.to_vec()?)
+    }
 }
