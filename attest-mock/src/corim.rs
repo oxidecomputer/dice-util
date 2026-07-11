@@ -2,8 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use miette::{IntoDiagnostic, Result, miette};
-use rats_corim::CorimBuilder;
+use rats_corim::{Corim, CorimBuilder};
+use slog_error_chain::SlogInlineError;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+use crate::MockData;
 
 #[derive(knus::Decode, Debug)]
 pub struct Measurement {
@@ -32,36 +38,84 @@ pub struct Document {
     pub measurements: Vec<Measurement>,
 }
 
-/// Parse the KDL in from string `kdl`
-///
-/// NOTE: The `name` param should be the name of the file that the
-/// `kdl` string was read from. This is used in error reporting.
-pub fn parse(name: &str, kdl: &str) -> Result<Document> {
-    let doc = knus::parse(name, kdl)?;
-    Ok(doc)
+pub struct MockCorim(Corim);
+
+#[derive(Debug, SlogInlineError, thiserror::Error)]
+pub enum MockCorimError {
+    #[error("CorimBuilder failed")]
+    CorimBuild(#[from] rats_corim::Error),
+
+    #[error("Failed to decode hex from config: {hex_str}")]
+    HexDecode {
+        hex_str: String,
+
+        #[source]
+        err: hex::FromHexError,
+    },
+
+    #[error("Failed to parse the provided config")]
+    InvalidConfig(#[from] knus::errors::Error),
+
+    #[error("Failed to read file: {}", path.display())]
+    Load {
+        path: PathBuf,
+
+        #[source]
+        err: std::io::Error,
+    },
 }
 
-/// Convert `doc` to an `rats_corim::Corim` instance
-pub fn mock(doc: Document) -> Result<Vec<u8>> {
-    let mut corim_builder = CorimBuilder::new();
-    corim_builder.vendor(doc.vendor);
-    corim_builder.tag_id(doc.tag_id);
-    corim_builder.id(doc.id);
+impl MockData for MockCorim {
+    type Error = MockCorimError;
+    type Inner = Corim;
 
-    for measurement in doc.measurements {
-        let digest = hex::decode(measurement.digest)
-            .into_diagnostic()
-            .map_err(|e| miette!("decode digest hex: {e}"))?;
-        corim_builder.add_hash(measurement.mkey, measurement.algorithm, digest)
+    /// Parse the contents of the provided file as a KDL document describing
+    /// a CoRIM document
+    fn load<T: AsRef<Path>>(path: T) -> Result<Self, Self::Error> {
+        let path_str = path.as_ref().to_string_lossy();
+        let kdl = fs::read_to_string(path_str.as_ref()).map_err(|e| {
+            MockCorimError::Load {
+                path: PathBuf::from(path.as_ref()),
+                err: e,
+            }
+        })?;
+
+        Self::parse(&path_str, &kdl)
     }
 
-    let corim = corim_builder
-        .build()
-        .into_diagnostic()
-        .map_err(|e| miette!("building CoRIM from config: {e}"))?;
+    /// Transform the provided KDL to a CoRIM document
+    fn parse(name: &str, kdl: &str) -> Result<Self, Self::Error> {
+        let doc: Document = knus::parse(name, kdl)?;
 
-    corim
-        .to_vec()
-        .into_diagnostic()
-        .map_err(|e| miette!("CoRIM to bytes: {e}"))
+        let mut corim_builder = CorimBuilder::new();
+        corim_builder.vendor(doc.vendor.clone());
+        corim_builder.tag_id(doc.tag_id.clone());
+        corim_builder.id(doc.id.clone());
+
+        for measurement in &doc.measurements {
+            let digest = hex::decode(&measurement.digest).map_err(|e| {
+                Self::Error::HexDecode {
+                    hex_str: measurement.digest.clone(),
+                    err: e,
+                }
+            })?;
+            corim_builder.add_hash(
+                measurement.mkey.clone(),
+                measurement.algorithm,
+                digest,
+            )
+        }
+
+        Ok(Self(corim_builder.build()?))
+    }
+
+    /// Serialize the CoRIM document to a vec of bytes
+    fn to_bytes(&self) -> Result<Vec<u8>, Self::Error> {
+        Ok(self.0.to_vec()?)
+    }
+
+    /// Pass ownership of the inner CoRIM instance to the caller
+    fn into_inner(self) -> Self::Inner {
+        self.0
+    }
 }

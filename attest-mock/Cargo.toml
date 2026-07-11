@@ -2,7 +2,7 @@
 name = "attest-mock"
 version = "0.1.0"
 edition = "2024"
-description = "tools to generate attestation artifacts from KDL for use in testing"
+description = "tools & library to generate attestation artifacts from KDL"
 license = "MPL-2.0"
 
 [dependencies]
@@ -12,6 +12,7 @@ clap.workspace = true
 hex.workspace = true
 hubpack.workspace = true
 knus.workspace = true
-miette.workspace = true
 rats-corim.workspace = true
-serde_json.workspace = true
+slog.workspace = true
+slog-error-chain = { workspace = true, features = ["derive"] }
+thiserror.workspace = true
