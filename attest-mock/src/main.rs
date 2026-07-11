@@ -2,13 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use anyhow::Result;
 use clap::{Parser, Subcommand};
-use miette::{IntoDiagnostic, Result, miette};
 use std::{
-    fs,
     io::{self, Write},
     path::PathBuf,
 };
+
+use attest_mock::{MockCorim, MockData, MockLog};
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -31,31 +32,19 @@ enum Command {
     Log,
 }
 
-mod corim;
-mod log;
-
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let cow_name = args.kdl.to_string_lossy();
-    let name = cow_name.as_ref();
-    let kdl = fs::read_to_string(name)
-        .into_diagnostic()
-        .map_err(|e| miette!("failed to read file {name} to string: {e}"))?;
-
     let out = match args.cmd {
         Command::Corim => {
-            let doc = corim::parse(name, &kdl)?;
-            corim::mock(doc)?
+            let mock = MockCorim::load(&args.kdl)?;
+            mock.to_bytes()?
         }
         Command::Log => {
-            let doc = log::parse(name, &kdl)?;
-            log::mock(doc)?
+            let mock = MockLog::load(&args.kdl)?;
+            mock.to_bytes()?
         }
     };
 
-    io::stdout()
-        .write_all(&out)
-        .into_diagnostic()
-        .map_err(|e| miette!("failed to write to stdout: {e}"))
+    Ok(io::stdout().write_all(&out)?)
 }
