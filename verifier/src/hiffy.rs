@@ -4,41 +4,16 @@
 
 use attest_data::{Attestation, Log, Nonce, Nonce32};
 use hubpack::SerializedSize;
-use sha3::{Digest, Sha3_256};
-use std::{
-    fmt,
-    io::{Read, Write},
-    path::Path,
-    process::Output,
-};
-use tempfile::NamedTempFile;
 use thiserror::Error;
-use tokio::process::Command;
 use x509_cert::{der::Decode, Certificate, PkiPath};
 
 use crate::{Attest, AttestError};
+use humility_core::hubris::HubrisArchive;
+use humility_probes_core::{HubrisAttach, ProbeCore};
+use slog::Logger;
 
-/// This trait implements the hubris attestation API exposed by the `attest`
-/// task in the RoT and proxied through the `sprot` task in the SP.
-#[async_trait::async_trait]
-pub trait AttestSprot {
-    async fn attest_len(&self) -> Result<u32, AttestHiffyError>;
-    async fn attest(
-        &self,
-        nonce: &Nonce32,
-        out: &mut [u8],
-    ) -> Result<(), AttestHiffyError>;
-    async fn cert_chain_len(&self) -> Result<u32, AttestHiffyError>;
-    async fn cert_len(&self, index: u32) -> Result<u32, AttestHiffyError>;
-    async fn cert(
-        &self,
-        index: u32,
-        out: &mut [u8],
-    ) -> Result<(), AttestHiffyError>;
-    async fn log(&self, out: &mut [u8]) -> Result<(), AttestHiffyError>;
-    async fn log_len(&self) -> Result<u32, AttestHiffyError>;
-    async fn record(&self, data: &[u8]) -> Result<(), AttestHiffyError>;
-}
+use humility_hiffy::HiffyContext;
+use humility_idol::{HubrisIdol, IdolArgument};
 
 /// The `AttestHiffy` type can speak to the `Attest` tasks via either the RoT
 /// directly or through SpRot task in the SP. This enum is used to control
@@ -49,15 +24,13 @@ pub enum AttestTask {
     Sprot,
 }
 
-/// We use the `Display` trait to produce the string representation of the
-/// attest task name. In the RoT the task is called `Attest`, in the SP the
-/// Attest API is exposed by the task named `SpRot`.
-impl fmt::Display for AttestTask {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Rot => write!(f, "Attest"),
-            Self::Sprot => write!(f, "SpRot"),
-        }
+impl AttestTask {
+    fn get_command(&self, cmd: &str) -> String {
+        let task = match self {
+            AttestTask::Rot => "Attest",
+            AttestTask::Sprot => "SpRot",
+        };
+        format!("{task}.{cmd}")
     }
 }
 
@@ -65,295 +38,213 @@ impl fmt::Display for AttestTask {
 /// `humility hiffy` interface.
 #[derive(Debug, Error)]
 pub enum AttestHiffyError {
-    #[error("Failed to parse u32 from hiffy hex output: {0}")]
-    BadU32(#[from] std::num::ParseIntError),
-    #[error("Hiffy command failed: {0}")]
-    ExitStatus(std::process::ExitStatus),
-    #[error("Failed to hubpack something: {0}")]
-    Serialize(#[from] hubpack::Error),
-    #[error("Failed to do something w/ a tempfile: {0}")]
-    TempFile(#[from] std::io::Error),
-    // Failure to run `humility` yields a `std::io::Error` from
-    // `std::process::Command`, but it is distinctly *not* related to a tempfile
-    // in any way. Give this failure mode a more distinctive form.
-    #[error("Failed to run humility: {0}")]
-    Humility(std::io::Error),
+    /// Failure from idol
+    #[error("idol error")]
+    Idol(#[source] anyhow::Error),
+    /// Failure from hiffy context
+    #[error("hiffy context error")]
+    HiffyContext(#[source] anyhow::Error),
+    /// Failure from hiffy
+    #[error("hiffy error")]
+    Hiffy(#[source] humility_hiffy::HiffyError),
+    /// Error calling idol function
+    #[error("idol call error")]
+    IdolCall(#[source] humility_hiffy::HiffyError),
 }
 
 /// A type to simplify the execution of the HIF operations exposed by the RoT
 /// Attest task.
 pub struct AttestHiffy {
-    task: AttestTask,
+    core: ProbeCore,
+    hubris: HubrisArchive,
+    log: Logger,
+    target: AttestTask,
 }
 
 impl AttestHiffy {
-    const CHUNK_SIZE: usize = 256;
+    pub fn new(target: AttestTask, log: &Logger) -> Self {
+        // This matches the existing behavior but do we want to make this better?
+        let hubris = std::env::var("HUMILITY_ARCHIVE").unwrap();
+        let probe = std::env::var("HUMILITY_PROBE").unwrap();
 
-    pub fn new(task: AttestTask) -> Self {
-        AttestHiffy { task }
-    }
+        let hubris = HubrisArchive::load_from_path(&hubris, log).unwrap();
 
-    /// `humility` returns u32s as hex strings prefixed with "0x". This
-    /// function expects a string formatted like an output string from hiffy
-    /// returning a u32. If the string is not prefixed with "0x" it is assumed
-    /// to be decimal. Currently this function ignores the interface and
-    /// operation names from the string. Future work may check that these are
-    /// consistent with the operation executed.
-    fn u32_from_cmd_output(output: Output) -> Result<u32, AttestHiffyError> {
-        if output.status.success() {
-            // check interface & operation name?
-            let output = String::from_utf8_lossy(&output.stdout);
-            let output: Vec<&str> = output.trim().split(' ').collect();
-            let output = output[output.len() - 1];
+        let core = hubris.attach_probe(&probe, log).unwrap();
 
-            let (output, _) = match output.strip_prefix("0x") {
-                Some(s) => (s, 16),
-                None => (output, 10),
-            };
+        let log = log.new(slog::o!());
 
-            Ok(u32::from_str_radix(output, 16)
-                .map_err(AttestHiffyError::BadU32)?)
-        } else {
-            Err(AttestHiffyError::ExitStatus(output.status))
-        }
-    }
-
-    /// This convenience function encapsulates a pattern common to
-    /// the hiffy command line for the `Attest` operations that get the
-    /// lengths of the data returned in leases.
-    async fn get_len_cmd(
-        &self,
-        op: &str,
-        args: Option<String>,
-    ) -> Result<u32, AttestHiffyError> {
-        // rely on environment for target & archive?
-        // check that they are set before continuing
-        let mut cmd = Command::new("humility");
-
-        cmd.arg("hiffy");
-        cmd.arg("--call");
-        cmd.arg(format!("{}.{}", self.task, op));
-        if let Some(a) = args {
-            cmd.arg(format!("--arguments={a}"));
-        }
-
-        let output = cmd.output().await.map_err(AttestHiffyError::Humility)?;
-        Self::u32_from_cmd_output(output)
-    }
-
-    /// This convenience function encapsulates a pattern common to the hiffy
-    /// command line for the `Attest` operations that return blobs in chunks.
-    async fn get_chunk(
-        &self,
-        op: &str,
-        length: usize,
-        output: &Path,
-        args: Option<&str>,
-        input: Option<&str>,
-    ) -> Result<(), AttestHiffyError> {
-        let mut cmd = Command::new("humility");
-
-        cmd.arg("hiffy");
-        cmd.arg(format!("--call={}.{}", self.task, op));
-        cmd.arg(format!("--num={length}"));
-        cmd.arg(format!("--output={}", output.to_string_lossy()));
-        if let Some(args) = args {
-            cmd.arg("--arguments");
-            cmd.arg(args);
-        }
-        if let Some(i) = input {
-            cmd.arg(format!("--input={i}"));
-        }
-
-        let output = cmd.output().await?;
-        if output.status.success() {
-            Ok(())
-        } else {
-            Err(AttestHiffyError::ExitStatus(output.status))
+        Self {
+            core,
+            hubris,
+            log,
+            target,
         }
     }
 }
 
-#[async_trait::async_trait]
-impl AttestSprot for AttestHiffy {
-    async fn attest(
-        &self,
-        nonce: &Nonce32,
-        out: &mut [u8],
-    ) -> Result<(), AttestHiffyError> {
-        let mut attestation_tmp = tempfile::NamedTempFile::new()?;
-        let mut nonce_tmp = tempfile::NamedTempFile::new()?;
-
-        let mut buf = [0u8; Nonce32::MAX_SIZE];
-        hubpack::serialize(&mut buf, &nonce)
-            .map_err(AttestHiffyError::Serialize)?;
-        nonce_tmp.write_all(&buf)?;
-
-        self.get_chunk(
-            "attest",
-            out.len(),
-            attestation_tmp.path(),
-            None,
-            Some(&nonce_tmp.path().to_string_lossy()),
-        )
-        .await?;
-        Ok(attestation_tmp.read_exact(&mut out[..])?)
-    }
-
-    /// Get length of the measurement log in bytes.
-    async fn attest_len(&self) -> Result<u32, AttestHiffyError> {
-        self.get_len_cmd("attest_len", None).await
-    }
-
-    /// Get length of the certificate chain from the Attest task. This cert
-    /// chain may be self signed or will terminate at the intermediate before
-    /// the root.
-    async fn cert_chain_len(&self) -> Result<u32, AttestHiffyError> {
-        self.get_len_cmd("cert_chain_len", None).await
-    }
-
-    /// Get length of the certificate at the provided index in bytes.
-    async fn cert_len(&self, index: u32) -> Result<u32, AttestHiffyError> {
-        self.get_len_cmd("cert_len", Some(format!("index={index}")))
-            .await
-    }
-
-    async fn cert(
-        &self,
-        index: u32,
-        out: &mut [u8],
-    ) -> Result<(), AttestHiffyError> {
-        for offset in
-            (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
-        {
-            let mut tmp = tempfile::NamedTempFile::new()?;
-            self.get_chunk(
-                "cert",
-                Self::CHUNK_SIZE,
-                tmp.path(),
-                Some(&format!("index={index},offset={offset}")),
-                None,
-            )
-            .await?;
-            tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
-        }
-
-        let remain = out.len() % Self::CHUNK_SIZE;
-        if remain != 0 {
-            let offset = out.len() - remain;
-            let mut tmp = tempfile::NamedTempFile::new()?;
-            self.get_chunk(
-                "cert",
-                remain,
-                tmp.path(),
-                Some(&format!("index={index},offset={offset}")),
-                None,
-            )
-            .await?;
-            tmp.read_exact(&mut out[offset..])?;
-        }
-
-        Ok(())
-    }
-
-    /// Get measurement log. This function assumes that the slice provided
-    /// is sufficiently large to hold the log.
-    async fn log(&self, out: &mut [u8]) -> Result<(), AttestHiffyError> {
-        for offset in
-            (0..out.len() - Self::CHUNK_SIZE).step_by(Self::CHUNK_SIZE)
-        {
-            let mut tmp = tempfile::NamedTempFile::new()?;
-            self.get_chunk(
-                "log",
-                Self::CHUNK_SIZE,
-                tmp.path(),
-                Some(&format!("offset={offset}")),
-                None,
-            )
-            .await?;
-            tmp.read_exact(&mut out[offset..offset + Self::CHUNK_SIZE])?;
-        }
-
-        let remain = out.len() % Self::CHUNK_SIZE;
-        if remain != 0 {
-            let offset = out.len() - remain;
-            let mut tmp = tempfile::NamedTempFile::new()?;
-            self.get_chunk(
-                "log",
-                remain,
-                tmp.path(),
-                Some(&format!("offset={offset}")),
-                None,
-            )
-            .await?;
-            tmp.read_exact(&mut out[offset..])?;
-        }
-
-        Ok(())
-    }
-
-    /// Get length of the measurement log in bytes.
-    async fn log_len(&self) -> Result<u32, AttestHiffyError> {
-        self.get_len_cmd("log_len", None).await
-    }
-
-    /// Record the sha3 hash of a file.
-    async fn record(&self, data: &[u8]) -> Result<(), AttestHiffyError> {
-        let digest = Sha3_256::digest(data);
-        let mut tmp = NamedTempFile::new()?;
-        tmp.write_all(digest.as_slice())?;
-
-        let mut cmd = Command::new("humility");
-
-        cmd.arg("hiffy");
-        cmd.arg(format!("--call={}.record", self.task));
-        cmd.arg(format!("--input={}", tmp.path().to_string_lossy()));
-        cmd.arg("--arguments=algorithm=Sha3_256");
-
-        let output = cmd.output().await?;
-        if output.status.success() {
-            Ok(())
-        } else {
-            Err(AttestHiffyError::ExitStatus(output.status))
-        }
-    }
-}
+const TRANSFER_SIZE: usize = 128;
 
 #[async_trait::async_trait]
 impl Attest for AttestHiffy {
-    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
-        let log_len = self.log_len().await?;
-        let mut log = vec![0u8; log_len as usize];
-        self.log(&mut log).await?;
+    async fn get_measurement_log(&mut self) -> Result<Log, AttestError> {
+        let mut context = HiffyContext::new(
+            &self.hubris,
+            &mut self.core,
+            std::time::Duration::from_secs(5),
+            &self.log,
+        )
+        .map_err(AttestHiffyError::HiffyContext)?;
+
+        let log_len_op = self
+            .hubris
+            .get_idol_command(self.target.get_command("log_len").as_str())
+            .map_err(AttestHiffyError::Idol)?;
+
+        let log_op = self
+            .hubris
+            .get_idol_command(self.target.get_command("log").as_str())
+            .map_err(AttestHiffyError::Idol)?;
+
+        let log_len = context
+            .call::<u32>(&mut self.core, &log_len_op, &[], None, None)
+            .map_err(AttestHiffyError::Hiffy)? as usize;
+
+        let mut log = vec![0u8; log_len];
+        let mut offset = 0;
+
+        for chunk in log.chunks_mut(TRANSFER_SIZE) {
+            context
+                .call::<()>(
+                    &mut self.core,
+                    &log_op,
+                    &[("offset", IdolArgument::Scalar(offset as u64))],
+                    None,
+                    Some(chunk),
+                )
+                .map_err(AttestHiffyError::IdolCall)?;
+            offset += chunk.len();
+        }
+
         let (log, _): (Log, _) =
             hubpack::deserialize(&log).map_err(AttestError::Deserialize)?;
 
         Ok(log)
     }
 
-    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&mut self) -> Result<PkiPath, AttestError> {
         let mut cert_chain = PkiPath::new();
-        for index in 0..self.cert_chain_len().await? {
-            let cert_len = self.cert_len(index).await?;
+
+        let mut context = HiffyContext::new(
+            &self.hubris,
+            &mut self.core,
+            std::time::Duration::from_secs(5),
+            &self.log,
+        )
+        .map_err(AttestHiffyError::HiffyContext)?;
+
+        let cert_chain_len_op = self
+            .hubris
+            .get_idol_command(
+                self.target.get_command("cert_chain_len").as_str(),
+            )
+            .map_err(AttestHiffyError::Idol)?;
+
+        let cert_len_op = self
+            .hubris
+            .get_idol_command(self.target.get_command("cert_len").as_str())
+            .map_err(AttestHiffyError::Idol)?;
+
+        let cert_op = self
+            .hubris
+            .get_idol_command(self.target.get_command("cert").as_str())
+            .map_err(AttestHiffyError::Idol)?;
+
+        let cert_count = context
+            .call::<u32>(&mut self.core, &cert_chain_len_op, &[], None, None)
+            .map_err(AttestHiffyError::Hiffy)?
+            as usize;
+
+        for cert_index in 0..cert_count {
+            let cert_len = context
+                .call::<u32>(
+                    &mut self.core,
+                    &cert_len_op,
+                    &[("index", IdolArgument::Scalar(cert_index as u64))],
+                    None,
+                    None,
+                )
+                .map_err(AttestHiffyError::IdolCall)?;
+            let mut offset = 0;
             let mut cert = vec![0u8; cert_len as usize];
-            self.cert(index, &mut cert).await?;
+            for chunk in cert.chunks_mut(TRANSFER_SIZE) {
+                context
+                    .call::<()>(
+                        &mut self.core,
+                        &cert_op,
+                        &[
+                            ("index", IdolArgument::Scalar(cert_index as u64)),
+                            ("offset", IdolArgument::Scalar(offset as u64)),
+                        ],
+                        None,
+                        Some(chunk),
+                    )
+                    .map_err(AttestHiffyError::IdolCall)?;
+                offset += chunk.len();
+            }
 
             let cert = Certificate::from_der(&cert)?;
-
             cert_chain.push(cert);
         }
 
         Ok(cert_chain)
     }
 
-    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+    async fn attest(
+        &mut self,
+        nonce: &Nonce,
+    ) -> Result<Attestation, AttestError> {
         let nonce: &Nonce32 = nonce.try_into()?;
-        let attest_len = self.attest_len().await?;
-        let mut out = vec![0u8; attest_len as usize];
-        AttestSprot::attest(self, nonce, &mut out).await?;
+
+        let mut buf = [0u8; Nonce32::MAX_SIZE];
+        hubpack::serialize(&mut buf, &nonce).map_err(AttestError::Serialize)?;
+
+        let mut context = HiffyContext::new(
+            &self.hubris,
+            &mut self.core,
+            std::time::Duration::from_secs(5),
+            &self.log,
+        )
+        .map_err(AttestHiffyError::HiffyContext)?;
+
+        let attest_len_op = self
+            .hubris
+            .get_idol_command(self.target.get_command("attest_len").as_str())
+            .map_err(AttestHiffyError::Idol)?;
+
+        let attest_op = self
+            .hubris
+            .get_idol_command(self.target.get_command("attest").as_str())
+            .map_err(AttestHiffyError::Idol)?;
+
+        let attest_len = context
+            .call::<u32>(&mut self.core, &attest_len_op, &[], None, None)
+            .map_err(AttestHiffyError::Hiffy)?
+            as usize;
+
+        let mut attest = vec![0u8; attest_len];
+
+        context
+            .call::<()>(
+                &mut self.core,
+                &attest_op,
+                &[],
+                Some(&buf),
+                Some(&mut attest),
+            )
+            .map_err(AttestHiffyError::IdolCall)?;
 
         let (attestation, _): (Attestation, _) =
-            hubpack::deserialize(&out).map_err(AttestError::Deserialize)?;
+            hubpack::deserialize(&attest).map_err(AttestError::Deserialize)?;
 
         Ok(attestation)
     }

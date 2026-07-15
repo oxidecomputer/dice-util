@@ -10,6 +10,7 @@ use dice_verifier::{
     Attest, Nonce,
     hiffy::{AttestHiffy, AttestTask},
 };
+use slog::Drain;
 use std::{
     fmt,
     io::{self, Write},
@@ -88,14 +89,27 @@ async fn main() -> Result<()> {
     })
     .context("set Ctrl-C handler")?;
 
+    let stderr_decorator = slog_term::TermDecorator::new().build();
+    let stderr_drain =
+        slog_term::FullFormat::new(stderr_decorator).build().fuse();
+    let drain = slog_envlogger::LogBuilder::new(stderr_drain)
+        .parse("RUST_LOG")
+        .filter(None, slog::FilterLevel::Warning)
+        .build()
+        .fuse();
+    let drain = slog_async::Async::new(drain).build().fuse();
+    let logger = slog::Logger::root(drain, slog::o!());
+
     // use stdout & `writeln!` so we can handle errors that would panic
     // `println!`
     let mut stdout = io::stdout().lock();
 
-    let attest: Box<dyn Attest> = match args.interface {
+    let mut attest: Box<dyn Attest> = match args.interface {
         #[cfg(feature = "ipcc")]
         Interface::Ipcc => Box::new(AttestIpcc::new()),
-        Interface::Hiffy => Box::new(AttestHiffy::new(AttestTask::Rot)),
+        Interface::Hiffy => {
+            Box::new(AttestHiffy::new(AttestTask::Rot, &logger))
+        }
     };
 
     // we do not care about the nonce, all 0's will require the same amount of
