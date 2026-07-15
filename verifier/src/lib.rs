@@ -17,7 +17,9 @@ use x509_cert::{
     Certificate, PkiPath,
 };
 
+#[cfg(feature = "hiffy")]
 pub mod hiffy;
+#[cfg(feature = "hiffy")]
 use hiffy::AttestHiffyError;
 
 #[cfg(feature = "ipcc")]
@@ -41,6 +43,7 @@ pub enum AttestError {
     Certificate(#[from] der::Error),
     #[error(transparent)]
     Deserialize(hubpack::Error),
+    #[cfg(feature = "hiffy")]
     #[error(transparent)]
     Hiffy(#[from] AttestHiffyError),
     #[error("failed to send ipcc message to RoT: {0}")]
