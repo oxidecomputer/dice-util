@@ -2559,7 +2559,7 @@ source = "git+https://github.com/oxidecomputer/dlpi-sys#d9645f8d61187e76384474b1
 [[package]]
 name = "libipcc"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/ipcc-rs?rev=7cdf2ab9c8d9e9267a8b366aa780c6c26f9a5ecf#7cdf2ab9c8d9e9267a8b366aa780c6c26f9a5ecf"
+source = "git+https://github.com/oxidecomputer/ipcc-rs?rev=91f8c989f1cdc29c56720ab7663afdcaf5a96b72#91f8c989f1cdc29c56720ab7663afdcaf5a96b72"
 dependencies = [
  "cfg-if",
  "libc",
