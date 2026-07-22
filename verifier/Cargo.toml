@@ -25,10 +25,11 @@ tokio = { workspace = true, features = [ "net", "rt", "time", "process" ] }
 tempfile.workspace = true
 thiserror.workspace = true
 x509-cert = { workspace = true, default-features = true }
-humility-probes-core = { git =  "https://github.com/oxidecomputer/humility" }
-humility-core = { git =  "https://github.com/oxidecomputer/humility" }
-humility-idol = { git =  "https://github.com/oxidecomputer/humility" }
-humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" }
+# Fix the hashes once the bump is tested/merged
+humility-probes-core = { git =  "https://github.com/oxidecomputer/humility", rev = "ea8aa6325117da014c473748b24045dfdf04f8fb" }
+humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "ea8aa6325117da014c473748b24045dfdf04f8fb" }
+humility-idol = { git =  "https://github.com/oxidecomputer/humility", rev = "ea8aa6325117da014c473748b24045dfdf04f8fb"  }
+humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" , rev = "ea8aa6325117da014c473748b24045dfdf04f8fb" }
 # This is only for handling some of the errors from humility
 anyhow.workspace = true
 
