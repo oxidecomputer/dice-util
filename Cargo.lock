@@ -29,7 +29,7 @@ version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5d307320b3181d6d7954e663bd7c774a838b8220fe0593c86d9fb09f498b4b"
 dependencies = [
- "gimli 0.31.1",
+ "gimli 0.32.3",
 ]
 
 [[package]]
@@ -376,11 +376,11 @@ version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb531853791a215d7c62a30daf0dde835f381ab5de4589cfe7c649d2cbe92bd6"
 dependencies = [
- "addr2line 0.24.2",
+ "addr2line 0.25.1",
  "cfg-if",
  "libc",
  "miniz_oxide",
- "object 0.36.7",
+ "object 0.37.3",
  "rustc-demangle",
  "windows-link",
 ]
@@ -2281,12 +2281,6 @@ dependencies = [
  "thiserror 2.0.18",
  "zeroize",
 ]
-
-[[package]]
-name = "gimli"
-version = "0.32.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
 name = "gimli"
