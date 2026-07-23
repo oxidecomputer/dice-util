@@ -27,7 +27,7 @@ impl AttestSledAgent {
 
 #[async_trait::async_trait]
 impl Attest for AttestSledAgent {
-    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
+    async fn get_measurement_log(&mut self) -> Result<Log, AttestError> {
         let mut log = Log::default();
         let measurments = self
             .client
@@ -44,7 +44,7 @@ impl Attest for AttestSledAgent {
         Ok(log)
     }
 
-    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&mut self) -> Result<PkiPath, AttestError> {
         let certs = self
             .client
             .rot_certificate_chain(&SledAgentTypes::Rot::Oxide)
@@ -57,7 +57,10 @@ impl Attest for AttestSledAgent {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+    async fn attest(
+        &mut self,
+        nonce: &Nonce,
+    ) -> Result<Attestation, AttestError> {
         let &Nonce::N32(nonce) = nonce;
         let attestation = self
             .client

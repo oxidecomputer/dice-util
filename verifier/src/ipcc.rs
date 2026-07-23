@@ -50,7 +50,7 @@ impl AttestIpcc {
 
 #[async_trait::async_trait]
 impl Attest for AttestIpcc {
-    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
+    async fn get_measurement_log(&mut self) -> Result<Log, AttestError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let len = attest_data::messages::serialize(
             &mut rot_message,
@@ -72,7 +72,7 @@ impl Attest for AttestIpcc {
         Ok(log)
     }
 
-    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&mut self) -> Result<PkiPath, AttestError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let len = attest_data::messages::serialize(
             &mut rot_message,
@@ -111,7 +111,10 @@ impl Attest for AttestIpcc {
         Ok(certs)
     }
 
-    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
+    async fn attest(
+        &mut self,
+        nonce: &Nonce,
+    ) -> Result<Attestation, AttestError> {
         let nonce: &Nonce32 = nonce.try_into()?;
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let len = attest_data::messages::serialize(

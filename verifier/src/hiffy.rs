@@ -67,9 +67,9 @@ impl AttestHiffy {
         let hubris = std::env::var("HUMILITY_ARCHIVE").unwrap();
         let probe = std::env::var("HUMILITY_PROBE").unwrap();
 
-        let hubris = HubrisArchive::load_from_path(&hubris, &log).unwrap();
+        let hubris = HubrisArchive::load_from_path(&hubris, log).unwrap();
 
-        let core = hubris.attach_probe(&probe, &log).unwrap();
+        let core = hubris.attach_probe(&probe, log).unwrap();
 
         let log = log.new(slog::o!());
 
