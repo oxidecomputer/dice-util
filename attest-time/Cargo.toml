@@ -13,6 +13,11 @@ dice-verifier = { path = "../verifier" }
 env_logger.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["full"] }
+slog.workspace = true
+slog-async.workspace = true
+slog-envlogger.workspace = true
+slog-stdlog.workspace = true
+slog-term.workspace = true
 
 [features]
 ipcc = ["dice-verifier/ipcc"]

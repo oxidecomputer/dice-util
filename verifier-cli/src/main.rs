@@ -34,12 +34,14 @@ fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
     match interface {
         #[cfg(feature = "ipcc")]
         Interface::Ipcc => Ok(Box::new(AttestIpcc::new())),
-        Interface::Rot => Ok(Box::new(AttestHiffy::new(AttestTask::Rot))),
+        Interface::Rot => Ok(Box::new(AttestHiffy::new(AttestTask::Rot, log))),
         #[cfg(feature = "sled-agent")]
         Interface::SledAgent(addr) => {
             Ok(Box::new(AttestSledAgent::new(addr, log)))
         }
-        Interface::Sprot => Ok(Box::new(AttestHiffy::new(AttestTask::Sprot))),
+        Interface::Sprot => {
+            Ok(Box::new(AttestHiffy::new(AttestTask::Sprot, log)))
+        }
     }
 }
 
@@ -237,7 +239,7 @@ async fn main() -> Result<()> {
         }
         InterfaceArg::Sprot => Interface::Sprot,
     };
-    let attest = get_attest(interface, &logger)?;
+    let mut attest = get_attest(interface, &logger)?;
 
     match args.command {
         AttestCommand::Attest { nonce } => {
@@ -317,7 +319,7 @@ async fn main() -> Result<()> {
             let platform_id = match work_dir {
                 Some(w) => {
                     verify(
-                        attest.as_ref(),
+                        attest.as_mut(),
                         ca_cert.as_deref(),
                         corpus.as_deref(),
                         self_signed,
@@ -331,7 +333,7 @@ async fn main() -> Result<()> {
                     }
                     let work_dir = tempfile::tempdir()?;
                     verify(
-                        attest.as_ref(),
+                        attest.as_mut(),
                         ca_cert.as_deref(),
                         corpus.as_deref(),
                         self_signed,
@@ -366,7 +368,7 @@ async fn main() -> Result<()> {
             verify_measurements(&cert_chain, &log, &corpus)?;
         }
         AttestCommand::MeasurementSet => {
-            let set = measurement_set(attest.as_ref()).await?;
+            let set = measurement_set(attest.as_mut()).await?;
             for item in set.into_iter() {
                 println!("* {item}");
             }
@@ -376,7 +378,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn measurement_set(attest: &dyn Attest) -> Result<MeasurementSet> {
+async fn measurement_set(attest: &mut dyn Attest) -> Result<MeasurementSet> {
     info!("getting measurement log");
     let log = attest
         .get_measurement_log()
@@ -442,7 +444,7 @@ fn verify_measurements(
 }
 
 async fn verify(
-    attest: &dyn Attest,
+    attest: &mut dyn Attest,
     ca_cert: Option<&Path>,
     corpus: Option<&Path>,
     self_signed: bool,
