@@ -29,6 +29,32 @@ pub struct Measurement {
 
 pub struct MockLog(Log);
 
+impl MockLog {
+    pub fn from_document(doc: Document) -> Result<MockLog, MockLogError> {
+        let mut log = Log::default();
+        for measurement in &doc.measurements {
+            let measurement = if measurement.algorithm == "sha3-256" {
+                let digest = hex::decode(&measurement.digest).map_err(|e| {
+                    MockLogError::HexDecode {
+                        hex_str: measurement.digest.clone(),
+                        err: e,
+                    }
+                })?;
+                let digest = Sha3_256Digest::try_from(digest)?;
+                attest_data::Measurement::Sha3_256(digest)
+            } else {
+                return Err(MockLogError::BadAlgorithm(
+                    measurement.algorithm.clone(),
+                ));
+            };
+
+            log.push(measurement);
+        }
+
+        Ok(Self(log))
+    }
+}
+
 #[derive(Debug, SlogInlineError, thiserror::Error)]
 pub enum MockLogError {
     #[error("Unexpected algorithm string from config: {0}")]
@@ -81,28 +107,7 @@ impl MockData for MockLog {
     /// Transform the provided KDL to a platform RoT Log
     fn parse(name: &str, kdl: &str) -> Result<Self, Self::Error> {
         let doc: Document = knus::parse(name, kdl)?;
-
-        let mut log = Log::default();
-        for measurement in &doc.measurements {
-            let measurement = if measurement.algorithm == "sha3-256" {
-                let digest = hex::decode(&measurement.digest).map_err(|e| {
-                    Self::Error::HexDecode {
-                        hex_str: measurement.digest.clone(),
-                        err: e,
-                    }
-                })?;
-                let digest = Sha3_256Digest::try_from(digest)?;
-                attest_data::Measurement::Sha3_256(digest)
-            } else {
-                return Err(Self::Error::BadAlgorithm(
-                    measurement.algorithm.clone(),
-                ));
-            };
-
-            log.push(measurement);
-        }
-
-        Ok(Self(log))
+        Self::from_document(doc)
     }
 
     /// Serialize the Log with hubpack to a vec of bytes
