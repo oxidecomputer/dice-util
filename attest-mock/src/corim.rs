@@ -40,6 +40,31 @@ pub struct Document {
 
 pub struct MockCorim(Corim);
 
+impl MockCorim {
+    pub fn from_document(doc: Document) -> Result<MockCorim, MockCorimError> {
+        let mut corim_builder = CorimBuilder::new();
+        corim_builder.vendor(doc.vendor.clone());
+        corim_builder.tag_id(doc.tag_id.clone());
+        corim_builder.id(doc.id.clone());
+
+        for measurement in &doc.measurements {
+            let digest = hex::decode(&measurement.digest).map_err(|e| {
+                MockCorimError::HexDecode {
+                    hex_str: measurement.digest.clone(),
+                    err: e,
+                }
+            })?;
+            corim_builder.add_hash(
+                measurement.mkey.clone(),
+                measurement.algorithm,
+                digest,
+            )
+        }
+
+        Ok(Self(corim_builder.build()?))
+    }
+}
+
 #[derive(Debug, SlogInlineError, thiserror::Error)]
 pub enum MockCorimError {
     #[error("CorimBuilder failed")]
@@ -86,27 +111,7 @@ impl MockData for MockCorim {
     /// Transform the provided KDL to a CoRIM document
     fn parse(name: &str, kdl: &str) -> Result<Self, Self::Error> {
         let doc: Document = knus::parse(name, kdl)?;
-
-        let mut corim_builder = CorimBuilder::new();
-        corim_builder.vendor(doc.vendor.clone());
-        corim_builder.tag_id(doc.tag_id.clone());
-        corim_builder.id(doc.id.clone());
-
-        for measurement in &doc.measurements {
-            let digest = hex::decode(&measurement.digest).map_err(|e| {
-                Self::Error::HexDecode {
-                    hex_str: measurement.digest.clone(),
-                    err: e,
-                }
-            })?;
-            corim_builder.add_hash(
-                measurement.mkey.clone(),
-                measurement.algorithm,
-                digest,
-            )
-        }
-
-        Ok(Self(corim_builder.build()?))
+        Self::from_document(doc)
     }
 
     /// Serialize the CoRIM document to a vec of bytes
