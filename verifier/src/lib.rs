@@ -67,7 +67,7 @@ pub trait Attest {
     /// Get the measurement log from the attest task. The Log is transmitted
     /// with no integrity protection so its trustworthiness must be established
     /// by an external process (see `verify_attestation`).
-    async fn get_measurement_log(&mut self) -> Result<Log, AttestError>;
+    async fn get_measurement_log(&self) -> Result<Log, AttestError>;
     /// Get the certificate chain from the attest task. This cert chain is a
     /// PKI path (per RFC 6066) starting with the leaf cert for the attestation
     /// signer and terminating at the intermediate before the root. The

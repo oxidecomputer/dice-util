@@ -86,10 +86,15 @@ const TRANSFER_SIZE: usize = 128;
 
 #[async_trait::async_trait]
 impl Attest for AttestHiffy {
-    async fn get_measurement_log(&mut self) -> Result<Log, AttestError> {
+    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
+        // This matches the existing behavior but do we want to make this better?
+        let probe = std::env::var("HUMILITY_PROBE").unwrap();
+
+        let mut core = self.hubris.attach_probe(&probe, 8000, &self.log).unwrap();
+
         let mut context = HiffyContext::new(
             &self.hubris,
-            &mut self.core,
+            &mut core,
             std::time::Duration::from_secs(5),
             &self.log,
         )
@@ -106,7 +111,7 @@ impl Attest for AttestHiffy {
             .map_err(AttestHiffyError::Idol)?;
 
         let log_len = context
-            .call::<u32>(&mut self.core, &log_len_op, &[], None, None)
+            .call::<u32>(&mut core, &log_len_op, &[], None, None)
             .map_err(AttestHiffyError::Hiffy)? as usize;
 
         let mut log = vec![0u8; log_len];
@@ -115,7 +120,7 @@ impl Attest for AttestHiffy {
         for chunk in log.chunks_mut(TRANSFER_SIZE) {
             context
                 .call::<()>(
-                    &mut self.core,
+                    &mut core,
                     &log_op,
                     &[("offset", IdolArgument::Scalar(offset as u64))],
                     None,
