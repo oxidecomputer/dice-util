@@ -39,7 +39,7 @@ pem-rfc7468 = { version = "1.0.0", default-features = false }
 pki-playground = { git = "https://github.com/oxidecomputer/pki-playground", rev = "bcd3bf2dfe36468c494eac17463a4e10be366b35" }
 rats-corim.git = "https://github.com/oxidecomputer/rats-corim"
 ron = "0.8"
-rpassword = "7.4.0"
+rpassword = "7.5.4"
 salty = { version = "0.3", default-features = false }
 serde = { version = "1.0.228", default-features = false }
 serde-big-array = "0.5.1"
