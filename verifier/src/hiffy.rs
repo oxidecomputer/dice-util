@@ -69,7 +69,7 @@ impl AttestHiffy {
 
         let hubris = HubrisArchive::load_from_path(&hubris, log).unwrap();
 
-        let core = hubris.attach_probe(&probe, log).unwrap();
+        let core = hubris.attach_probe(&probe, 8000, log).unwrap();
 
         let log = log.new(slog::o!());
 
