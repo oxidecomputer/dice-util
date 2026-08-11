@@ -3,27 +3,6 @@
 version = 4
 
 [[package]]
-name = "CoreFoundation-sys"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0e9889e6db118d49d88d84728d0e964d973a5680befb5f85f55141beea5c20b"
-dependencies = [
- "libc",
- "mach",
-]
-
-[[package]]
-name = "IOKit-sys"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99696c398cbaf669d2368076bdb3d627fb0ce51a26899d7c61228c5c0af3bf4a"
-dependencies = [
- "CoreFoundation-sys",
- "libc",
- "mach",
-]
-
-[[package]]
 name = "addr2line"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -922,7 +901,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1582,7 +1561,7 @@ dependencies = [
  "pem-rfc7468 1.0.0",
  "rpassword",
  "serde_json",
- "serialport 4.2.1-alpha.0",
+ "serialport 4.7.1-alpha.0",
  "sha3",
  "string-error",
  "tempfile",
@@ -3321,7 +3300,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3625,15 +3604,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mach"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fd13ee2dd61cc82833ba05ade5a30bb3d63f7ced605ef827063c63078302de9"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "mach2"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3843,17 +3813,6 @@ dependencies = [
  "serde",
  "serde_tokenstream",
  "syn 2.0.118",
-]
-
-[[package]]
-name = "nix"
-version = "0.24.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa52e972a9a719cecb6864fb88568781eb706bac2cd1d4f04a648542dbf78069"
-dependencies = [
- "bitflags 1.3.2",
- "cfg-if",
- "libc",
 ]
 
 [[package]]
@@ -4770,7 +4729,7 @@ dependencies = [
  "scroll",
  "serde",
  "serde_yaml",
- "serialport 4.7.1-alpha.0",
+ "serialport 4.7.1-alpha.0 (git+https://github.com/oxidecomputer/serialport-rs?branch=illumos-support-4.7.1)",
  "thiserror 2.0.18",
  "tracing",
  "uf2-decode",
@@ -5468,9 +5427,9 @@ dependencies = [
 
 [[package]]
 name = "rpassword"
-version = "7.5.0"
+version = "7.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3bc4a3dd492cd6974dd3f32d6626ba9f36e5122e3df3b083474b104aebd139b"
+checksum = "2da316a15f47e3d053de9cb2c439650bd8fa4aaeb9365f2e5f27f492ff73c196"
 dependencies = [
  "libc",
  "rtoolbox",
@@ -5550,7 +5509,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5987,17 +5946,18 @@ dependencies = [
 
 [[package]]
 name = "serialport"
-version = "4.2.1-alpha.0"
-source = "git+https://github.com/jgallagher/serialport-rs?branch=illumos-support#36c9f0e0292eac32215ab77c5847bf7afb13f000"
+version = "4.7.1-alpha.0"
 dependencies = [
- "CoreFoundation-sys",
- "IOKit-sys",
- "bitflags 1.3.2",
+ "bitflags 2.10.0",
  "cfg-if",
+ "core-foundation 0.10.1",
+ "core-foundation-sys",
+ "io-kit-sys 0.5.0",
  "libudev",
  "mach2 0.4.2",
- "nix 0.24.3",
- "regex",
+ "nix 0.26.4",
+ "scopeguard",
+ "unescaper",
  "winapi",
 ]
 
@@ -6681,7 +6641,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

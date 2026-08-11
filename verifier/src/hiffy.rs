@@ -2,10 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::sync::{Arc, Mutex};
+
 use attest_data::{Attestation, Log, Nonce, Nonce32};
 use hubpack::SerializedSize;
 use thiserror::Error;
-use x509_cert::{der::Decode, Certificate, PkiPath};
+use x509_cert::{
+    certificate::CertificateInner, der::Decode, Certificate, PkiPath,
+};
 
 use crate::{Attest, AttestError};
 use humility_core::hubris::HubrisArchive;
@@ -55,6 +59,9 @@ pub enum AttestHiffyError {
 /// A type to simplify the execution of the HIF operations exposed by the RoT
 /// Attest task.
 pub struct AttestHiffy {
+    inner: Arc<Mutex<AttestHiffyInner>>,
+}
+pub struct AttestHiffyInner {
     core: ProbeCore,
     hubris: HubrisArchive,
     log: Logger,
@@ -62,6 +69,14 @@ pub struct AttestHiffy {
 }
 
 impl AttestHiffy {
+    pub fn new(target: AttestTask, log: &Logger) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(AttestHiffyInner::new(target, log))),
+        }
+    }
+}
+
+impl AttestHiffyInner {
     pub fn new(target: AttestTask, log: &Logger) -> Self {
         // This matches the existing behavior but do we want to make this better?
         let hubris = std::env::var("HUMILITY_ARCHIVE").unwrap();
@@ -87,27 +102,29 @@ const TRANSFER_SIZE: usize = 128;
 #[async_trait::async_trait]
 impl Attest for AttestHiffy {
     async fn get_measurement_log(&self) -> Result<Log, AttestError> {
+        let mut this = self.inner.lock().unwrap();
         // This matches the existing behavior but do we want to make this better?
         let probe = std::env::var("HUMILITY_PROBE").unwrap();
 
-        let mut core = self.hubris.attach_probe(&probe, 8000, &self.log).unwrap();
+        let mut core =
+            this.hubris.attach_probe(&probe, 8000, &this.log).unwrap();
 
         let mut context = HiffyContext::new(
-            &self.hubris,
+            &this.hubris,
             &mut core,
             std::time::Duration::from_secs(5),
-            &self.log,
+            &this.log,
         )
         .map_err(AttestHiffyError::HiffyContext)?;
 
-        let log_len_op = self
+        let log_len_op = this
             .hubris
-            .get_idol_command(self.target.get_command("log_len").as_str())
+            .get_idol_command(this.target.get_command("log_len").as_str())
             .map_err(AttestHiffyError::Idol)?;
 
-        let log_op = self
+        let log_op = this
             .hubris
-            .get_idol_command(self.target.get_command("log").as_str())
+            .get_idol_command(this.target.get_command("log").as_str())
             .map_err(AttestHiffyError::Idol)?;
 
         let log_len = context
@@ -137,42 +154,44 @@ impl Attest for AttestHiffy {
     }
 
     async fn get_certificates(&mut self) -> Result<PkiPath, AttestError> {
+        let mut this = self.inner.lock().unwrap();
+        let this: &mut AttestHiffyInner = &mut this;
         let mut cert_chain = PkiPath::new();
 
         let mut context = HiffyContext::new(
-            &self.hubris,
-            &mut self.core,
+            &this.hubris,
+            &mut this.core,
             std::time::Duration::from_secs(5),
-            &self.log,
+            &this.log,
         )
         .map_err(AttestHiffyError::HiffyContext)?;
 
-        let cert_chain_len_op = self
+        let cert_chain_len_op = this
             .hubris
             .get_idol_command(
-                self.target.get_command("cert_chain_len").as_str(),
+                this.target.get_command("cert_chain_len").as_str(),
             )
             .map_err(AttestHiffyError::Idol)?;
 
-        let cert_len_op = self
+        let cert_len_op = this
             .hubris
-            .get_idol_command(self.target.get_command("cert_len").as_str())
+            .get_idol_command(this.target.get_command("cert_len").as_str())
             .map_err(AttestHiffyError::Idol)?;
 
-        let cert_op = self
+        let cert_op = this
             .hubris
-            .get_idol_command(self.target.get_command("cert").as_str())
+            .get_idol_command(this.target.get_command("cert").as_str())
             .map_err(AttestHiffyError::Idol)?;
 
         let cert_count = context
-            .call::<u32>(&mut self.core, &cert_chain_len_op, &[], None, None)
+            .call::<u32>(&mut this.core, &cert_chain_len_op, &[], None, None)
             .map_err(AttestHiffyError::Hiffy)?
             as usize;
 
         for cert_index in 0..cert_count {
             let cert_len = context
                 .call::<u32>(
-                    &mut self.core,
+                    &mut this.core,
                     &cert_len_op,
                     &[("index", IdolArgument::Scalar(cert_index as u64))],
                     None,
@@ -184,7 +203,7 @@ impl Attest for AttestHiffy {
             for chunk in cert.chunks_mut(TRANSFER_SIZE) {
                 context
                     .call::<()>(
-                        &mut self.core,
+                        &mut this.core,
                         &cert_op,
                         &[
                             ("index", IdolArgument::Scalar(cert_index as u64)),
@@ -208,31 +227,33 @@ impl Attest for AttestHiffy {
         &mut self,
         nonce: &Nonce,
     ) -> Result<Attestation, AttestError> {
+        let mut this = self.inner.lock().unwrap();
+        let this: &mut AttestHiffyInner = &mut this;
         let nonce: &Nonce32 = nonce.try_into()?;
 
         let mut buf = [0u8; Nonce32::MAX_SIZE];
         hubpack::serialize(&mut buf, &nonce).map_err(AttestError::Serialize)?;
 
         let mut context = HiffyContext::new(
-            &self.hubris,
-            &mut self.core,
+            &this.hubris,
+            &mut this.core,
             std::time::Duration::from_secs(5),
-            &self.log,
+            &this.log,
         )
         .map_err(AttestHiffyError::HiffyContext)?;
 
-        let attest_len_op = self
+        let attest_len_op = this
             .hubris
-            .get_idol_command(self.target.get_command("attest_len").as_str())
+            .get_idol_command(this.target.get_command("attest_len").as_str())
             .map_err(AttestHiffyError::Idol)?;
 
-        let attest_op = self
+        let attest_op = this
             .hubris
-            .get_idol_command(self.target.get_command("attest").as_str())
+            .get_idol_command(this.target.get_command("attest").as_str())
             .map_err(AttestHiffyError::Idol)?;
 
         let attest_len = context
-            .call::<u32>(&mut self.core, &attest_len_op, &[], None, None)
+            .call::<u32>(&mut this.core, &attest_len_op, &[], None, None)
             .map_err(AttestHiffyError::Hiffy)?
             as usize;
 
@@ -240,7 +261,7 @@ impl Attest for AttestHiffy {
 
         context
             .call::<()>(
-                &mut self.core,
+                &mut this.core,
                 &attest_op,
                 &[],
                 Some(&buf),
