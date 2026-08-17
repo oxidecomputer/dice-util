@@ -2459,6 +2459,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "helios-rot"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "camino",
+ "cfg-if",
+ "der",
+ "getrandom 0.4.3",
+ "helios-rot",
+ "p384",
+ "pki-playground",
+ "serde",
+ "serde_with",
+ "thiserror 2.0.18",
+ "x509-cert",
+]
+
+[[package]]
 name = "hermit-abi"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4575,7 +4594,7 @@ dependencies = [
 [[package]]
 name = "pki-playground"
 version = "0.2.0"
-source = "git+https://github.com/oxidecomputer/pki-playground?rev=bcd3bf2dfe36468c494eac17463a4e10be366b35#bcd3bf2dfe36468c494eac17463a4e10be366b35"
+source = "git+https://github.com/oxidecomputer/pki-playground?rev=888763c6f3d87ed3db1ccd6952d80445ea729a2d#888763c6f3d87ed3db1ccd6952d80445ea729a2d"
 dependencies = [
  "camino",
  "clap",
