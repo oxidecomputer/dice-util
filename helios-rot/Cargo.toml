@@ -1,0 +1,28 @@
+[package]
+name = "helios-rot"
+version = "0.1.0"
+edition = "2024"
+description = "a library crate implementing an interface to the Helios RoT"
+license = "MPL-2.0"
+
+[dependencies]
+async-trait.workspace = true
+der.workspace = true
+getrandom.workspace = true
+p384 = { workspace = true, features = ["ecdsa", "ecdsa-core", "pem", "pkcs8", "std"] }
+serde = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true, features = ["macros"] }
+thiserror.workspace = true
+x509-cert = { workspace = true, default-features = true }
+
+[build-dependencies]
+anyhow.workspace = true
+camino = { workspace = true, optional = true }
+cfg-if.workspace = true
+pki-playground = { workspace = true, optional = true }
+
+[features]
+unittest = ["camino", "pki-playground"]
+
+[dev-dependencies]
+helios-rot = { path = ".", features = ["unittest"] }
