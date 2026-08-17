@@ -717,9 +717,9 @@ dependencies = [
 
 [[package]]
 name = "cfg-if"
-version = "1.0.0"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "cfg_aliases"
@@ -922,7 +922,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1640,7 +1640,7 @@ dependencies = [
  "libipcc",
  "log",
  "p384",
- "pki-playground",
+ "pki-playground 0.2.0 (git+https://github.com/oxidecomputer/pki-playground?rev=bcd3bf2dfe36468c494eac17463a4e10be366b35)",
  "rats-corim",
  "sha3",
  "sled-agent-client",
@@ -2467,6 +2467,25 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
+name = "helios-rot"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "camino",
+ "cfg-if",
+ "der",
+ "getrandom 0.4.3",
+ "helios-rot",
+ "p384",
+ "pki-playground 0.2.0 (git+https://github.com/flihp/pki-playground?rev=9334f094435bfa673fc27e1d1e2d01f14e35c750)",
+ "serde",
+ "serde_with",
+ "thiserror 2.0.18",
+ "x509-cert",
+]
 
 [[package]]
 name = "hermit-abi"
@@ -3321,7 +3340,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4585,6 +4604,36 @@ dependencies = [
 [[package]]
 name = "pki-playground"
 version = "0.2.0"
+source = "git+https://github.com/flihp/pki-playground?rev=9334f094435bfa673fc27e1d1e2d01f14e35c750#9334f094435bfa673fc27e1d1e2d01f14e35c750"
+dependencies = [
+ "camino",
+ "clap",
+ "const-oid 0.9.6",
+ "der",
+ "digest 0.10.7",
+ "ed25519-dalek",
+ "flagset",
+ "hex",
+ "ipnet",
+ "knus",
+ "miette",
+ "p384",
+ "pem-rfc7468 0.7.0",
+ "pkcs8",
+ "rand 0.8.6",
+ "rsa",
+ "sha1",
+ "sha2 0.10.9",
+ "sha3",
+ "signature",
+ "spki",
+ "x509-cert",
+ "zeroize",
+]
+
+[[package]]
+name = "pki-playground"
+version = "0.2.0"
 source = "git+https://github.com/oxidecomputer/pki-playground?rev=bcd3bf2dfe36468c494eac17463a4e10be366b35#bcd3bf2dfe36468c494eac17463a4e10be366b35"
 dependencies = [
  "camino",
@@ -5550,7 +5599,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6681,7 +6730,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
