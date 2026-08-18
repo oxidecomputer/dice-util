@@ -1,0 +1,49 @@
+[package]
+name = "platform-rot"
+version = "0.1.0"
+edition = "2024"
+description = "a library crate implementing an interface to the Helios RoT"
+license = "MPL-2.0"
+
+[dependencies]
+anyhow = { workspace = true, optional = true }
+attest-data = { path = "../attest-data", features = ["std"] }
+async-trait.workspace = true
+der.workspace = true
+ed25519-dalek = { workspace = true, optional = true }
+hubpack.workspace = true
+humility-probes-core = { git =  "https://github.com/oxidecomputer/humility", rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true }
+humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true }
+humility-idol = { git =  "https://github.com/oxidecomputer/humility", rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true  }
+humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" , rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true }
+libipcc = { workspace = true, optional = true }
+p384 = { workspace = true, features = ["ecdsa", "ecdsa-core", "pem", "pkcs8", "std"] }
+serde = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true, features = ["macros"] }
+sha3.workspace = true
+sled-agent-client = { workspace = true, optional = true }
+sled-agent-types-versions = { workspace = true, optional = true }
+slog.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = [ "net", "rt", "time", "process" ] }
+x509-cert = { workspace = true, default-features = true }
+
+[build-dependencies]
+anyhow.workspace = true
+attest-mock = { path = "../attest-mock", optional = true }
+camino = { workspace = true, optional = true }
+cfg-if.workspace = true
+pki-playground = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
+[dev-dependencies]
+platform-rot = { path = "../platform-rot", features = ["unittest"] }
+
+[features]
+default = ["hiffy"]
+hiffy = ["anyhow", "humility-core", "humility-idol", "humility-hiffy", "humility-probes-core"]
+ipcc = ["libipcc"]
+mock = ["ed25519-dalek/pem", "ed25519-dalek/std"]
+sled-agent = ["sled-agent-client", "sled-agent-types-versions"]
+unittest = ["attest-mock", "camino", "pki-playground", "tokio/full"]
