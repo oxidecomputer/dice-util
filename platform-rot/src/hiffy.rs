@@ -5,7 +5,7 @@
 use attest_data::{Attestation, Log, Nonce, Nonce32};
 use hubpack::SerializedSize;
 use thiserror::Error;
-use x509_cert::{der::Decode, Certificate, PkiPath};
+use x509_cert::{Certificate, PkiPath, der::Decode};
 
 use crate::{Attest, AttestError};
 use humility_core::hubris::HubrisArchive;

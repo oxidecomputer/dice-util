@@ -328,9 +328,9 @@ dependencies = [
  "clap",
  "clap-verbosity",
  "ctrlc",
- "dice-verifier",
  "env_logger",
  "log",
+ "platform-rot",
  "slog",
  "slog-async",
  "slog-envlogger",
@@ -717,9 +717,9 @@ dependencies = [
 
 [[package]]
 name = "cfg-if"
-version = "1.0.0"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "cfg_aliases"
@@ -922,7 +922,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1628,27 +1628,17 @@ dependencies = [
  "async-trait",
  "attest-data",
  "camino",
+ "cfg-if",
  "const-oid 0.9.6",
+ "dice-verifier",
  "ed25519-dalek",
- "env_logger",
  "hex",
  "hubpack",
- "humility-core",
- "humility-hiffy",
- "humility-idol",
- "humility-probes-core",
- "libipcc",
- "log",
  "p384",
  "pki-playground",
  "rats-corim",
  "sha3",
- "sled-agent-client",
- "sled-agent-types-versions",
- "slog",
- "tempfile",
  "thiserror 2.0.18",
- "tokio",
  "x509-cert",
 ]
 
@@ -3321,7 +3311,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4007,7 +3997,7 @@ version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff32365de1b6743cb203b710788263c44a03de03802daf96092f2da4fe6ba4d7"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
  "syn 2.0.118",
@@ -4617,6 +4607,39 @@ name = "plain"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
+
+[[package]]
+name = "platform-rot"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "attest-data",
+ "attest-mock",
+ "camino",
+ "cfg-if",
+ "der",
+ "ed25519-dalek",
+ "hubpack",
+ "humility-core",
+ "humility-hiffy",
+ "humility-idol",
+ "humility-probes-core",
+ "libipcc",
+ "p384",
+ "pki-playground",
+ "platform-rot",
+ "serde",
+ "serde_with",
+ "sha3",
+ "sled-agent-client",
+ "sled-agent-types-versions",
+ "slog",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "x509-cert",
+]
 
 [[package]]
 name = "polling"
@@ -5550,7 +5573,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6681,7 +6704,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7553,6 +7576,7 @@ dependencies = [
  "log",
  "p384",
  "pem-rfc7468 1.0.0",
+ "platform-rot",
  "rats-corim",
  "serde_json",
  "sha3",

@@ -14,6 +14,7 @@ ed25519-dalek = { workspace = true, features = ["std"] }
 hubpack.workspace = true
 log.workspace = true
 p384 = { workspace = true, default-features = true }
+platform-rot = { path = "../platform-rot", default-features = false }
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
 rats-corim.workspace = true
 sha3.workspace = true
@@ -30,6 +31,6 @@ tokio = { workspace = true, features = ["full"] }
 
 [features]
 default = ["hiffy"]
-hiffy = ["dice-verifier/hiffy"]
-ipcc = ["dice-verifier/ipcc"]
-sled-agent = ["dice-verifier/sled-agent"]
+hiffy = ["platform-rot/hiffy"]
+ipcc = ["platform-rot/ipcc"]
+sled-agent = ["platform-rot/sled-agent"]

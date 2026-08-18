@@ -1,0 +1,29 @@
+key-pair "root" {
+   ed25519
+}
+
+entity "root" {
+    country-name "US"
+    organization-name "Oxide Computer Company"
+    common-name "root"
+}
+
+certificate "root" {
+    issuer-entity "root"
+    issuer-key "root"
+
+    subject-entity "root"
+    subject-key "root"
+
+    digest-algorithm "sha-512"
+    not-after "9999-12-31T23:59:59Z"
+    serial-number "00"
+
+    extensions {
+        basic-constraints critical=true ca=false
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+    }
+}
