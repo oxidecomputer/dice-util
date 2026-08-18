@@ -23,11 +23,13 @@ slog-envlogger.workspace = true
 slog-stdlog.workspace = true
 slog-term.workspace = true
 tempfile.workspace = true
-dice-verifier.path = "../verifier"
+dice-verifier = { path = "../verifier", default-features = false }
 x509-cert = { workspace = true, default-features = true }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
 [features]
+default = ["hiffy"]
+hiffy = ["dice-verifier/hiffy"]
 ipcc = ["dice-verifier/ipcc"]
 sled-agent = ["dice-verifier/sled-agent"]

@@ -4,12 +4,11 @@
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
+#[cfg(feature = "hiffy")]
+use dice_verifier::hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
 use dice_verifier::ipcc::AttestIpcc;
-use dice_verifier::{
-    Attest, Nonce,
-    hiffy::{AttestHiffy, AttestTask},
-};
+use dice_verifier::{Attest, Nonce};
 use std::{
     fmt,
     io::{self, Write},
@@ -95,7 +94,29 @@ async fn main() -> Result<()> {
     let attest: Box<dyn Attest> = match args.interface {
         #[cfg(feature = "ipcc")]
         Interface::Ipcc => Box::new(AttestIpcc::new()),
-        Interface::Hiffy => Box::new(AttestHiffy::new(AttestTask::Rot)),
+        Interface::Hiffy => {
+            #[cfg(feature = "hiffy")]
+            {
+                use slog::Drain;
+
+                let stderr_decorator = slog_term::TermDecorator::new().build();
+                let stderr_drain =
+                    slog_term::FullFormat::new(stderr_decorator).build().fuse();
+                let drain = slog_envlogger::LogBuilder::new(stderr_drain)
+                    .parse("RUST_LOG")
+                    .filter(None, slog::FilterLevel::Warning)
+                    .build()
+                    .fuse();
+                let drain = slog_async::Async::new(drain).build().fuse();
+                let logger = slog::Logger::root(drain, slog::o!());
+
+                Box::new(AttestHiffy::new(AttestTask::Rot, &logger))
+            }
+            #[cfg(not(feature = "hiffy"))]
+            {
+                panic!("hiffy feature not built in; choose another interface")
+            }
+        }
     };
 
     // we do not care about the nonce, all 0's will require the same amount of
