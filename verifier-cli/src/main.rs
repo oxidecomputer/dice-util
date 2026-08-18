@@ -6,15 +6,17 @@ use anyhow::{anyhow, Context, Result};
 use attest_data::{Attestation, Log, Nonce, Nonce32};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
-#[cfg(feature = "hiffy")]
-use dice_verifier::hiffy::{AttestHiffy, AttestTask};
-#[cfg(feature = "ipcc")]
-use dice_verifier::ipcc::AttestIpcc;
-#[cfg(feature = "sled-agent")]
-use dice_verifier::sled_agent::AttestSledAgent;
-use dice_verifier::{Attest, MeasurementSet, ReferenceMeasurements};
+use dice_verifier::{MeasurementSet, ReferenceMeasurements};
 use log::{info, warn};
 use pem_rfc7468::LineEnding;
+#[cfg(feature = "ipcc")]
+use platform_rot::ipcc::AttestIpcc;
+#[cfg(feature = "sled-agent")]
+use platform_rot::sled_agent::AttestSledAgent;
+use platform_rot::{
+    hiffy::{AttestHiffy, AttestTask},
+    Attest,
+};
 use rats_corim::Corim;
 use slog::{Drain, FilterLevel, Logger};
 use std::{

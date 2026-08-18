@@ -9,7 +9,7 @@ use std::net::SocketAddrV6;
 use attest_data::{Attestation, Log, Measurement, Nonce};
 use sled_agent_client::Client as SledAgentClient;
 use sled_agent_types_versions::latest::rot as SledAgentTypes;
-use x509_cert::{der::DecodePem, Certificate, PkiPath};
+use x509_cert::{Certificate, PkiPath, der::DecodePem};
 
 pub struct AttestSledAgent {
     client: SledAgentClient,
