@@ -24,7 +24,7 @@ clap-verbosity = "2.1.0"
 const-oid = { version = "0.9.6", default-features = false }
 corncobs = "0.1"
 ctrlc = "3.5.2"
-der = { version = "0.7.10", default-features = false }
+der = { version = "0.8.1", default-features = false }
 ecdsa = { version = "0.16", default-features = false }
 ed25519-dalek = { version = "2.1", default-features = false }
 env_logger = { version = "0.11.11", default-features = false }
