@@ -36,7 +36,7 @@ libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "7cdf2ab9c8d
 log = { version = "0.4.33", features = ["std"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "1.0.0", default-features = false }
-pki-playground = { git = "https://github.com/oxidecomputer/pki-playground", rev = "bcd3bf2dfe36468c494eac17463a4e10be366b35" }
+pki-playground = { git = "https://github.com/oxidecomputer/pki-playground", rev = "888763c6f3d87ed3db1ccd6952d80445ea729a2d" }
 rats-corim.git = "https://github.com/oxidecomputer/rats-corim"
 ron = "0.8"
 rpassword = "7.5.4"
