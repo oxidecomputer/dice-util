@@ -1,0 +1,10 @@
+// This KDL describes an attest_data::Log instance from
+// https://github.com/oxidecomputer/dice-util. Use the `attest-mock` tool to
+// produce a hubpack encoded attest_data::Log:
+// ```shell
+// $ attest-mock this-file.kdl log
+// ```
+measurement {
+    algorithm "sha3-256"
+    digest "be4df4e085175f3de0c8ac4837e1c2c9a34e8983209dac6b549e94154f7cdd9c"
+}

@@ -3,14 +3,14 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use attest_data::{
-    messages::{HostToRotCommand, RotToHost},
     Attestation, Log, Nonce, Nonce32,
+    messages::{HostToRotCommand, RotToHost},
 };
 pub use libipcc::IpccError;
-use libipcc::{IpccHandle, IPCC_MAX_DATA_SIZE};
+use libipcc::{IPCC_MAX_DATA_SIZE, IpccHandle};
 use x509_cert::{
-    der::{self, Decode, Encode, Reader},
     Certificate, PkiPath,
+    der::{self, Decode, Encode, Reader},
 };
 
 use crate::{Attest, AttestError};

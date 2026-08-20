@@ -10,40 +10,23 @@ attest-data = { path = "../attest-data", features = ["std"] }
 async-trait.workspace = true
 const-oid.workspace = true
 ed25519-dalek = { workspace = true, features = ["std"] }
-env_logger.workspace = true
 hex = { workspace = true }
 hubpack.workspace = true
-libipcc = { workspace = true, optional = true }
-log.workspace = true
 p384 = { workspace = true, default-features = true }
 rats-corim.workspace = true
 sha3.workspace = true
-sled-agent-client = { workspace = true, optional = true }
-sled-agent-types-versions = { workspace = true, optional = true }
-slog.workspace = true
-tokio = { workspace = true, features = [ "net", "rt", "time", "process" ] }
-tempfile.workspace = true
 thiserror.workspace = true
 x509-cert = { workspace = true, default-features = true }
-humility-probes-core = { git =  "https://github.com/oxidecomputer/humility", rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true }
-humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true }
-humility-idol = { git =  "https://github.com/oxidecomputer/humility", rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true  }
-humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" , rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true }
-# This is only for handling some of the errors from humility
-anyhow.workspace = true
 
 [build-dependencies]
 anyhow.workspace = true
-camino.workspace = true
-pki-playground.workspace = true
+camino = { workspace = true, optional = true }
+cfg-if.workspace = true
+pki-playground = { workspace = true, optional = true }
 
 [dev-dependencies]
 attest-data = { path = "../attest-data", features = ["std", "testing"] }
+dice-verifier = { path = "../verifier", features = ["unittest"] }
 
 [features]
-default = ["hiffy"]
-testing = []
-ipcc = ["libipcc"]
-mock = ["ed25519-dalek/pem"]
-sled-agent = ["sled-agent-client", "sled-agent-types-versions"]
-hiffy = ["humility-hiffy", "humility-idol", "humility-core", "humility-probes-core"]
+unittest = ["camino", "pki-playground"]

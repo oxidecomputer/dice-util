@@ -5,10 +5,10 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 #[cfg(feature = "hiffy")]
-use dice_verifier::hiffy::{AttestHiffy, AttestTask};
+use platform_rot::hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
-use dice_verifier::ipcc::AttestIpcc;
-use dice_verifier::{Attest, Nonce};
+use platform_rot::ipcc::AttestIpcc;
+use platform_rot::{Attest, Nonce};
 use std::{
     fmt,
     io::{self, Write},
