@@ -1,0 +1,47 @@
+key-pair "root" {
+    p384
+}
+
+entity "root" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Emeryville"
+    organization-name "test"
+    common-name "test ca root"
+}
+
+certificate "root" {
+    // D5B27FE26AEF3BC6949682E19D24B41DA1276B2E
+    serial-number "75B27FE26AEF3BC6949682E19D24B41DA1276B2E"
+    subject-entity "root"
+    subject-key "root"
+    issuer-entity "root"
+    issuer-key "root"
+    digest-algorithm "sha-384"
+    not-before "2022-08-14T10:00:00Z"
+    not-after "9999-12-31T23:59:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=false
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+        dice-tcb-info-amd critical=true {
+            vendor "FOO"
+            model "Bar"
+            layer 0
+            index 0
+            fwid-list {
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "ABF643ADBA6635FF09D795E7D9962EE732ED8FE956F7742E28CF38CECC0AFFB5C6D092A91D8E6C45AC5309DBCA1235F6"
+                }
+            }
+            flags {
+                a
+            }
+            type "4F585032" // OXP2
+        }
+    }
+}
