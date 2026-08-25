@@ -42,6 +42,7 @@ pki-playground = { git = "https://github.com/oxidecomputer/pki-playground", rev 
 rats-corim.git = "https://github.com/oxidecomputer/rats-corim"
 ron = "0.8"
 rpassword = "7.5.4"
+rsa = "0.9.8"
 salty = { version = "0.3", default-features = false }
 serde = { version = "1.0.228", default-features = false }
 serde-big-array = "0.5.1"

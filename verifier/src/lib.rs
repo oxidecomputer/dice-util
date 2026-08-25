@@ -5,7 +5,10 @@
 use attest_data::{AttestDataError, DiceTcbInfo, DICE_TCB_INFO};
 pub use attest_data::{Attestation, Log, Measurement, Nonce, Nonce32};
 use const_oid::{
-    db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519},
+    db::{
+        rfc5912::{ID_EC_PUBLIC_KEY, RSA_ENCRYPTION},
+        rfc8410::ID_ED_25519,
+    },
     ObjectIdentifier,
 };
 use hubpack::SerializedSize;
@@ -24,6 +27,9 @@ use p384::{P384CertVerifier, P384CertVerifierError};
 mod ed25519;
 use ed25519::{Ed25519CertVerifier, Ed25519CertVerifierError};
 
+mod rsa;
+use rsa::{RsaCertVerifier, RsaCertVerifierError};
+
 /// Errors related to the creation of signature verifiers for certs in a
 /// `PkiPath`.
 #[derive(Debug, Error)]
@@ -32,6 +38,8 @@ pub enum CertSigVerifierFactoryError {
     Ed25519CertVerifierError(#[from] Ed25519CertVerifierError),
     #[error("Failed to create verifier from P384 public key")]
     P384CertVerifierError(#[from] P384CertVerifierError),
+    #[error("Failed to create verifier from RSA certificate")]
+    RsaCertVerifierError(#[from] RsaCertVerifierError),
     #[error("Cannot create verifier for unsupported algorithm")]
     UnsupportedAlgorithm(ObjectIdentifier),
 }
@@ -50,6 +58,7 @@ impl CertSigVerifierFactory {
         match cert.tbs_certificate.subject_public_key_info.algorithm.oid {
             ID_ED_25519 => Ok(Box::new(Ed25519CertVerifier::try_from(cert)?)),
             ID_EC_PUBLIC_KEY => Ok(Box::new(P384CertVerifier::try_from(cert)?)),
+            RSA_ENCRYPTION => Ok(Box::new(RsaCertVerifier::try_from(cert)?)),
             oid => Err(CertSigVerifierFactoryError::UnsupportedAlgorithm(oid)),
         }
     }
@@ -660,5 +669,23 @@ mod tests {
                 }
             },
         }
+    }
+
+    #[test]
+    fn helios_rot_amd_turin() {
+        let mut out = PathBuf::from(env::var("OUT_DIR").unwrap());
+        out.push("amd-root-ca-r4.cert.pem");
+        let root_cert = get_cert_from_file(&out);
+        out.pop();
+        out.push("helios-rot.certlist.pem");
+        let cert_chain = get_cert_chain_from_file(&out);
+
+        let anchor = verify_cert_chain(
+            &cert_chain,
+            Some(std::slice::from_ref(&root_cert)),
+        )
+        .unwrap();
+
+        assert_eq!(anchor, &root_cert);
     }
 }
