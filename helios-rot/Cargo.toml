@@ -17,12 +17,11 @@ x509-cert = { workspace = true, default-features = true }
 
 [build-dependencies]
 anyhow.workspace = true
-camino = { workspace = true, optional = true }
 cfg-if.workspace = true
 pki-playground = { workspace = true, optional = true }
 
 [features]
-unittest = ["camino", "pki-playground"]
+unittest = ["pki-playground"]
 
 [dev-dependencies]
 helios-rot = { path = ".", features = ["unittest"] }

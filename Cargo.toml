@@ -19,7 +19,6 @@ resolver = "2"
 anyhow = { version = "1.0.103", default-features = false }
 async-trait = "0.1.89"
 attest.path = "attest"
-camino = { version = "1.2.4", default-features = false }
 cfg-if.version = "1.0.4"
 chrono = { version = "0.4.45", default-features=false }
 clap = { version = "4.6.1", features = ["derive", "env"] }
@@ -39,7 +38,7 @@ libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "7cdf2ab9c8d
 log = { version = "0.4.33", features = ["std"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "1.0.0", default-features = false }
-pki-playground = { git = "https://github.com/oxidecomputer/pki-playground", rev = "888763c6f3d87ed3db1ccd6952d80445ea729a2d" }
+pki-playground = { git = "https://github.com/oxidecomputer/pki-playground", rev = "98865b0f4716c52adcb6d940fdb8c3ab90ad409a" }
 rats-corim.git = "https://github.com/oxidecomputer/rats-corim"
 ron = "0.8"
 rpassword = "7.5.4"
