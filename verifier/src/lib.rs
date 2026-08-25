@@ -4,7 +4,10 @@
 
 use attest_data::{AttestDataError, DiceTcbInfo, NonceError, DICE_TCB_INFO};
 pub use attest_data::{Attestation, Log, Measurement, Nonce, Nonce32};
-use const_oid::db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519};
+use const_oid::{
+    db::{rfc5912::ID_EC_PUBLIC_KEY, rfc8410::ID_ED_25519},
+    ObjectIdentifier,
+};
 use hubpack::SerializedSize;
 #[cfg(feature = "ipcc")]
 use libipcc::IpccError;
@@ -94,7 +97,7 @@ pub enum CertSigVerifierFactoryError {
     #[error("Failed to create verifier from P384 public key")]
     P384CertVerifierError(#[from] P384CertVerifierError),
     #[error("Cannot create verifier for unsupported algorithm")]
-    UnsupportedAlgorithm,
+    UnsupportedAlgorithm(ObjectIdentifier),
 }
 
 /// Unit-like struct with a single non-member associated function. This
@@ -111,7 +114,7 @@ impl CertSigVerifierFactory {
         match cert.tbs_certificate.subject_public_key_info.algorithm.oid {
             ID_ED_25519 => Ok(Box::new(Ed25519CertVerifier::try_from(cert)?)),
             ID_EC_PUBLIC_KEY => Ok(Box::new(P384CertVerifier::try_from(cert)?)),
-            _ => Err(CertSigVerifierFactoryError::UnsupportedAlgorithm),
+            oid => Err(CertSigVerifierFactoryError::UnsupportedAlgorithm(oid)),
         }
     }
 }
