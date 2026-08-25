@@ -248,3 +248,448 @@ certificate "root-b" {
         }
     }
 }
+
+key-pair "amd-root-ca-r4" {
+    rsa num-bits=4096
+}
+
+entity "amd-root-ca-r4" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organization-name "Advanced Micro Devices, Inc"
+    organizational-unit-name "IT"
+    common-name "AMD Root CA R4"
+}
+
+certificate "amd-root-ca-r4" {
+    serial-number "626d16cb0839273a96a22225cf23827c4219f67a"
+    subject-entity "amd-root-ca-r4"
+    subject-key "amd-root-ca-r4"
+    issuer-entity "amd-root-ca-r4"
+    issuer-key "amd-root-ca-r4"
+    digest-algorithm "sha-384"
+
+    not-before "2021-12-01T21:14:03Z"
+    not-after "2031-12-01T21:14:03Z"
+    extensions {
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+        basic-constraints critical=true ca=true
+        key-usage critical=true {
+            key-cert-sign
+            crl-sign
+        }
+    }
+}
+
+key-pair "amd-identity-ca-r4" {
+    rsa num-bits=4096
+}
+
+entity "amd-identity-ca-r4" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organization-name "Advanced Micro Devices, Inc"
+    organizational-unit-name "IT"
+    common-name "AMD Identity CA R4"
+}
+
+certificate "amd-identity-ca-r4" {
+    serial-number "15"
+    subject-entity "amd-identity-ca-r4"
+    subject-key "amd-identity-ca-r4"
+    issuer-entity "amd-root-ca-r4"
+    issuer-key "amd-root-ca-r4"
+    digest-algorithm "sha-384"
+    not-before "2021-12-01T21:39:59Z"
+    not-after "2031-11-30T21:39:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=true
+        key-usage critical=true {
+            key-cert-sign
+            crl-sign
+        }
+    }
+}
+
+key-pair "amd-idevid-ca-e3" {
+    p384
+}
+
+entity "amd-idevid-ca-e3" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organization-name "Advanced Micro Devices, Inc"
+    common-name "AMD IDevID CA E3"
+}
+
+certificate "amd-idevid-ca-e3" {
+    serial-number "09"
+    subject-entity "amd-idevid-ca-e3"
+    subject-key "amd-idevid-ca-e3"
+    issuer-entity "amd-identity-ca-r4"
+    issuer-key "amd-identity-ca-r4"
+    digest-algorithm "sha-384"
+    not-before "2022-03-07T14:47:59Z"
+    not-after "2032-03-07T14:47:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=true
+        key-usage critical=true {
+            key-cert-sign
+            crl-sign
+        }
+        subject-key-identifier critical=false
+    }
+}
+
+key-pair "idevid-20b87885cc8c321f" {
+    p384
+}
+
+entity "idevid-20b87885cc8c321f" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organizational-unit-name "Advanced Micro Devices, Inc"
+    common-name "IDEVID_20B87885CC8C321F"
+}
+
+certificate "idevid-20b87885cc8c321f" {
+    serial-number "0420b87885cc8c321f"
+    subject-entity "idevid-20b87885cc8c321f"
+    subject-key "idevid-20b87885cc8c321f"
+    issuer-certificate "amd-idevid-ca-e3"
+    issuer-key "amd-idevid-ca-e3"
+    digest-algorithm "sha-384"
+    not-before "2023-01-01T00:00:00Z"
+    not-after "9999-12-31T23:59:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=true
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+    }
+}
+
+key-pair "ldevid-l0-20b87885cc8c321f" {
+    p384
+}
+
+entity "ldevid-l0-20b87885cc8c321f" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organizational-unit-name "Advanced Micro Devices, Inc"
+    common-name "LDEVID_L0_20B87885CC8C321F"
+}
+
+certificate "ldevid-l0-20b87885cc8c321f" {
+    // the cert we're mocking has the sn:
+    // "cb64f469eedcf8f5918157903438dfcbfadfada3" but this is invalid per 5280
+    serial-number "7b64f469eedcf8f5918157903438dfcbfadfada3"
+    subject-entity "ldevid-l0-20b87885cc8c321f"
+    subject-key "ldevid-l0-20b87885cc8c321f"
+    issuer-certificate "idevid-20b87885cc8c321f"
+    issuer-key "idevid-20b87885cc8c321f"
+    digest-algorithm "sha-384"
+    not-before "2020-08-14T10:00:00Z"
+    not-after "9999-12-31T23:59:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=true
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+        dice-tcb-info-amd critical=true {
+            vendor "AMD"
+            model "Turin"
+            layer 0
+            index 0
+            fwid-list {
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "8E9D0CAA2C815E1FBFF3CFD7F19387A3EE0E6B6361D65856F4D99396C622A340544FEDC85A169BE67EC7506B2F3BDBF3"
+                }
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "64A6C1C7E6CD177F8B89F41230EF0F67775D61146F4CA90F9156AA923A2EB3F95730EF51C270564A8EA137EB032C52AA"
+                }
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "7B533EC5DDF5BBCFBE407C7F32E2A5E3FCFF708C53FE034023C8409FF15695109BA8E69BA62BC6C93459952735DFEA5B"
+                }
+            }
+            flags {
+                a
+            }
+            type "908E4D17DAF270597033D366CEEC97621A8A06EE4878183DB4154D68711253121EBCF86573C90C7778B378E727023645"
+        }
+    }
+}
+
+key-pair "l1-alias-20b87885cc8c321f" {
+    p384
+}
+
+entity "l1-alias-20b87885cc8c321f" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organizational-unit-name "Advanced Micro Devices, Inc"
+    common-name "L1_ALIAS_20B87885CC8C321F"
+}
+
+certificate "l1-alias-20b87885cc8c321f" {
+    // D62009D435C37169D43F324A8D253A5212373678
+    serial-number "762009D435C37169D43F324A8D253A5212373678"
+    subject-entity "l1-alias-20b87885cc8c321f"
+    subject-key "l1-alias-20b87885cc8c321f"
+    issuer-certificate "ldevid-l0-20b87885cc8c321f"
+    issuer-key "ldevid-l0-20b87885cc8c321f"
+    digest-algorithm "sha-384"
+    not-before "2022-08-14T10:00:00Z"
+    not-after "9999-12-31T23:59:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=true
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+        dice-tcb-info-amd critical=true {
+            vendor "AMD"
+            model "Turin"
+            layer 0
+            index 0
+            fwid-list {
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "F36B658A77366FAB5E9AFEE0671B649A79FFF84326E8B4A0CB9ED15F4502D557FC9039A74588CB97DC1EFDFF2EB064F4"
+                }
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "0B650657CB96B7A4F66B6CC2E4CDDA92C623E404AA1840700318B03CA6CE190B9F60169784873DE3530A63F876CBBFF3"
+                }
+            }
+            flags {
+                a
+            }
+            type "C197DE509F24BE616EA33F7DBFD33659757DBDE15787B01122B99B685743A9EE"
+        }
+    }
+}
+
+key-pair "tee-alias-20b87885cc8c321f" {
+    p384
+}
+
+entity "tee-alias-20b87885cc8c321f" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organizational-unit-name "Advanced Micro Devices, Inc"
+    common-name "TEE_ALIAS_20B87885CC8C321F"
+}
+
+certificate "tee-alias-20b87885cc8c321f" {
+    serial-number "257528CCE5B19D97FABD02DE8FC94BAA15446906"
+    subject-entity "tee-alias-20b87885cc8c321f"
+    subject-key "tee-alias-20b87885cc8c321f"
+    issuer-certificate "l1-alias-20b87885cc8c321f"
+    issuer-key "l1-alias-20b87885cc8c321f"
+    digest-algorithm "sha-384"
+    not-before "2022-08-14T10:00:00Z"
+    not-after "9999-12-31T23:59:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=true
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+        dice-tcb-info-amd critical=true {
+            vendor "AMD"
+            model "Turin"
+            layer 0
+            index 0
+            fwid-list {
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "1074764F57156C105A315A3D29DC0D7C18A1AA225C64888152A9274D14C3B98D1D5181D672E7F57CA43E940DB51EC7D2"
+                }
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "2649364A4F585E96052576BAEED49FADEDDC4A1373899FFFDFD08789910592F8B93F5A5325D5FCE836E80AEE37590A0B"
+                }
+            }
+            flags {
+                a
+            }
+            type "79117672F9FC20D6BD36E385AC43607C68E9FCF0E6EAD2E982DD020E063C4BF8"
+        }
+    }
+}
+
+key-pair "drv-dpe-alias-20b87885cc8c321f" {
+    p384
+}
+
+entity "drv-dpe-alias-20b87885cc8c321f" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organizational-unit-name "Advanced Micro Devices, Inc"
+    common-name "DRV_DPE_ALIAS_20B87885CC8C321F"
+}
+
+certificate "drv-dpe-alias-20b87885cc8c321f" {
+    serial-number "6744D23B0EB6623269DFE27647EBB043C2645E66"
+    subject-entity "drv-dpe-alias-20b87885cc8c321f"
+    subject-key "drv-dpe-alias-20b87885cc8c321f"
+    issuer-certificate "tee-alias-20b87885cc8c321f"
+    issuer-key "tee-alias-20b87885cc8c321f"
+    digest-algorithm "sha-384"
+    not-before "2022-08-14T10:00:00Z"
+    not-after "9999-12-31T23:59:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=true
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+        dice-tcb-info-amd critical=true {
+            vendor "AMD"
+            model "Turin"
+            layer 0
+            index 0
+            fwid-list {
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "DADD37ABD2C07496F021E7C328BA25B24E3A01ED016947D7E5FA552B4B493ECF5925F56E68F0F362CE3EB13F7174D702"
+                }
+            }
+            flags {
+                a
+            }
+            type "358D3A603DDC6487FA5AFBB082680703"
+        }
+    }
+}
+
+key-pair "dpe-alias-20b87885cc8c321f" {
+    p384
+}
+
+entity "dpe-alias-20b87885cc8c321f" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organizational-unit-name "Advanced Micro Devices, Inc"
+    common-name "DPE_ALIAS_20B87885CC8C321F"
+}
+
+certificate "dpe-alias-20b87885cc8c321f" {
+    // CDD857F15B128137413D6AA055206025DDAB02FF
+    serial-number "7DD857F15B128137413D6AA055206025DDAB02FF"
+    subject-entity "dpe-alias-20b87885cc8c321f"
+    subject-key "dpe-alias-20b87885cc8c321f"
+    issuer-certificate "drv-dpe-alias-20b87885cc8c321f"
+    issuer-key "drv-dpe-alias-20b87885cc8c321f"
+    digest-algorithm "sha-384"
+    not-before "2022-08-14T10:00:00Z"
+    not-after "9999-12-31T23:59:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=true
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+        dice-tcb-info-amd critical=true {
+            vendor "AMD"
+            model "Turin"
+            layer 0
+            index 0
+            fwid-list {
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "2BC703A0D10FC45D31ED776A6D36A5EAC428329A4A69FD44FF99C5337F37A559668E5CDB0DEDB7C05C12D6E639161063"
+                }
+            }
+            flags {
+                a
+            }
+            type "C7C70000207F31C04829F9F3AA48C7C4"
+        }
+    }
+}
+
+key-pair "dpe-tcb-0-20b87885cc8c321f" {
+    p384
+}
+
+entity "dpe-tcb-0-20b87885cc8c321f" {
+    country-name "US"
+    state-or-province-name "California"
+    locality-name "Santa Clara"
+    organizational-unit-name "Advanced Micro Devices, Inc"
+    common-name "DPE_TCB_0_20B87885CC8C321F"
+}
+
+certificate "dpe-tcb-0-20b87885cc8c321f" {
+    // D5B27FE26AEF3BC6949682E19D24B41DA1276B2E
+    serial-number "75B27FE26AEF3BC6949682E19D24B41DA1276B2E"
+    subject-entity "dpe-tcb-0-20b87885cc8c321f"
+    subject-key "dpe-tcb-0-20b87885cc8c321f"
+    issuer-certificate "dpe-alias-20b87885cc8c321f"
+    issuer-key "dpe-alias-20b87885cc8c321f"
+    digest-algorithm "sha-384"
+    not-before "2022-08-14T10:00:00Z"
+    not-after "9999-12-31T23:59:59Z"
+
+    extensions {
+        basic-constraints critical=true ca=false
+        subject-key-identifier critical=false
+        authority-key-identifier critical=false {
+            key-id
+        }
+        dice-tcb-info-amd critical=true {
+            vendor "AMD"
+            model "Turin"
+            layer 0
+            index 0
+            fwid-list {
+                fwid {
+                    digest-algorithm "sha-384"
+                    digest "ABF643ADBA6635FF09D795E7D9962EE732ED8FE956F7742E28CF38CECC0AFFB5C6D092A91D8E6C45AC5309DBCA1235F6"
+                }
+            }
+            flags {
+                a
+            }
+            type "4F585032" // OXP2
+        }
+    }
+}
+
+certificate-list "helios-rot" \
+    "dpe-tcb-0-20b87885cc8c321f" \
+    "dpe-alias-20b87885cc8c321f" \
+    "drv-dpe-alias-20b87885cc8c321f" \
+    "tee-alias-20b87885cc8c321f" \
+    "l1-alias-20b87885cc8c321f" \
+    "ldevid-l0-20b87885cc8c321f" \
+    "idevid-20b87885cc8c321f" \
+    "amd-idevid-ca-e3" \
+    "amd-identity-ca-r4"
