@@ -1627,7 +1627,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "attest-data",
- "camino",
  "cfg-if",
  "const-oid 0.9.6",
  "dice-verifier",
@@ -2464,7 +2463,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "camino",
  "cfg-if",
  "der",
  "getrandom 0.4.3",
@@ -4594,7 +4592,7 @@ dependencies = [
 [[package]]
 name = "pki-playground"
 version = "0.2.0"
-source = "git+https://github.com/oxidecomputer/pki-playground?rev=888763c6f3d87ed3db1ccd6952d80445ea729a2d#888763c6f3d87ed3db1ccd6952d80445ea729a2d"
+source = "git+https://github.com/oxidecomputer/pki-playground?rev=98865b0f4716c52adcb6d940fdb8c3ab90ad409a#98865b0f4716c52adcb6d940fdb8c3ab90ad409a"
 dependencies = [
  "camino",
  "clap",
@@ -4635,7 +4633,6 @@ dependencies = [
  "async-trait",
  "attest-data",
  "attest-mock",
- "camino",
  "cfg-if",
  "der",
  "ed25519-dalek",

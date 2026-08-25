@@ -32,7 +32,6 @@ x509-cert = { workspace = true, default-features = true }
 [build-dependencies]
 anyhow.workspace = true
 attest-mock = { path = "../attest-mock", optional = true }
-camino = { workspace = true, optional = true }
 cfg-if.workspace = true
 pki-playground = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
@@ -46,4 +45,4 @@ hiffy = ["anyhow", "humility-core", "humility-idol", "humility-hiffy", "humility
 ipcc = ["libipcc"]
 mock = ["ed25519-dalek/pem", "ed25519-dalek/std"]
 sled-agent = ["sled-agent-client", "sled-agent-types-versions"]
-unittest = ["attest-mock", "camino", "pki-playground", "tokio/full"]
+unittest = ["attest-mock", "pki-playground", "tokio/full"]
