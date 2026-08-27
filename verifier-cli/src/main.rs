@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use attest_data::{Attestation, Log, Nonce, Nonce32};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
-use dice_verifier::{MeasurementSet, ReferenceMeasurements};
+use dice_verifier::platform_rot::{MeasurementSet, ReferenceMeasurements};
 use log::{info, warn};
 use pem_rfc7468::LineEnding;
 #[cfg(feature = "hiffy")]
@@ -496,7 +496,7 @@ fn verify_measurements(
     let measurements = MeasurementSet::from_artifacts(&cert_chain, &log)
         .context("MeasurementSet from PkiPath")?;
 
-    dice_verifier::verify_measurements(&measurements, &corpus)
+    dice_verifier::platform_rot::verify_measurements(&measurements, &corpus)
         .context("Verify measurements")
 }
 
@@ -649,8 +649,13 @@ fn verify_attestation(
     let alias =
         Certificate::from_pem(&alias).context("Parse alias cert from PEM")?;
 
-    dice_verifier::verify_attestation(&alias, &attestation, &log, &nonce)
-        .context("Verify attestation")
+    dice_verifier::platform_rot::verify_attestation(
+        &alias,
+        &attestation,
+        &log,
+        &nonce,
+    )
+    .context("Verify attestation")
 }
 
 fn verify_cert_chain(
