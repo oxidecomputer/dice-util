@@ -55,7 +55,7 @@ impl<const N: usize> TryFrom<&[u8]> for Array<N> {
 
 pub type P384Signature = Array<SIGNATURE_SIZE>;
 
-/// An attestation from the Illumos Rot
+/// An attestation from the Helios Rot
 pub enum Attestation {
     P384(P384Signature),
 }
@@ -107,8 +107,8 @@ impl AsRef<[u8]> for Nonce {
     }
 }
 
-/// The `IllumosRot` trait is the interface to the roT in the Illumos kernel.
-pub trait IllumosRot {
+/// The `HeliosRot` trait is the interface to the roT in the Helios kernel.
+pub trait HeliosRot {
     type Error;
 
     fn get_certificates(&self) -> Result<PkiPath, Self::Error>;
@@ -116,7 +116,7 @@ pub trait IllumosRot {
 }
 
 #[derive(Debug, Error)]
-pub enum IllumosRotMockError {
+pub enum HeliosRotMockError {
     #[error("Failed to load certificate chain")]
     DerError(#[from] der::Error),
     #[error("Failed to load certificate chain from {}", path.display())]
@@ -138,18 +138,18 @@ pub enum IllumosRotMockError {
 }
 
 #[derive(Debug)]
-pub struct IllumosRotMock {
+pub struct HeliosRotMock {
     certs: PkiPath,
     alias_key: SigningKey,
 }
 
-impl IllumosRotMock {
+impl HeliosRotMock {
     pub fn load<P: AsRef<Path>, A: AsRef<Path>>(
         certs: P,
         alias: A,
-    ) -> Result<Self, IllumosRotMockError> {
+    ) -> Result<Self, HeliosRotMockError> {
         let certs = fs::read_to_string(&certs).map_err(|error| {
-            IllumosRotMockError::FileRead {
+            HeliosRotMockError::FileRead {
                 path: certs.as_ref().to_path_buf(),
                 error,
             }
@@ -157,7 +157,7 @@ impl IllumosRotMock {
         let certs = Certificate::load_pem_chain(certs.as_bytes())?;
 
         let alias_key = fs::read_to_string(&alias).map_err(|error| {
-            IllumosRotMockError::FileRead {
+            HeliosRotMockError::FileRead {
                 path: alias.as_ref().to_path_buf(),
                 error,
             }
@@ -165,7 +165,7 @@ impl IllumosRotMock {
 
         let alias_key =
             SigningKey::from_pkcs8_pem(&alias_key).map_err(|error| {
-                IllumosRotMockError::SigningKeyDecode {
+                HeliosRotMockError::SigningKeyDecode {
                     path: alias.as_ref().to_path_buf(),
                     error,
                 }
@@ -175,8 +175,8 @@ impl IllumosRotMock {
     }
 }
 
-impl IllumosRot for IllumosRotMock {
-    type Error = IllumosRotMockError;
+impl HeliosRot for HeliosRotMock {
+    type Error = HeliosRotMockError;
 
     fn get_certificates(&self) -> Result<PkiPath, Self::Error> {
         Ok(self.certs.clone())
@@ -196,13 +196,13 @@ mod test {
 
     #[test]
     fn bad_path_to_key() {
-        let res = IllumosRotMock::load("root.cert.pem", "foo");
+        let res = HeliosRotMock::load("root.cert.pem", "foo");
         assert!(res.is_err());
     }
 
     #[test]
     fn bad_path_to_certs() {
-        let res = IllumosRotMock::load("foo", "root.key.pem");
+        let res = HeliosRotMock::load("foo", "root.key.pem");
         assert!(res.is_err());
     }
 
@@ -212,7 +212,7 @@ mod test {
         let cert_chain = out.join("root.cert.pem");
         let key = out.join("root.key.pem");
 
-        let res = IllumosRotMock::load(&cert_chain, &key);
+        let res = HeliosRotMock::load(&cert_chain, &key);
         assert!(res.is_ok());
     }
 
@@ -221,9 +221,8 @@ mod test {
         let out = PathBuf::from(env::var("OUT_DIR").unwrap());
         let signing_key = out.join("root.key.pem");
 
-        let mock =
-            IllumosRotMock::load(out.join("root.cert.pem"), &signing_key)
-                .expect("load cert chain & key");
+        let mock = HeliosRotMock::load(out.join("root.cert.pem"), &signing_key)
+            .expect("load cert chain & key");
 
         let nonce = Nonce::from_platform_rng(48).expect("get Nonce from RNG");
         let attestation = mock.attest(&nonce).expect("attest to nonce");
