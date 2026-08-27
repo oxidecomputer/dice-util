@@ -10,6 +10,7 @@ attest-data = { path = "../attest-data", features = ["std"] }
 async-trait.workspace = true
 const-oid.workspace = true
 ed25519-dalek = { workspace = true, features = ["std"] }
+helios-rot.path = "../helios-rot"
 hex = { workspace = true }
 hubpack.workspace = true
 p384 = { workspace = true, default-features = true }
