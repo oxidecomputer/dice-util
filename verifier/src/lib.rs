@@ -20,6 +20,7 @@ use p384::{P384CertVerifier, P384CertVerifierError};
 mod ed25519;
 use ed25519::{Ed25519CertVerifier, Ed25519CertVerifierError};
 
+pub mod helios_rot;
 pub mod platform_rot;
 
 mod rsa;

@@ -1642,6 +1642,7 @@ dependencies = [
  "const-oid 0.9.6",
  "dice-verifier",
  "ed25519-dalek",
+ "helios-rot",
  "hex",
  "hubpack",
  "p384",
