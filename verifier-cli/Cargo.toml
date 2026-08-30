@@ -8,6 +8,7 @@ license = "MPL-2.0"
 [dependencies]
 anyhow = { workspace = true, features = ["std"] }
 attest-data = { path = "../attest-data", features = ["std"] }
+cfg-if.workspace = true
 clap.workspace = true
 dice-mfg-msgs = { path = "../dice-mfg-msgs", features = ["std"] }
 ed25519-dalek = { workspace = true, features = ["std"] }

@@ -7585,6 +7585,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "attest-data",
+ "cfg-if",
  "clap",
  "dice-mfg-msgs",
  "dice-verifier",
