@@ -9,14 +9,13 @@ use dice_mfg_msgs::PlatformId;
 use dice_verifier::{MeasurementSet, ReferenceMeasurements};
 use log::{info, warn};
 use pem_rfc7468::LineEnding;
+#[cfg(feature = "hiffy")]
+use platform_rot::hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
 use platform_rot::ipcc::AttestIpcc;
 #[cfg(feature = "sled-agent")]
 use platform_rot::sled_agent::AttestSledAgent;
-use platform_rot::{
-    hiffy::{AttestHiffy, AttestTask},
-    Attest,
-};
+use platform_rot::Attest;
 use rats_corim::Corim;
 use slog::{Drain, FilterLevel, Logger};
 use std::{
@@ -29,6 +28,26 @@ use x509_cert::{
     der::{DecodePem, EncodePem},
     Certificate, PkiPath,
 };
+
+#[cfg(not(any(feature = "hiffy", feature = "ipcc", feature = "sled-agent",)))]
+compile_error!("At least one feature must be enabled to build this crate.");
+
+// Define default interface selected by clap based on enabled features
+cfg_if::cfg_if! {
+    if #[cfg(feature = "hiffy")] {
+        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::Rot;
+    } else if #[cfg(feature = "ipcc")] {
+        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::Ipcc;
+    } else if #[cfg(feature = "sled-agent")] {
+        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::SledAgent;
+    } else if #[cfg(not(any(
+            feature = "hiffy",
+            feature = "ipcc",
+            feature = "sled-agent",
+        )))] {
+        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::Not;
+    }
+}
 
 fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
     slog::info!(log, "attesting via {interface:?}");
@@ -45,6 +64,12 @@ fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
         Interface::Sprot => {
             Ok(Box::new(AttestHiffy::new(AttestTask::Sprot, log)))
         }
+        #[cfg(not(any(
+            feature = "hiffy",
+            feature = "ipcc",
+            feature = "sled-agent",
+        )))]
+        Interface::Not => panic!("no interface enabled"),
     }
 }
 
@@ -52,8 +77,9 @@ fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Interface used for communication with the Attest task.
-    #[clap(value_enum, long, env, default_value_t = InterfaceArg::Rot)]
+    /// Interface used for communication with the Attest task. Defaults
+    /// selectedbased on the features enabled
+    #[clap(value_enum, long, env, default_value_t = INTERFACE_DEFAULT)]
     interface: InterfaceArg,
 
     #[cfg(feature = "sled-agent")]
@@ -177,6 +203,14 @@ enum AttestCommand {
 pub enum Interface {
     #[cfg(feature = "ipcc")]
     Ipcc,
+    // this is a "dummy" interface required to quiet the compiler when no
+    // features are enabled
+    #[cfg(not(any(
+        feature = "hiffy",
+        feature = "ipcc",
+        feature = "sled-agent",
+    )))]
+    Not,
     #[cfg(feature = "hiffy")]
     Rot,
     #[cfg(feature = "sled-agent")]
@@ -190,9 +224,19 @@ pub enum Interface {
 pub enum InterfaceArg {
     #[cfg(feature = "ipcc")]
     Ipcc,
+    // this is a "dummy" interface required to quiet the compiler when no
+    // features are enabled
+    #[cfg(not(any(
+        feature = "hiffy",
+        feature = "ipcc",
+        feature = "sled-agent",
+    )))]
+    Not,
+    #[cfg(feature = "hiffy")]
     Rot,
     #[cfg(feature = "sled-agent")]
     SledAgent,
+    #[cfg(feature = "hiffy")]
     Sprot,
 }
 
@@ -237,34 +281,20 @@ async fn main() -> Result<()> {
     let interface = match args.interface {
         #[cfg(feature = "ipcc")]
         InterfaceArg::Ipcc => Interface::Ipcc,
+        #[cfg(not(any(
+            feature = "hiffy",
+            feature = "ipcc",
+            feature = "sled-agent",
+        )))]
+        InterfaceArg::Not => Interface::Not,
         #[cfg(feature = "sled-agent")]
         InterfaceArg::SledAgent => {
             Interface::SledAgent(args.sled_addr.unwrap())
         }
-        InterfaceArg::Rot => {
-            #[cfg(feature = "hiffy")]
-            {
-                Interface::Rot
-            }
-            #[cfg(not(feature = "hiffy"))]
-            {
-                panic!(
-                    "hiffy support not built in; choose a different interface"
-                )
-            }
-        }
-        InterfaceArg::Sprot => {
-            #[cfg(feature = "hiffy")]
-            {
-                Interface::Sprot
-            }
-            #[cfg(not(feature = "hiffy"))]
-            {
-                panic!(
-                    "hiffy support not built in; choose a different interface"
-                )
-            }
-        }
+        #[cfg(feature = "hiffy")]
+        InterfaceArg::Rot => Interface::Rot,
+        #[cfg(feature = "hiffy")]
+        InterfaceArg::Sprot => Interface::Sprot,
     };
     let attest = get_attest(interface, &logger)?;
 
