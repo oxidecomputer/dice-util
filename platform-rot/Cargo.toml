@@ -12,10 +12,10 @@ async-trait.workspace = true
 der.workspace = true
 ed25519-dalek = { workspace = true, optional = true }
 hubpack.workspace = true
-humility-probes-core = { git =  "https://github.com/oxidecomputer/humility", rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true }
-humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true }
-humility-idol = { git =  "https://github.com/oxidecomputer/humility", rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true  }
-humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" , rev = "80dae8d2af4d9ba34e583f17913780fe449aa9f0", optional = true }
+humility-core = { workspace = true, optional = true }
+humility-hiffy = { workspace = true, optional = true }
+humility-idol = { workspace = true, optional = true }
+humility-probes-core = { workspace = true, optional = true }
 libipcc = { workspace = true, optional = true }
 p384 = { workspace = true, features = ["ecdsa", "ecdsa-core", "pem", "pkcs8", "std"] }
 serde = { workspace = true, features = ["derive"] }
