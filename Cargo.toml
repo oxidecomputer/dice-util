@@ -44,7 +44,7 @@ p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "1.0.0", default-features = false }
 pki-playground = { git = "https://github.com/oxidecomputer/pki-playground", rev = "98865b0f4716c52adcb6d940fdb8c3ab90ad409a" }
 rats-corim.git = "https://github.com/oxidecomputer/rats-corim"
-ron = "0.8"
+ron = "0.12"
 rpassword = "7.5.4"
 rsa = "0.9.8"
 salty = { version = "0.3", default-features = false }
