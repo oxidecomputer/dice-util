@@ -7622,7 +7622,7 @@ dependencies = [
  "env_logger",
  "hex",
  "log",
- "ron 0.8.1",
+ "ron 0.12.2",
  "serde",
  "serde_json",
  "sha2 0.11.0",
