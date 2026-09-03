@@ -133,6 +133,14 @@ pub struct HeliosOsRot {
     handle: OsRotHandle,
 }
 
+impl HeliosOsRot {
+    pub fn new() -> Result<Self, HeliosOsRotError> {
+        Ok(Self {
+            handle: os_rot::OsRotHandle::new()?,
+        })
+    }
+}
+
 impl HeliosRot for HeliosOsRot {
     type Error = HeliosOsRotError;
 
