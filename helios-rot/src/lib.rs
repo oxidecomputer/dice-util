@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use os_rot::OsRotHandle;
 use p384::{
     ecdsa::{
         self, Signature, SigningKey,
@@ -113,6 +114,47 @@ pub trait HeliosRot {
 
     fn get_certificates(&self) -> Result<PkiPath, Self::Error>;
     fn attest(&self, nonce: &Nonce) -> Result<Attestation, Self::Error>;
+}
+
+#[derive(Debug, Error)]
+pub enum HeliosOsRotError {
+    #[error("OS RoT error")]
+    OsRotError(#[from] os_rot::Error),
+
+    #[error("Failed to load certificate chain")]
+    DerError(#[from] der::Error),
+
+    #[error("Signature isn't 96 bytes")]
+    SignatureSize(#[from] ArrayError),
+}
+
+#[derive(Debug)]
+pub struct HeliosOsRot {
+    handle: OsRotHandle,
+}
+
+impl HeliosOsRot {
+    pub fn new() -> Result<Self, HeliosOsRotError> {
+        Ok(Self {
+            handle: os_rot::OsRotHandle::new()?,
+        })
+    }
+}
+
+impl HeliosRot for HeliosOsRot {
+    type Error = HeliosOsRotError;
+
+    fn get_certificates(&self) -> Result<PkiPath, Self::Error> {
+        let raw = self.handle.get_certs()?;
+        Ok(Certificate::load_pem_chain(&raw)?)
+    }
+
+    fn attest(&self, nonce: &Nonce) -> Result<Attestation, Self::Error> {
+        let Nonce::N48(nonce) = nonce;
+        let raw = self.handle.attest(&nonce.0)?;
+        let sig = P384Signature::from(raw.as_slice().try_into()?);
+        Ok(Attestation::P384(sig))
+    }
 }
 
 #[derive(Debug, Error)]

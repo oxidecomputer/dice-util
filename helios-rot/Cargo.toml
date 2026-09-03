@@ -9,6 +9,7 @@ license = "MPL-2.0"
 async-trait.workspace = true
 der.workspace = true
 getrandom.workspace = true
+os-rot.workspace = true
 p384 = { workspace = true, features = ["ecdsa", "ecdsa-core", "pem", "pkcs8", "std"] }
 serde = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["macros"] }
