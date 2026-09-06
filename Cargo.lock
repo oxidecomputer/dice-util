@@ -1605,8 +1605,10 @@ dependencies = [
  "anyhow",
  "async-trait",
  "attest-data",
+ "attest-mock",
  "cfg-if",
  "const-oid 0.9.6",
+ "der",
  "dice-verifier",
  "ed25519-dalek",
  "helios-rot",
@@ -1616,6 +1618,9 @@ dependencies = [
  "pki-playground",
  "rats-corim",
  "rsa",
+ "serde",
+ "serde_with",
+ "sha2 0.10.9",
  "sha3",
  "thiserror 2.0.18",
  "tokio",
@@ -4851,7 +4856,7 @@ dependencies = [
 [[package]]
 name = "rats-corim"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/rats-corim#bb4a08dd507514f98c54f5fc67eadf14a0705f4e"
+source = "git+https://github.com/oxidecomputer/rats-corim?rev=1493d7f58e189125641d81f03f2dfb5941567c82#1493d7f58e189125641d81f03f2dfb5941567c82"
 dependencies = [
  "ciborium",
  "ciborium-io",
@@ -7627,7 +7632,7 @@ dependencies = [
  "ron 0.8.1",
  "serde",
  "serde_json",
- "sha2 0.11.0",
+ "sha2 0.10.9",
  "yubihsm",
 ]
 
