@@ -1,0 +1,21 @@
+// This KDL describes a rats_corim::Corim instance from
+// https://github.com/oxidecomputer/dice-util. Use the `attest-mock` tool to
+// produce a CBOR encoding of it.
+// ```shell
+// $ attest-mock this-file.kdl corim
+// ```
+vendor "test"
+tag-id "helios-tag-id"
+id "helios-id"
+
+measurement {
+    mkey "hbs"
+    algorithm 7
+    digest "2BC703A0D10FC45D31ED776A6D36A5EAC428329A4A69FD44FF99C5337F37A559668E5CDB0DEDB7C05C12D6E639161063"
+}
+
+measurement {
+    mkey "phase2"
+    algorithm 7
+    digest "ABF643ADBA6635FF09D795E7D9962EE732ED8FE956F7742E28CF38CECC0AFFB5C6D092A91D8E6C45AC5309DBCA1235F6"
+}
