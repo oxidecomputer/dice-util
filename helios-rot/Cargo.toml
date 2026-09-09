@@ -25,3 +25,4 @@ unittest = ["pki-playground"]
 
 [dev-dependencies]
 helios-rot = { path = ".", features = ["unittest"] }
+tokio = { workspace = true, features = ["macros", "rt"] }

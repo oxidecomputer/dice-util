@@ -73,8 +73,8 @@ mod test {
 
     // Use the `helios_rot::HeliosRotMock` to generate an attestation
     // then verify it with `verify_attestation`
-    #[test]
-    fn verify_attestation() {
+    #[tokio::test]
+    async fn verify_attestation() {
         let out = PathBuf::from(env::var("OUT_DIR").unwrap());
 
         let cert_chain = out.join("helios-rot.certlist.pem");
@@ -88,6 +88,7 @@ mod test {
 
         let attestation = rot_mock
             .attest(&nonce)
+            .await
             .expect("Attestation from HeliosRotMock");
 
         let alias_cert = out.join("dpe-tcb-0-20b87885cc8c321f.cert.pem");
@@ -99,8 +100,8 @@ mod test {
         assert!(res.is_ok());
     }
 
-    #[test]
-    fn verify_attestation_bad_nonce() {
+    #[tokio::test]
+    async fn verify_attestation_bad_nonce() {
         use crate::helios_rot::VerifyAttestationError;
 
         let out = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -116,6 +117,7 @@ mod test {
 
         let attestation = rot_mock
             .attest(&nonce)
+            .await
             .expect("Attestation from HeliosRotMock");
 
         let alias_cert = out.join("dpe-tcb-0-20b87885cc8c321f.cert.pem");

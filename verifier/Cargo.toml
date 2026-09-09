@@ -28,6 +28,7 @@ pki-playground = { workspace = true, optional = true }
 [dev-dependencies]
 attest-data = { path = "../attest-data", features = ["std", "testing"] }
 dice-verifier = { path = "../verifier", features = ["unittest"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 unittest = ["pki-playground"]
