@@ -12,6 +12,7 @@ cfg-if.workspace = true
 clap.workspace = true
 dice-mfg-msgs = { path = "../dice-mfg-msgs", features = ["std"] }
 ed25519-dalek = { workspace = true, features = ["std"] }
+helios-rot.workspace = true
 hubpack.workspace = true
 log.workspace = true
 p384 = { workspace = true, default-features = true }

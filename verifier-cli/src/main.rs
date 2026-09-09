@@ -7,6 +7,7 @@ use attest_data::{Attestation, Log, Nonce, Nonce32};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
 use dice_verifier::platform_rot::{MeasurementSet, ReferenceMeasurements};
+use helios_rot::HeliosRot;
 use log::{info, warn};
 use pem_rfc7468::LineEnding;
 #[cfg(feature = "hiffy")]
@@ -35,33 +36,38 @@ compile_error!("At least one feature must be enabled to build this crate.");
 // Define default interface selected by clap based on enabled features
 cfg_if::cfg_if! {
     if #[cfg(feature = "hiffy")] {
-        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::Rot;
+        const INTERFACE_DEFAULT: PlatformRotInterfaceArg = PlatformRotInterfaceArg::Rot;
     } else if #[cfg(feature = "ipcc")] {
-        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::Ipcc;
+        const INTERFACE_DEFAULT: PlatformRotInterfaceArg = PlatformRotInterfaceArg::Ipcc;
     } else if #[cfg(feature = "sled-agent")] {
-        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::SledAgent;
+        const INTERFACE_DEFAULT: PlatformRotInterfaceArg = PlatformRotInterfaceArg::SledAgent;
     } else if #[cfg(not(any(
             feature = "hiffy",
             feature = "ipcc",
             feature = "sled-agent",
         )))] {
-        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::Not;
+        const INTERFACE_DEFAULT: PlatformRotInterfaceArg = PlatformRotInterfaceArg::Not;
     }
 }
 
-fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
+fn get_prot_attest(
+    interface: PlatformRotInterface,
+    log: &Logger,
+) -> Result<Box<dyn Attest>> {
     slog::info!(log, "attesting via {interface:?}");
     match interface {
         #[cfg(feature = "ipcc")]
-        Interface::Ipcc => Ok(Box::new(AttestIpcc::new())),
+        PlatformRotInterface::Ipcc => Ok(Box::new(AttestIpcc::new())),
         #[cfg(feature = "hiffy")]
-        Interface::Rot => Ok(Box::new(AttestHiffy::new(AttestTask::Rot, log))),
+        PlatformRotInterface::Rot => {
+            Ok(Box::new(AttestHiffy::new(AttestTask::Rot, log)))
+        }
         #[cfg(feature = "sled-agent")]
-        Interface::SledAgent(addr) => {
+        PlatformRotInterface::SledAgent(addr) => {
             Ok(Box::new(AttestSledAgent::new(addr, log)))
         }
         #[cfg(feature = "hiffy")]
-        Interface::Sprot => {
+        PlatformRotInterface::Sprot => {
             Ok(Box::new(AttestHiffy::new(AttestTask::Sprot, log)))
         }
         #[cfg(not(any(
@@ -69,7 +75,7 @@ fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
             feature = "ipcc",
             feature = "sled-agent",
         )))]
-        Interface::Not => panic!("no interface enabled"),
+        PlatformRotInterface::Not => panic!("no interface enabled"),
     }
 }
 
@@ -77,27 +83,118 @@ fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Interface used for communication with the Attest task. Defaults
-    /// selectedbased on the features enabled
-    #[clap(value_enum, long, env, default_value_t = INTERFACE_DEFAULT)]
-    interface: InterfaceArg,
-
-    #[cfg(feature = "sled-agent")]
-    #[clap(short, long, env, required_if_eq("interface", "sled-agent"))]
-    sled_addr: Option<std::net::SocketAddrV6>,
-
-    /// Attest task command to execute.
+    /// the type of RoT we're communicating with
     #[command(subcommand)]
-    command: AttestCommand,
+    rot: Rot,
 
     /// verbosity
     #[clap(long, env)]
     verbose: bool,
 }
 
+/// An enum of the supported RoT types
+#[derive(Debug, Subcommand)]
+enum Rot {
+    /// send commands to the HeliosRot
+    Helios {
+        #[command(subcommand)]
+        interface: HeliosRotInterface,
+    },
+    /// send commands to the PlatformRot
+    Platform {
+        #[clap(value_enum, long, env, default_value_t = INTERFACE_DEFAULT)]
+        interface: PlatformRotInterfaceArg,
+
+        #[cfg(feature = "sled-agent")]
+        #[clap(short, long, env, required_if_eq("interface", "sled-agent"))]
+        sled_addr: Option<std::net::SocketAddrV6>,
+
+        #[command(subcommand)]
+        /// commands supported by the PlatformRot
+        command: PlatformRotCommand,
+    },
+}
+
+// this will be dead code till we use the helios mock
+#[allow(dead_code)]
+#[derive(Clone, Debug, Subcommand)]
+enum HeliosRotInterface {
+    Ioctl {
+        #[command(subcommand)]
+        command: HeliosRotCommand,
+    },
+    Mock {
+        #[clap(short, long, env)]
+        cert_chain: PathBuf,
+
+        #[clap(short, long, env)]
+        signing_key: PathBuf,
+
+        #[command(subcommand)]
+        command: HeliosRotCommand,
+    },
+}
+
+#[derive(Clone, Debug, Subcommand)]
+enum HeliosRotCommand {
+    /// Provide your own nonce, get back an attestation
+    Attest { nonce: PathBuf },
+    /// Get the full cert chain from the RoT
+    CertChain,
+    /// Get an attestation from the RoT, verify the cert chain, the attestation
+    /// and appraise the measurements
+    Verify {
+        /// Path to file holding trust anchor for the associated PKI.
+        #[clap(long, env = "VERIFIER_CLI_CA_CERT")]
+        ca_cert: PathBuf,
+
+        /// Caller provided directory where artifacts are stored. If this
+        /// option is provided it will be used by this tool to store
+        /// artifacts retrieved from the RoT as part of the attestation
+        /// process. If omitted a temp directory will be used instead.
+        #[clap(long, env = "VERIFIER_CLI_WORK_DIR")]
+        work_dir: Option<PathBuf>,
+
+        /// Path to file holding the reference measurement corpus
+        #[clap(long, env = "VERIFIER_CLI_CORPUS")]
+        corpus: PathBuf,
+    },
+    VerifyAttestation {
+        /// Path to file holding the signers cert
+        #[clap(long, env)]
+        alias_cert: PathBuf,
+
+        /// Path to file holding the attestation
+        #[clap(env)]
+        attestation: PathBuf,
+
+        /// Path to file holding the nonce
+        #[clap(long, env)]
+        nonce: PathBuf,
+    },
+    VerifyCertChain {
+        /// Path to file holding trust anchor for the associated PKI.
+        #[clap(long, env = "VERIFIER_CLI_CA_CERT")]
+        ca_cert: PathBuf,
+
+        /// Path to file holding trust anchor for the associated PKI.
+        #[clap(env = "VERIFIER_CLI_CERT_CHAIN")]
+        cert_chain: PathBuf,
+    },
+    AppraiseMeasurements {
+        /// Path to file holding the certificate chain / PkiPath.
+        #[clap(env)]
+        cert_chain: PathBuf,
+
+        /// Path to file holding the reference measurement corpus
+        #[clap(env)]
+        corpus: PathBuf,
+    },
+}
+
 /// An enum of the HIF operations supported by the `Attest` interface.
 #[derive(Debug, Subcommand)]
-enum AttestCommand {
+enum PlatformRotCommand {
     /// Get an attestation, this is a signature over the serialized measurement log and the
     /// provided nonce: `sha3_256(log | nonce)`.
     Attest {
@@ -200,7 +297,7 @@ enum AttestCommand {
 }
 
 #[derive(Clone, Debug)]
-pub enum Interface {
+pub enum PlatformRotInterface {
     #[cfg(feature = "ipcc")]
     Ipcc,
     // this is a "dummy" interface required to quiet the compiler when no
@@ -221,7 +318,7 @@ pub enum Interface {
 
 /// An enum of the possible routes to the `Attest` task.
 #[derive(Clone, Debug, ValueEnum)]
-pub enum InterfaceArg {
+pub enum PlatformRotInterfaceArg {
     #[cfg(feature = "ipcc")]
     Ipcc,
     // this is a "dummy" interface required to quiet the compiler when no
@@ -256,50 +353,273 @@ impl fmt::Display for Encoding {
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<()> {
-    let args = Args::parse();
+async fn helios_rot_command<R: HeliosRot>(
+    rot: &R,
+    command: HeliosRotCommand,
+    logger: &Logger,
+) -> Result<()>
+where
+    <R as HeliosRot>::Error: 'static,
+{
+    use dice_verifier::helios_rot::{MeasurementList, ReferenceMeasurementMap};
+    use helios_rot::{Attestation, Nonce, Nonce48};
 
-    let stderr_decorator = slog_term::TermDecorator::new().build();
-    let stderr_drain =
-        slog_term::FullFormat::new(stderr_decorator).build().fuse();
-    let drain = slog_envlogger::LogBuilder::new(stderr_drain)
-        .parse("RUST_LOG")
-        .filter(
-            None,
-            if args.verbose {
-                FilterLevel::Debug
-            } else {
-                FilterLevel::Warning
-            },
-        )
-        .build()
-        .fuse();
-    let drain = slog_async::Async::new(drain).build().fuse();
-    let logger = Logger::root(drain, slog::o!());
+    slog::info!(logger, "executing command: {command:?}");
 
-    let interface = match args.interface {
-        #[cfg(feature = "ipcc")]
-        InterfaceArg::Ipcc => Interface::Ipcc,
-        #[cfg(not(any(
-            feature = "hiffy",
-            feature = "ipcc",
-            feature = "sled-agent",
-        )))]
-        InterfaceArg::Not => Interface::Not,
-        #[cfg(feature = "sled-agent")]
-        InterfaceArg::SledAgent => {
-            Interface::SledAgent(args.sled_addr.unwrap())
+    match command {
+        HeliosRotCommand::Attest { nonce } => {
+            slog::info!(
+                logger,
+                "getting attestation HeliosRot w/ nonce from: {}",
+                nonce.display()
+            );
+
+            let nonce = fs::read(&nonce).with_context(|| {
+                format!("Nonce bytes from file: {}", nonce.display())
+            })?;
+            let nonce = Nonce::try_from(&nonce[..]).with_context(|| {
+                format!("HeliosRot Nonce from file {:?}", nonce)
+            })?;
+
+            let attestation = rot
+                .attest(&nonce)
+                .await
+                .context("Getting attestation with provided Nonce")?;
+            let mut attestation = serde_json::to_string(&attestation)
+                .context("HeliosRot attestation to JSON")?;
+            attestation.push('\n');
+
+            io::stdout()
+                .write_all(attestation.as_bytes())
+                .context("Write Attestation as JSON to stdout")?;
+            io::stdout().flush().context("Flush stdout")?;
         }
-        #[cfg(feature = "hiffy")]
-        InterfaceArg::Rot => Interface::Rot,
-        #[cfg(feature = "hiffy")]
-        InterfaceArg::Sprot => Interface::Sprot,
-    };
-    let attest = get_attest(interface, &logger)?;
+        HeliosRotCommand::CertChain => {
+            slog::info!(logger, "getting certificate chain from HeliosRot");
 
-    match args.command {
-        AttestCommand::Attest { nonce } => {
+            for cert in rot.get_certificates().await? {
+                let cert = cert
+                    .to_pem(LineEnding::default())
+                    .context("Encode certificate as PEM")?;
+
+                io::stdout()
+                    .write_all(cert.as_bytes())
+                    .context("Write cert chain to stdout")?;
+            }
+
+            io::stdout().flush().context("Flush stdout")?;
+        }
+        HeliosRotCommand::Verify {
+            ca_cert,
+            work_dir,
+            corpus,
+        } => {
+            slog::info!(
+                logger,
+                "collecting and verifying attestation from HeliosRot: \
+                ca_cert: {}, corpus: {}",
+                ca_cert.display(),
+                corpus.display()
+            );
+
+            let ca_cert = fs::read(&ca_cert).with_context(|| {
+                format!("Read CA cert from file: {}", ca_cert.display())
+            })?;
+            let ca_cert = Certificate::from_pem(&ca_cert)
+                .context("Parse alias cert from PEM")?;
+
+            // get nonce
+            let nonce = Nonce::from_platform_rng(Nonce48::LENGTH)
+                .context("Nonce from platform RNG")?;
+
+            if let Some(ref work_dir) = work_dir {
+                let out = work_dir.join("nonce.bin");
+                fs::write(&out, nonce).context(format!(
+                    "Write nonce to file: {}",
+                    out.display()
+                ))?;
+            }
+
+            let attestation = rot
+                .attest(&nonce)
+                .await
+                .context("get attestation with nonce")?;
+            if let Some(ref work_dir) = work_dir {
+                // serialize attestation to json & write to file
+                let mut attestation = serde_json::to_string(&attestation)
+                    .context("Serialize attestation to JSON")?;
+                attestation.push('\n');
+
+                let out = work_dir.join("attest.json");
+                fs::write(&out, &attestation).context(format!(
+                    "Write attestation to file: {}",
+                    out.display()
+                ))?;
+            }
+
+            let cert_chain = rot
+                .get_certificates()
+                .await
+                .context("Get certificate chain from HeliosRot")?;
+            if let Some(work_dir) = work_dir {
+                let out = work_dir.join("cert-chain.pem");
+                certs_to_path(&cert_chain, &out).with_context(|| {
+                    format!("Write cert chain to: {}", out.display())
+                })?;
+            }
+
+            dice_verifier::verify_cert_chain(
+                &cert_chain,
+                Some(std::slice::from_ref(&ca_cert)),
+            )
+            .context("Verify HeliosRot cert chain")?;
+
+            dice_verifier::helios_rot::verify_attestation(
+                &cert_chain[0],
+                &attestation,
+                &nonce,
+            )
+            .context("Verify HeliosRot attestation")?;
+
+            let corpus = Corim::from_file(&corpus).context(format!(
+                "Corim from file path: {}",
+                corpus.display()
+            ))?;
+            let corpus = ReferenceMeasurementMap::try_from(
+                std::slice::from_ref(&corpus),
+            )
+            .context("ReferenceMeasurements from CoRIM")?;
+
+            let measurements = MeasurementList::from_artifacts(&cert_chain)
+                .context("MeasurementSet from PkiPath")?;
+
+            dice_verifier::helios_rot::verify_measurements(
+                &measurements,
+                &corpus,
+            )
+            .context("Appraise HealiosRot measurements")?
+        }
+        HeliosRotCommand::VerifyAttestation {
+            alias_cert,
+            attestation,
+            nonce,
+        } => {
+            slog::info!(
+                logger,
+                "verifying attestation from HeliosRot artifacts: \
+                alias_cert: {}, attestation: {}, nonce: {}",
+                alias_cert.display(),
+                attestation.display(),
+                nonce.display()
+            );
+
+            let attestation =
+                fs::read_to_string(&attestation).context(format!(
+                    "Read Attestation from file: {}",
+                    attestation.display()
+                ))?;
+            let attestation: Attestation =
+                serde_json::from_str(&attestation)
+                    .context("Deserialize Attestation from JSON")?;
+
+            let nonce = fs::read(&nonce).context(format!(
+                "Read Nonce from file: {}",
+                nonce.display()
+            ))?;
+            let nonce = Nonce::try_from(nonce.as_slice())
+                .context("Deserialize Nonce from binary")?;
+
+            let alias = fs::read(&alias_cert).context(format!(
+                "Read alias cert from file: {}",
+                alias_cert.display()
+            ))?;
+            let alias = Certificate::from_pem(&alias)
+                .context("Parse alias cert from PEM")?;
+
+            dice_verifier::helios_rot::verify_attestation(
+                &alias,
+                &attestation,
+                &nonce,
+            )
+            .context("Verify HeliosRotAttestation")?;
+        }
+        HeliosRotCommand::VerifyCertChain {
+            ca_cert,
+            cert_chain,
+        } => {
+            slog::info!(
+                logger,
+                "appraising cert chain from HeliosRot: cert_chain: {}",
+                cert_chain.display(),
+            );
+
+            let ca_cert = fs::read(&ca_cert).context(format!(
+                "Read cert chain from file: {}",
+                ca_cert.display()
+            ))?;
+            let ca_cert =
+                Certificate::from_pem(&ca_cert).context("CA cert from PEM")?;
+
+            let cert_chain = fs::read(&cert_chain).context(format!(
+                "Read cert chain from file: {}",
+                cert_chain.display()
+            ))?;
+            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+                .context("loading PkiPath from PEM cert chain")?;
+
+            dice_verifier::verify_cert_chain(
+                &cert_chain,
+                Some(std::slice::from_ref(&ca_cert)),
+            )
+            .context("Verify cert chain")?;
+        }
+        HeliosRotCommand::AppraiseMeasurements { cert_chain, corpus } => {
+            slog::info!(
+                logger,
+                "appraising measurements from HeliosRot: cert_chain: {}, \
+                corpus: {}",
+                cert_chain.display(),
+                corpus.display()
+            );
+
+            let cert_chain = fs::read(&cert_chain).context(format!(
+                "Read cert chain from file: {}",
+                cert_chain.display()
+            ))?;
+            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+                .context("loading PkiPath from PEM cert chain")?;
+
+            let corpus = Corim::from_file(&corpus).context(format!(
+                "Corim from file path: {}",
+                corpus.display()
+            ))?;
+            let corpus = ReferenceMeasurementMap::try_from(
+                std::slice::from_ref(&corpus),
+            )
+            .context("ReferenceMeasurements from CoRIM")?;
+
+            let measurements = MeasurementList::from_artifacts(&cert_chain)
+                .context("MeasurementSet from PkiPath")?;
+
+            dice_verifier::helios_rot::verify_measurements(
+                &measurements,
+                &corpus,
+            )?
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_platform_rot(
+    interface: PlatformRotInterface,
+    command: PlatformRotCommand,
+    logger: &Logger,
+) -> Result<()> {
+    let attest = get_prot_attest(interface, logger)?;
+
+    match command {
+        PlatformRotCommand::Attest { nonce } => {
             let nonce = fs::read(&nonce)
                 .context(format!("Nonce bytes from: {}", nonce.display()))?;
             let nonce =
@@ -319,7 +639,7 @@ async fn main() -> Result<()> {
                 .context("Write Attestation as JSON to stdout")?;
             io::stdout().flush().context("Flush stdout")?;
         }
-        AttestCommand::CertChain => {
+        PlatformRotCommand::CertChain => {
             let cert_chain = attest
                 .get_certificates()
                 .await
@@ -336,7 +656,7 @@ async fn main() -> Result<()> {
             }
             io::stdout().flush().context("Flush stdout")?;
         }
-        AttestCommand::Log => {
+        PlatformRotCommand::Log => {
             let log = attest
                 .get_measurement_log()
                 .await
@@ -350,7 +670,7 @@ async fn main() -> Result<()> {
                 .context("Write measurement log to stdout")?;
             io::stdout().flush().context("Flush stdout")?;
         }
-        AttestCommand::PlatformId { cert_chain } => {
+        PlatformRotCommand::PlatformId { cert_chain } => {
             let cert_chain = fs::read(&cert_chain).context(format!(
                 "Read attestation certificate chain bytes from file: {}",
                 cert_chain.display()
@@ -364,7 +684,7 @@ async fn main() -> Result<()> {
 
             println!("{platform_id}");
         }
-        AttestCommand::Verify {
+        PlatformRotCommand::Verify {
             ca_cert,
             corpus,
             self_signed,
@@ -402,7 +722,7 @@ async fn main() -> Result<()> {
 
             println!("{platform_id}");
         }
-        AttestCommand::VerifyAttestation {
+        PlatformRotCommand::VerifyAttestation {
             alias_cert,
             attestation,
             log,
@@ -410,21 +730,21 @@ async fn main() -> Result<()> {
         } => {
             verify_attestation(&alias_cert, &attestation, &log, &nonce)?;
         }
-        AttestCommand::VerifyCertChain {
+        PlatformRotCommand::VerifyCertChain {
             cert_chain,
             ca_cert,
             self_signed,
         } => {
             verify_cert_chain(ca_cert.as_deref(), &cert_chain, self_signed)?;
         }
-        AttestCommand::VerifyMeasurements {
+        PlatformRotCommand::VerifyMeasurements {
             cert_chain,
             log,
             corpus,
         } => {
             verify_measurements(&cert_chain, &log, &corpus)?;
         }
-        AttestCommand::MeasurementSet => {
+        PlatformRotCommand::MeasurementSet => {
             let set = measurement_set(attest.as_ref()).await?;
             for item in set.into_iter() {
                 println!("* {item}");
@@ -432,6 +752,82 @@ async fn main() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
+    let args = Args::parse();
+
+    let stderr_decorator = slog_term::TermDecorator::new().build();
+    let stderr_drain =
+        slog_term::FullFormat::new(stderr_decorator).build().fuse();
+    let drain = slog_envlogger::LogBuilder::new(stderr_drain)
+        .parse("RUST_LOG")
+        .filter(
+            None,
+            if args.verbose {
+                FilterLevel::Debug
+            } else {
+                FilterLevel::Warning
+            },
+        )
+        .build()
+        .fuse();
+    let drain = slog_async::Async::new(drain).build().fuse();
+    let logger = Logger::root(drain, slog::o!());
+
+    slog::info!(logger, "instantiating RoT: {:?}", args.rot);
+    match args.rot {
+        Rot::Helios { interface } => {
+            slog::info!(logger, "instantiating HeliosRot: {interface:?}");
+
+            match interface {
+                HeliosRotInterface::Ioctl { command } => {
+                    use helios_rot::HeliosOsRot;
+
+                    let rot = HeliosOsRot::new()?;
+                    helios_rot_command(&rot, command, &logger).await?;
+                }
+                HeliosRotInterface::Mock {
+                    cert_chain,
+                    signing_key,
+                    command,
+                } => {
+                    use helios_rot::HeliosRotMock;
+
+                    let mock = HeliosRotMock::load(cert_chain, signing_key)?;
+                    helios_rot_command(&mock, command, &logger).await?;
+                }
+            }
+        }
+        Rot::Platform {
+            interface,
+            #[cfg(feature = "sled-agent")]
+            sled_addr,
+            command,
+        } => {
+            let interface = match interface {
+                #[cfg(feature = "ipcc")]
+                PlatformRotInterfaceArg::Ipcc => PlatformRotInterface::Ipcc,
+                #[cfg(not(any(
+                    feature = "hiffy",
+                    feature = "ipcc",
+                    feature = "sled-agent",
+                )))]
+                PlatformRotInterfaceArg::Not => PlatformRotInterface::Not,
+                #[cfg(feature = "sled-agent")]
+                PlatformRotInterfaceArg::SledAgent => {
+                    PlatformRotInterface::SledAgent(sled_addr.unwrap())
+                }
+                #[cfg(feature = "hiffy")]
+                PlatformRotInterfaceArg::Rot => PlatformRotInterface::Rot,
+                #[cfg(feature = "hiffy")]
+                PlatformRotInterfaceArg::Sprot => PlatformRotInterface::Sprot,
+            };
+            handle_platform_rot(interface, command, &logger).await?;
+        }
+    };
     Ok(())
 }
 
@@ -686,6 +1082,24 @@ fn verify_cert_chain(
 
     let _ = dice_verifier::verify_cert_chain(&cert_chain, roots.as_deref())
         .context("Verify cert chain")?;
+
+    Ok(())
+}
+
+fn certs_to_path(certs: &PkiPath, out: &Path) -> Result<()> {
+    let mut cert_chain = File::create(out)
+        .context(format!("Create file for cert chain: {}", out.display()))?;
+
+    for (index, cert) in certs.iter().enumerate() {
+        info!("writing cert[{}] to: {}", index, out.display());
+        let pem = cert
+            .to_pem(LineEnding::default())
+            .context(format!("Encode cert {index} as PEM"))?;
+        cert_chain.write_all(pem.as_bytes()).context(format!(
+            "Write cert {index} to file: {}",
+            out.display()
+        ))?;
+    }
 
     Ok(())
 }
