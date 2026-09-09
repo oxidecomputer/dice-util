@@ -108,11 +108,12 @@ impl AsRef<[u8]> for Nonce {
 }
 
 /// The `HeliosRot` trait is the interface to the roT in the Helios kernel.
+#[async_trait::async_trait]
 pub trait HeliosRot {
-    type Error;
+    type Error: std::error::Error + Send + Sync;
 
-    fn get_certificates(&self) -> Result<PkiPath, Self::Error>;
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation, Self::Error>;
+    async fn get_certificates(&self) -> Result<PkiPath, Self::Error>;
+    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, Self::Error>;
 }
 
 #[derive(Debug, Error)]
@@ -175,14 +176,15 @@ impl HeliosRotMock {
     }
 }
 
+#[async_trait::async_trait]
 impl HeliosRot for HeliosRotMock {
     type Error = HeliosRotMockError;
 
-    fn get_certificates(&self) -> Result<PkiPath, Self::Error> {
+    async fn get_certificates(&self) -> Result<PkiPath, Self::Error> {
         Ok(self.certs.clone())
     }
 
-    fn attest(&self, nonce: &Nonce) -> Result<Attestation, Self::Error> {
+    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, Self::Error> {
         let sig: Signature = self.alias_key.try_sign(nonce.as_ref())?;
         let sig = P384Signature::from(sig.to_bytes().as_slice().try_into()?);
         Ok(Attestation::P384(sig))
@@ -216,8 +218,8 @@ mod test {
         assert!(res.is_ok());
     }
 
-    #[test]
-    fn attest() {
+    #[tokio::test]
+    async fn attest() {
         let out = PathBuf::from(env::var("OUT_DIR").unwrap());
         let signing_key = out.join("root.key.pem");
 
@@ -225,7 +227,7 @@ mod test {
             .expect("load cert chain & key");
 
         let nonce = Nonce::from_platform_rng(48).expect("get Nonce from RNG");
-        let attestation = mock.attest(&nonce).expect("attest to nonce");
+        let attestation = mock.attest(&nonce).await.expect("attest to nonce");
         let signing_key = fs::read_to_string(&signing_key)
             .expect("Read signing key from file to string");
         let signing_key = SigningKey::from_pkcs8_pem(&signing_key)
