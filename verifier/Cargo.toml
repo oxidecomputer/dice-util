@@ -9,6 +9,7 @@ license = "MPL-2.0"
 attest-data = { path = "../attest-data", features = ["std"] }
 async-trait.workspace = true
 const-oid.workspace = true
+der.workspace = true
 ed25519-dalek = { workspace = true, features = ["std"] }
 helios-rot.path = "../helios-rot"
 hex = { workspace = true }
@@ -16,12 +17,16 @@ hubpack.workspace = true
 p384 = { workspace = true, default-features = true }
 rats-corim.workspace = true
 rsa = { workspace = true, features = ["sha2"] }
+serde = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true, features = ["macros"] }
+sha2.workspace = true
 sha3.workspace = true
 thiserror.workspace = true
 x509-cert = { workspace = true, default-features = true }
 
 [build-dependencies]
 anyhow.workspace = true
+attest-mock = { path = "../attest-mock", optional = true }
 cfg-if.workspace = true
 pki-playground = { workspace = true, optional = true }
 
@@ -31,4 +36,4 @@ dice-verifier = { path = "../verifier", features = ["unittest"] }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
-unittest = ["pki-playground"]
+unittest = ["attest-mock", "pki-playground"]

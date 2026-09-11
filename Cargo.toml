@@ -30,6 +30,7 @@ der = { version = "0.7.10", default-features = false }
 ecdsa = { version = "0.16", default-features = false }
 ed25519-dalek = { version = "2.1", default-features = false }
 env_logger = { version = "0.11.11", default-features = false }
+flagset = "0.4.7"
 getrandom = "0.4.3"
 hex.version = "0.4"
 hubpack = "0.1"
@@ -43,7 +44,7 @@ log = { version = "0.4.33", features = ["std"] }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "1.0.0", default-features = false }
 pki-playground = { git = "https://github.com/oxidecomputer/pki-playground", rev = "98865b0f4716c52adcb6d940fdb8c3ab90ad409a" }
-rats-corim.git = "https://github.com/oxidecomputer/rats-corim"
+rats-corim = { git = "https://github.com/oxidecomputer/rats-corim", rev = "1493d7f58e189125641d81f03f2dfb5941567c82" }
 ron = "0.8"
 rpassword = "7.5.4"
 rsa = "0.9.8"
@@ -53,7 +54,7 @@ serde-big-array = "0.5.1"
 serde_json = { version = "1.0.150", features = ["std", "alloc"] }
 serde_with = { version = "3.21.0", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
-sha2 = "0.11.0"
+sha2 = "0.10.9"
 sha3 = { version = "0.10.8", default-features = false }
 sled-agent-client = { git = "https://github.com/oxidecomputer/omicron", rev = "f8e9052b768e1fa9c3fc16ef033fcab9ede3b806" }
 sled-agent-types-versions = { git = "https://github.com/oxidecomputer/omicron", rev = "f8e9052b768e1fa9c3fc16ef033fcab9ede3b806" }

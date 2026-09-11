@@ -6,13 +6,30 @@ use anyhow::Result;
 cfg_if::cfg_if! {
     if #[cfg(feature = "unittest")] {
         use anyhow::{anyhow, Context};
-        use pki_playground::{config, OutputFileExistsBehavior};
         use std::{env, path::PathBuf};
     }
 }
 
 #[cfg(feature = "unittest")]
+fn mock_data() -> Result<()> {
+    use attest_mock::{MockCorim, MockData};
+
+    // output directory where we put generated test inputs
+    let corim = MockCorim::load("test-corim.kdl")?;
+    let corim = corim.to_bytes()?;
+    let mut out =
+        PathBuf::from(env::var("OUT_DIR").context("Failed to get OUT_DIR")?);
+    out.push("test-corim.cbor");
+
+    Ok(std::fs::write(&out, &corim).with_context(|| {
+        format!("write mock measurement log to file: {}", out.display())
+    })?)
+}
+
+#[cfg(feature = "unittest")]
 fn pki_setup() -> Result<()> {
+    use pki_playground::{config, OutputFileExistsBehavior};
+
     // output directory where we put generated test inputs
     let out =
         PathBuf::from(env::var("OUT_DIR").context("Failed to get OUT_DIR")?);
@@ -36,6 +53,9 @@ fn pki_setup() -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    #[cfg(feature = "unittest")]
+    mock_data()?;
+
     #[cfg(feature = "unittest")]
     pki_setup()?;
 
