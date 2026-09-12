@@ -33,7 +33,7 @@ env_logger = { version = "0.11.11", default-features = false }
 getrandom = "0.4.3"
 hex.version = "0.4"
 hubpack = "0.1"
-humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "9eb263bf2563dc2c5ae3a1678969774d1d4374b9" }
+humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "00c4db9ac40b8a480eab7f1a3a6b7a0847807c2e" }
 humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" , rev = "9eb263bf2563dc2c5ae3a1678969774d1d4374b9" }
 humility-idol = { git =  "https://github.com/oxidecomputer/humility", rev = "9eb263bf2563dc2c5ae3a1678969774d1d4374b9" }
 humility-probes-core = { git =  "https://github.com/oxidecomputer/humility", rev = "9eb263bf2563dc2c5ae3a1678969774d1d4374b9" }
