@@ -40,6 +40,7 @@ humility-probes-core = { git =  "https://github.com/oxidecomputer/humility", rev
 knus = "3.4.0"
 libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "91f8c989f1cdc29c56720ab7663afdcaf5a96b72" }
 log = { version = "0.4.33", features = ["std"] }
+os-rot = { git = "https://github.com/oxidecomputer/os-rot", rev = "82f5c0ae9207875c840fec335ebc313d70373d16" }
 p384 = { version = "0.13.1", default-features = false }
 pem-rfc7468 = { version = "1.0.0", default-features = false }
 pki-playground = { git = "https://github.com/oxidecomputer/pki-playground", rev = "98865b0f4716c52adcb6d940fdb8c3ab90ad409a" }
@@ -52,7 +53,7 @@ serde = { version = "1.0.228", default-features = false }
 serde-big-array = "0.5.1"
 serde_json = { version = "1.0.150", features = ["std", "alloc"] }
 serde_with = { version = "3.21.0", default-features = false }
-serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
+serialport = { git = "https://github.com/oxidecomputer/serialport-rs", branch = "illumos-support-4.7.1" }
 sha2 = "0.11.0"
 sha3 = { version = "0.10.8", default-features = false }
 sled-agent-client = { git = "https://github.com/oxidecomputer/omicron", rev = "f8e9052b768e1fa9c3fc16ef033fcab9ede3b806" }
