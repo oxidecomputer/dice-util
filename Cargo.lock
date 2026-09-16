@@ -2354,16 +2354,15 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 [[package]]
 name = "helios-rot"
 version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/os-rot?rev=4cdbacb6c3c7c88fdd086140dabf83e9763e0fba#4cdbacb6c3c7c88fdd086140dabf83e9763e0fba"
 dependencies = [
  "anyhow",
  "async-trait",
  "cfg-if",
  "der",
  "getrandom 0.4.3",
- "helios-rot",
  "os-rot",
  "p384",
- "pki-playground",
  "serde",
  "serde_with",
  "thiserror 2.0.18",
@@ -3908,7 +3907,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 [[package]]
 name = "os-rot"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/os-rot?rev=82f5c0ae9207875c840fec335ebc313d70373d16#82f5c0ae9207875c840fec335ebc313d70373d16"
+source = "git+https://github.com/oxidecomputer/os-rot?rev=4cdbacb6c3c7c88fdd086140dabf83e9763e0fba#4cdbacb6c3c7c88fdd086140dabf83e9763e0fba"
 dependencies = [
  "rustix 1.1.4",
  "thiserror 2.0.18",
