@@ -49,30 +49,6 @@ cfg_if::cfg_if! {
     }
 }
 
-fn get_attest(interface: Interface, log: &Logger) -> Result<Box<dyn Attest>> {
-    slog::info!(log, "attesting via {interface:?}");
-    match interface {
-        #[cfg(feature = "ipcc")]
-        Interface::Ipcc => Ok(Box::new(AttestIpcc::new())),
-        #[cfg(feature = "hiffy")]
-        Interface::Rot => Ok(Box::new(AttestHiffy::new(AttestTask::Rot, log))),
-        #[cfg(feature = "sled-agent")]
-        Interface::SledAgent(addr) => {
-            Ok(Box::new(AttestSledAgent::new(addr, log)))
-        }
-        #[cfg(feature = "hiffy")]
-        Interface::Sprot => {
-            Ok(Box::new(AttestHiffy::new(AttestTask::Sprot, log)))
-        }
-        #[cfg(not(any(
-            feature = "hiffy",
-            feature = "ipcc",
-            feature = "sled-agent",
-        )))]
-        Interface::Not => panic!("no interface enabled"),
-    }
-}
-
 /// Execute HIF operations exposed by the RoT Attest task.
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -296,11 +272,48 @@ async fn main() -> Result<()> {
         #[cfg(feature = "hiffy")]
         InterfaceArg::Sprot => Interface::Sprot,
     };
-    let attest = get_attest(interface, &logger)?;
 
-    match args.command {
+    match interface {
+        #[cfg(feature = "ipcc")]
+        Interface::Ipcc => {
+            let rot = AttestIpcc::new();
+            rot_command(&rot, &args.command).await?;
+        }
+        #[cfg(not(any(
+            feature = "hiffy",
+            feature = "ipcc",
+            feature = "sled-agent",
+        )))]
+        Interface::Not => {
+            let _ = logger;
+        }
+        #[cfg(feature = "hiffy")]
+        Interface::Rot => {
+            let rot = AttestHiffy::new(AttestTask::Rot, &logger);
+            rot_command(&rot, &args.command).await?;
+        }
+        #[cfg(feature = "sled-agent")]
+        Interface::SledAgent(addr) => {
+            let rot = AttestSledAgent::new(addr, &logger);
+            rot_command(&rot, &args.command).await?;
+        }
+        #[cfg(feature = "hiffy")]
+        Interface::Sprot => {
+            let rot = AttestHiffy::new(AttestTask::Sprot, &logger);
+            rot_command(&rot, &args.command).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn rot_command<A: Attest>(
+    attest: &A,
+    command: &AttestCommand,
+) -> Result<()> {
+    match command {
         AttestCommand::Attest { nonce } => {
-            let nonce = fs::read(&nonce)
+            let nonce = fs::read(nonce)
                 .context(format!("Nonce bytes from: {}", nonce.display()))?;
             let nonce =
                 Nonce::try_from(nonce).context("Nonce from file contents")?;
@@ -351,7 +364,7 @@ async fn main() -> Result<()> {
             io::stdout().flush().context("Flush stdout")?;
         }
         AttestCommand::PlatformId { cert_chain } => {
-            let cert_chain = fs::read(&cert_chain).context(format!(
+            let cert_chain = fs::read(cert_chain).context(format!(
                 "Read attestation certificate chain bytes from file: {}",
                 cert_chain.display()
             ))?;
@@ -376,11 +389,11 @@ async fn main() -> Result<()> {
             let platform_id = match work_dir {
                 Some(w) => {
                     verify(
-                        attest.as_ref(),
+                        attest,
                         ca_cert.as_deref(),
                         corpus.as_deref(),
-                        self_signed,
-                        &w,
+                        *self_signed,
+                        w,
                     )
                     .await?
                 }
@@ -390,10 +403,10 @@ async fn main() -> Result<()> {
                     }
                     let work_dir = tempfile::tempdir()?;
                     verify(
-                        attest.as_ref(),
+                        attest,
                         ca_cert.as_deref(),
                         corpus.as_deref(),
-                        self_signed,
+                        *self_signed,
                         work_dir.as_ref(),
                     )
                     .await?
@@ -408,24 +421,24 @@ async fn main() -> Result<()> {
             log,
             nonce,
         } => {
-            verify_attestation(&alias_cert, &attestation, &log, &nonce)?;
+            verify_attestation(alias_cert, attestation, log, nonce)?;
         }
         AttestCommand::VerifyCertChain {
             cert_chain,
             ca_cert,
             self_signed,
         } => {
-            verify_cert_chain(ca_cert.as_deref(), &cert_chain, self_signed)?;
+            verify_cert_chain(ca_cert.as_deref(), cert_chain, *self_signed)?;
         }
         AttestCommand::VerifyMeasurements {
             cert_chain,
             log,
             corpus,
         } => {
-            verify_measurements(&cert_chain, &log, &corpus)?;
+            verify_measurements(cert_chain, log, corpus)?;
         }
         AttestCommand::MeasurementSet => {
-            let set = measurement_set(attest.as_ref()).await?;
+            let set = measurement_set(attest).await?;
             for item in set.into_iter() {
                 println!("* {item}");
             }
@@ -435,7 +448,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn measurement_set(attest: &dyn Attest) -> Result<MeasurementSet> {
+async fn measurement_set<A: Attest>(attest: &A) -> Result<MeasurementSet> {
     info!("getting measurement log");
     let log = attest
         .get_measurement_log()
@@ -500,8 +513,8 @@ fn verify_measurements(
         .context("Verify measurements")
 }
 
-async fn verify(
-    attest: &dyn Attest,
+async fn verify<A: Attest>(
+    attest: &A,
     ca_cert: Option<&Path>,
     corpus: Option<&Path>,
     self_signed: bool,
