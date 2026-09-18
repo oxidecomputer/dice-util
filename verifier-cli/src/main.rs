@@ -32,47 +32,22 @@ use x509_cert::{
 #[cfg(not(any(feature = "hiffy", feature = "ipcc", feature = "sled-agent",)))]
 compile_error!("At least one feature must be enabled to build this crate.");
 
-// Define default interface selected by clap based on enabled features
-cfg_if::cfg_if! {
-    if #[cfg(feature = "hiffy")] {
-        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::Rot;
-    } else if #[cfg(feature = "ipcc")] {
-        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::Ipcc;
-    } else if #[cfg(feature = "sled-agent")] {
-        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::SledAgent;
-    } else if #[cfg(not(any(
-            feature = "hiffy",
-            feature = "ipcc",
-            feature = "sled-agent",
-        )))] {
-        const INTERFACE_DEFAULT: InterfaceArg = InterfaceArg::Not;
-    }
-}
-
 /// Execute HIF operations exposed by the RoT Attest task.
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Interface used for communication with the Attest task. Defaults
-    /// selectedbased on the features enabled
-    #[clap(value_enum, long, env, default_value_t = INTERFACE_DEFAULT)]
-    interface: InterfaceArg,
-
-    #[cfg(feature = "sled-agent")]
-    #[clap(short, long, env, required_if_eq("interface", "sled-agent"))]
-    sled_addr: Option<std::net::SocketAddrV6>,
-
-    /// Attest task command to execute.
-    #[command(subcommand)]
-    command: AttestCommand,
-
     /// verbosity
     #[clap(long, env)]
     verbose: bool,
+
+    /// Interface used for communication with the Attest task. Defaults
+    /// selectedbased on the features enabled
+    #[command(subcommand)]
+    interface: Interface,
 }
 
 /// An enum of the HIF operations supported by the `Attest` interface.
-#[derive(Debug, Subcommand)]
+#[derive(Clone, Debug, Subcommand)]
 enum AttestCommand {
     /// Get an attestation, this is a signature over the serialized measurement log and the
     /// provided nonce: `sha3_256(log | nonce)`.
@@ -175,10 +150,13 @@ enum AttestCommand {
     MeasurementSet,
 }
 
-#[derive(Clone, Debug)]
-pub enum Interface {
+#[derive(Clone, Debug, Subcommand)]
+enum Interface {
     #[cfg(feature = "ipcc")]
-    Ipcc,
+    Ipcc {
+        #[command(subcommand)]
+        command: AttestCommand,
+    },
     // this is a "dummy" interface required to quiet the compiler when no
     // features are enabled
     #[cfg(not(any(
@@ -188,32 +166,22 @@ pub enum Interface {
     )))]
     Not,
     #[cfg(feature = "hiffy")]
-    Rot,
+    Rot {
+        #[command(subcommand)]
+        command: AttestCommand,
+    },
     #[cfg(feature = "sled-agent")]
-    SledAgent(std::net::SocketAddrV6),
+    SledAgent {
+        #[clap(short, long, env)]
+        addr: std::net::SocketAddrV6,
+        #[command(subcommand)]
+        command: AttestCommand,
+    },
     #[cfg(feature = "hiffy")]
-    Sprot,
-}
-
-/// An enum of the possible routes to the `Attest` task.
-#[derive(Clone, Debug, ValueEnum)]
-pub enum InterfaceArg {
-    #[cfg(feature = "ipcc")]
-    Ipcc,
-    // this is a "dummy" interface required to quiet the compiler when no
-    // features are enabled
-    #[cfg(not(any(
-        feature = "hiffy",
-        feature = "ipcc",
-        feature = "sled-agent",
-    )))]
-    Not,
-    #[cfg(feature = "hiffy")]
-    Rot,
-    #[cfg(feature = "sled-agent")]
-    SledAgent,
-    #[cfg(feature = "hiffy")]
-    Sprot,
+    Sprot {
+        #[command(subcommand)]
+        command: AttestCommand,
+    },
 }
 
 /// An enum of the possible certificate encodings.
@@ -254,30 +222,12 @@ async fn main() -> Result<()> {
     let drain = slog_async::Async::new(drain).build().fuse();
     let logger = Logger::root(drain, slog::o!());
 
-    let interface = match args.interface {
+    match args.interface {
         #[cfg(feature = "ipcc")]
-        InterfaceArg::Ipcc => Interface::Ipcc,
-        #[cfg(not(any(
-            feature = "hiffy",
-            feature = "ipcc",
-            feature = "sled-agent",
-        )))]
-        InterfaceArg::Not => Interface::Not,
-        #[cfg(feature = "sled-agent")]
-        InterfaceArg::SledAgent => {
-            Interface::SledAgent(args.sled_addr.unwrap())
-        }
-        #[cfg(feature = "hiffy")]
-        InterfaceArg::Rot => Interface::Rot,
-        #[cfg(feature = "hiffy")]
-        InterfaceArg::Sprot => Interface::Sprot,
-    };
-
-    match interface {
-        #[cfg(feature = "ipcc")]
-        Interface::Ipcc => {
+        Interface::Ipcc { command } => {
+            let _ = logger;
             let rot = AttestIpcc::new();
-            rot_command(&rot, &args.command).await?;
+            rot_command(&rot, &command).await?;
         }
         #[cfg(not(any(
             feature = "hiffy",
@@ -288,19 +238,19 @@ async fn main() -> Result<()> {
             let _ = logger;
         }
         #[cfg(feature = "hiffy")]
-        Interface::Rot => {
+        Interface::Rot { command } => {
             let rot = AttestHiffy::new(AttestTask::Rot, &logger);
-            rot_command(&rot, &args.command).await?;
+            rot_command(&rot, &command).await?;
         }
         #[cfg(feature = "sled-agent")]
-        Interface::SledAgent(addr) => {
+        Interface::SledAgent { addr, command } => {
             let rot = AttestSledAgent::new(addr, &logger);
-            rot_command(&rot, &args.command).await?;
+            rot_command(&rot, &command).await?;
         }
         #[cfg(feature = "hiffy")]
-        Interface::Sprot => {
+        Interface::Sprot { command } => {
             let rot = AttestHiffy::new(AttestTask::Sprot, &logger);
-            rot_command(&rot, &args.command).await?;
+            rot_command(&rot, &command).await?;
         }
     }
 
