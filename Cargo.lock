@@ -181,6 +181,17 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 [[package]]
 name = "api_identity"
 version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
+dependencies = [
+ "omicron-workspace-hack",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
+]
+
+[[package]]
+name = "api_identity"
+version = "0.1.0"
 source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806#f8e9052b768e1fa9c3fc16ef033fcab9ede3b806"
 dependencies = [
  "omicron-workspace-hack",
@@ -609,6 +620,35 @@ dependencies = [
 [[package]]
 name = "bootstore"
 version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
+dependencies = [
+ "bytes",
+ "camino",
+ "chacha20poly1305",
+ "ciborium",
+ "derive_more",
+ "hex",
+ "hkdf",
+ "omicron-ledger 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "omicron-workspace-hack",
+ "rand 0.8.6",
+ "secrecy",
+ "serde",
+ "serde_with",
+ "sha3",
+ "sled-hardware-types 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "slog",
+ "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
+ "thiserror 2.0.18",
+ "tokio",
+ "uuid",
+ "vsss-rs",
+ "zeroize",
+]
+
+[[package]]
+name = "bootstore"
+version = "0.1.0"
 source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806#f8e9052b768e1fa9c3fc16ef033fcab9ede3b806"
 dependencies = [
  "bytes",
@@ -618,14 +658,14 @@ dependencies = [
  "derive_more",
  "hex",
  "hkdf",
- "omicron-ledger",
+ "omicron-ledger 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "omicron-workspace-hack",
  "rand 0.8.6",
  "secrecy",
  "serde",
  "serde_with",
  "sha3",
- "sled-hardware-types",
+ "sled-hardware-types 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "slog",
  "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
  "thiserror 2.0.18",
@@ -1773,7 +1813,7 @@ dependencies = [
  "quote",
  "semver",
  "serde",
- "serde_tokenstream",
+ "serde_tokenstream 0.2.3",
  "syn 2.0.118",
 ]
 
@@ -2200,6 +2240,22 @@ dependencies = [
  "r-efi 6.0.0",
  "rand_core 0.10.1",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "gfss"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
+dependencies = [
+ "digest 0.10.7",
+ "omicron-workspace-hack",
+ "rand 0.9.5",
+ "schemars 0.8.22",
+ "secrecy",
+ "serde",
+ "subtle",
+ "thiserror 2.0.18",
+ "zeroize",
 ]
 
 [[package]]
@@ -3593,7 +3649,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
- "serde_tokenstream",
+ "serde_tokenstream 0.2.3",
  "syn 2.0.118",
 ]
 
@@ -3821,10 +3877,10 @@ dependencies = [
 [[package]]
 name = "omicron-common"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806#f8e9052b768e1fa9c3fc16ef033fcab9ede3b806"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
 dependencies = [
  "anyhow",
- "api_identity",
+ "api_identity 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
  "async-trait",
  "backoff",
  "backon",
@@ -3840,8 +3896,55 @@ dependencies = [
  "ipnetwork",
  "itertools",
  "macaddr",
- "omicron-ledger",
- "omicron-uuid-kinds",
+ "omicron-generation-kinds",
+ "omicron-ledger 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "omicron-uuid-kinds 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "omicron-workspace-hack",
+ "oxnet",
+ "parse-display",
+ "progenitor-client",
+ "progenitor-extras",
+ "rand 0.9.5",
+ "regress 0.10.5",
+ "reqwest",
+ "schemars 0.8.22",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "slog",
+ "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
+ "strum 0.27.2",
+ "thiserror 2.0.18",
+ "tokio",
+ "tufaceous-artifact",
+ "uuid",
+]
+
+[[package]]
+name = "omicron-common"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806#f8e9052b768e1fa9c3fc16ef033fcab9ede3b806"
+dependencies = [
+ "anyhow",
+ "api_identity 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "async-trait",
+ "backoff",
+ "backon",
+ "camino",
+ "chrono",
+ "daft",
+ "dropshot",
+ "futures",
+ "hex",
+ "http",
+ "humantime",
+ "iddqd",
+ "ipnetwork",
+ "itertools",
+ "macaddr",
+ "omicron-ledger 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "omicron-uuid-kinds 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "omicron-workspace-hack",
  "oxide-generation",
  "oxnet",
@@ -3866,6 +3969,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "omicron-generation-kinds"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
+dependencies = [
+ "oxide-generation",
+ "oxide-generation-macros",
+]
+
+[[package]]
+name = "omicron-ledger"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
+dependencies = [
+ "async-trait",
+ "atomicwrites",
+ "camino",
+ "omicron-workspace-hack",
+ "serde",
+ "serde_json",
+ "slog",
+ "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "omicron-ledger"
 version = "0.1.0"
 source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806#f8e9052b768e1fa9c3fc16ef033fcab9ede3b806"
@@ -3885,6 +4014,21 @@ dependencies = [
 [[package]]
 name = "omicron-passwords"
 version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
+dependencies = [
+ "argon2",
+ "omicron-workspace-hack",
+ "rand 0.9.5",
+ "schemars 0.8.22",
+ "secrecy",
+ "serde",
+ "serde_with",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "omicron-passwords"
+version = "0.1.0"
 source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806#f8e9052b768e1fa9c3fc16ef033fcab9ede3b806"
 dependencies = [
  "argon2",
@@ -3895,6 +4039,18 @@ dependencies = [
  "serde",
  "serde_with",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "omicron-uuid-kinds"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
+dependencies = [
+ "daft",
+ "newtype-uuid",
+ "newtype-uuid-macros",
+ "paste",
+ "schemars 0.8.22",
 ]
 
 [[package]]
@@ -3976,6 +4132,20 @@ dependencies = [
  "serde",
  "serde_json",
  "slog",
+]
+
+[[package]]
+name = "oxide-generation-macros"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68b727e329bc9ff425bf3051e7f39986943bea27aefd6e30b43b468ca999a348"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_tokenstream 0.3.0",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -4321,7 +4491,7 @@ dependencies = [
  "serde_with",
  "sha3",
  "sled-agent-client",
- "sled-agent-types-versions",
+ "sled-agent-types-versions 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
  "slog",
  "tempfile",
  "thiserror 2.0.18",
@@ -4599,7 +4769,7 @@ dependencies = [
  "schemars 0.8.22",
  "serde",
  "serde_json",
- "serde_tokenstream",
+ "serde_tokenstream 0.2.3",
  "serde_yaml",
  "syn 2.0.118",
 ]
@@ -4610,7 +4780,20 @@ version = "0.0.0"
 source = "git+https://github.com/oxidecomputer/propolis?rev=046f74302e2ea09a75b0a6810645d42c7df6644a#046f74302e2ea09a75b0a6810645d42c7df6644a"
 dependencies = [
  "crucible-client-types",
- "propolis_types",
+ "propolis_types 0.0.0 (git+https://github.com/oxidecomputer/propolis?rev=046f74302e2ea09a75b0a6810645d42c7df6644a)",
+ "schemars 0.8.22",
+ "serde",
+ "thiserror 1.0.58",
+ "uuid",
+]
+
+[[package]]
+name = "propolis-api-types-versions"
+version = "0.0.0"
+source = "git+https://github.com/oxidecomputer/propolis?rev=93e04e189a76f73b3764c6417928274b0f4df453#93e04e189a76f73b3764c6417928274b0f4df453"
+dependencies = [
+ "crucible-client-types",
+ "propolis_types 0.0.0 (git+https://github.com/oxidecomputer/propolis?rev=93e04e189a76f73b3764c6417928274b0f4df453)",
  "schemars 0.8.22",
  "serde",
  "thiserror 1.0.58",
@@ -4628,7 +4811,7 @@ dependencies = [
  "futures",
  "progenitor",
  "progenitor-client",
- "propolis-api-types-versions",
+ "propolis-api-types-versions 0.0.0 (git+https://github.com/oxidecomputer/propolis?rev=046f74302e2ea09a75b0a6810645d42c7df6644a)",
  "rand 0.9.5",
  "reqwest",
  "schemars 0.8.22",
@@ -4647,13 +4830,31 @@ version = "0.0.0"
 source = "git+https://github.com/oxidecomputer/propolis?rev=046f74302e2ea09a75b0a6810645d42c7df6644a#046f74302e2ea09a75b0a6810645d42c7df6644a"
 dependencies = [
  "crucible-client-types",
- "propolis-api-types-versions",
+ "propolis-api-types-versions 0.0.0 (git+https://github.com/oxidecomputer/propolis?rev=046f74302e2ea09a75b0a6810645d42c7df6644a)",
+]
+
+[[package]]
+name = "propolis_api_types"
+version = "0.0.0"
+source = "git+https://github.com/oxidecomputer/propolis?rev=93e04e189a76f73b3764c6417928274b0f4df453#93e04e189a76f73b3764c6417928274b0f4df453"
+dependencies = [
+ "crucible-client-types",
+ "propolis-api-types-versions 0.0.0 (git+https://github.com/oxidecomputer/propolis?rev=93e04e189a76f73b3764c6417928274b0f4df453)",
 ]
 
 [[package]]
 name = "propolis_types"
 version = "0.0.0"
 source = "git+https://github.com/oxidecomputer/propolis?rev=046f74302e2ea09a75b0a6810645d42c7df6644a#046f74302e2ea09a75b0a6810645d42c7df6644a"
+dependencies = [
+ "schemars 0.8.22",
+ "serde",
+]
+
+[[package]]
+name = "propolis_types"
+version = "0.0.0"
+source = "git+https://github.com/oxidecomputer/propolis?rev=93e04e189a76f73b3764c6417928274b0f4df453#93e04e189a76f73b3764c6417928274b0f4df453"
 dependencies = [
  "schemars 0.8.22",
  "serde",
@@ -5580,6 +5781,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_tokenstream"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db95b8acf6eca5bc1bc771a7d7fb1a0d1485bdef0c46eec2f573bbaf4b4118f8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde",
+ "syn 3.0.4",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5798,8 +6011,8 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
- "omicron-common",
- "omicron-uuid-kinds",
+ "omicron-common 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "omicron-uuid-kinds 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "omicron-workspace-hack",
  "oxnet",
  "progenitor",
@@ -5810,8 +6023,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sled-agent-types",
- "sled-agent-types-versions",
- "sled-hardware-types",
+ "sled-agent-types-versions 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "sled-hardware-types 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "slog",
  "trust-quorum-types",
  "uuid",
@@ -5824,21 +6037,21 @@ source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc1
 dependencies = [
  "anyhow",
  "async-trait",
- "bootstore",
+ "bootstore 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "byte-wrapper",
  "camino",
  "chrono",
  "daft",
  "iddqd",
- "omicron-common",
- "omicron-uuid-kinds",
+ "omicron-common 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "omicron-uuid-kinds 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "omicron-workspace-hack",
  "oxnet",
  "schemars 0.8.22",
  "serde",
  "serde_json",
- "sled-agent-types-versions",
- "sled-hardware-types",
+ "sled-agent-types-versions 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "sled-hardware-types 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "slog",
  "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
  "swrite",
@@ -5850,11 +6063,11 @@ dependencies = [
 [[package]]
 name = "sled-agent-types-versions"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806#f8e9052b768e1fa9c3fc16ef033fcab9ede3b806"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
 dependencies = [
  "anyhow",
  "async-trait",
- "bootstore",
+ "bootstore 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
  "byte-wrapper",
  "camino",
  "chrono",
@@ -5863,27 +6076,80 @@ dependencies = [
  "indent_write",
  "ipnetwork",
  "itertools",
- "omicron-common",
- "omicron-ledger",
- "omicron-passwords",
- "omicron-uuid-kinds",
+ "omicron-common 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "omicron-generation-kinds",
+ "omicron-ledger 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "omicron-passwords 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "omicron-uuid-kinds 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
  "omicron-workspace-hack",
  "oxnet",
- "propolis-api-types-versions",
- "propolis_api_types",
+ "propolis-api-types-versions 0.0.0 (git+https://github.com/oxidecomputer/propolis?rev=93e04e189a76f73b3764c6417928274b0f4df453)",
+ "propolis_api_types 0.0.0 (git+https://github.com/oxidecomputer/propolis?rev=93e04e189a76f73b3764c6417928274b0f4df453)",
  "schemars 0.8.22",
  "serde",
  "serde_json",
  "serde_with",
  "sha3",
- "sled-hardware-types",
+ "sled-hardware-types 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
  "slog",
  "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
  "strum 0.27.2",
  "thiserror 2.0.18",
- "trust-quorum-types-versions",
+ "trust-quorum-types-versions 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
  "tufaceous-artifact",
  "uuid",
+]
+
+[[package]]
+name = "sled-agent-types-versions"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806#f8e9052b768e1fa9c3fc16ef033fcab9ede3b806"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bootstore 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "byte-wrapper",
+ "camino",
+ "chrono",
+ "daft",
+ "iddqd",
+ "indent_write",
+ "ipnetwork",
+ "itertools",
+ "omicron-common 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "omicron-ledger 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "omicron-passwords 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "omicron-uuid-kinds 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "omicron-workspace-hack",
+ "oxnet",
+ "propolis-api-types-versions 0.0.0 (git+https://github.com/oxidecomputer/propolis?rev=046f74302e2ea09a75b0a6810645d42c7df6644a)",
+ "propolis_api_types 0.0.0 (git+https://github.com/oxidecomputer/propolis?rev=046f74302e2ea09a75b0a6810645d42c7df6644a)",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "sha3",
+ "sled-hardware-types 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "slog",
+ "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
+ "strum 0.27.2",
+ "thiserror 2.0.18",
+ "trust-quorum-types-versions 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+ "tufaceous-artifact",
+ "uuid",
+]
+
+[[package]]
+name = "sled-hardware-types"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
+dependencies = [
+ "daft",
+ "omicron-workspace-hack",
+ "schemars 0.8.22",
+ "serde",
+ "slog",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -6750,7 +7016,29 @@ version = "0.1.0"
 source = "git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806#f8e9052b768e1fa9c3fc16ef033fcab9ede3b806"
 dependencies = [
  "omicron-workspace-hack",
- "trust-quorum-types-versions",
+ "trust-quorum-types-versions 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
+]
+
+[[package]]
+name = "trust-quorum-types-versions"
+version = "0.1.0"
+source = "git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd#7e18e523687767bb8c75070945ac398a5b89d9fd"
+dependencies = [
+ "byte-wrapper",
+ "daft",
+ "derive_more",
+ "gfss 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "iddqd",
+ "omicron-uuid-kinds 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "omicron-workspace-hack",
+ "rand 0.9.5",
+ "schemars 0.8.22",
+ "serde",
+ "serde_with",
+ "sled-hardware-types 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=7e18e523687767bb8c75070945ac398a5b89d9fd)",
+ "slog",
+ "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -6761,15 +7049,15 @@ dependencies = [
  "byte-wrapper",
  "daft",
  "derive_more",
- "gfss",
+ "gfss 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "iddqd",
- "omicron-uuid-kinds",
+ "omicron-uuid-kinds 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "omicron-workspace-hack",
  "rand 0.9.5",
  "schemars 0.8.22",
  "serde",
  "serde_with",
- "sled-hardware-types",
+ "sled-hardware-types 0.1.0 (git+https://github.com/oxidecomputer/omicron?rev=f8e9052b768e1fa9c3fc16ef033fcab9ede3b806)",
  "slog",
  "slog-error-chain 0.1.0 (git+https://github.com/oxidecomputer/slog-error-chain?branch=main)",
  "thiserror 2.0.18",
@@ -6887,7 +7175,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "serde_tokenstream",
+ "serde_tokenstream 0.2.3",
  "syn 2.0.118",
  "typify-impl",
 ]
@@ -7014,7 +7302,7 @@ dependencies = [
  "dtrace-parser",
  "proc-macro2",
  "quote",
- "serde_tokenstream",
+ "serde_tokenstream 0.2.3",
  "syn 2.0.118",
  "usdt-impl",
 ]
@@ -7047,7 +7335,7 @@ dependencies = [
  "dtrace-parser",
  "proc-macro2",
  "quote",
- "serde_tokenstream",
+ "serde_tokenstream 0.2.3",
  "syn 2.0.118",
  "usdt-impl",
 ]
