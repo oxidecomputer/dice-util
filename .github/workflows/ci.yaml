@@ -17,7 +17,12 @@ jobs:
       - run: sudo apt-get install -y pkg-config libudev-dev
       - run: cargo build --workspace
       - run: cargo build --package attest-data --package dice-mfg-msgs
-      - run: set +H && ! cargo build --package verifier-cli --no-default-features
+      - run: cargo build --package verifier-cli # default features
+      - run: cargo build --package verifier-cli --no-default-features
+      - run: cargo build --package verifier-cli --no-default-features --features hiffy
+      - run: cargo build --package verifier-cli --no-default-features --features ipcc
+      - run: cargo build --package verifier-cli --no-default-features --features sled-agent
+      - run: cargo build --package verifier-cli --all-features
   test:
     name: cargo test
     runs-on: ubuntu-latest
