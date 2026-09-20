@@ -3,36 +3,26 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use anyhow::{anyhow, Context, Result};
-use attest_data::{Attestation, Log, Nonce, Nonce32};
+use attest_data::{Attestation, Log, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
 use dice_verifier::platform_rot::{MeasurementSet, ReferenceMeasurements};
 use log::{info, warn};
-use pem_rfc7468::LineEnding;
 #[cfg(feature = "hiffy")]
 use platform_rot::hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
 use platform_rot::ipcc::AttestIpcc;
 #[cfg(feature = "sled-agent")]
 use platform_rot::sled_agent::AttestSledAgent;
-use platform_rot::Attest;
 use rats_corim::Corim;
 use slog::{Drain, FilterLevel, Logger};
 use std::{
     fmt::{self, Debug},
-    fs::{self, File},
-    io::{self, Write},
     path::{Path, PathBuf},
 };
-use x509_cert::{
-    der::{DecodePem, EncodePem},
-    Certificate, PkiPath,
-};
+use x509_cert::{der::DecodePem, Certificate, PkiPath};
 
-#[cfg(not(any(feature = "hiffy", feature = "ipcc", feature = "sled-agent",)))]
-compile_error!("At least one feature must be enabled to build this crate.");
-
-/// Execute HIF operations exposed by the RoT Attest task.
+/// Perform operations from the attestation appraisal process
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -40,10 +30,59 @@ struct Args {
     #[clap(long, env)]
     verbose: bool,
 
-    /// Interface used for communication with the Attest task. Defaults
-    /// selectedbased on the features enabled
+    /// Groupings of similar operations from the appraisal process
     #[command(subcommand)]
-    interface: Interface,
+    command_group: CommandGroup,
+}
+
+/// Top level subcommand structure for Clap UI
+#[derive(Clone, Debug, Subcommand)]
+enum CommandGroup {
+    /// Perform a single operation in the appraisal process
+    Appraise {
+        #[command(subcommand)]
+        command: AppraiseCommand,
+    },
+
+    /// Execute some operation from the appraisal process that requires
+    /// communication with the RoT through the IPCC interface
+    #[cfg(feature = "ipcc")]
+    Ipcc {
+        #[command(subcommand)]
+        command: AttestCommand,
+    },
+
+    /// Execute some operation from the appraisal process that requires
+    /// communication with the RoT through the HIFFY RoT interface
+    #[cfg(feature = "hiffy")]
+    Rot {
+        #[command(subcommand)]
+        command: AttestCommand,
+    },
+
+    /// Execute some operation from the appraisal process that requires
+    /// communication with the RoT through the SledAgent interface
+    #[cfg(feature = "sled-agent")]
+    SledAgent {
+        #[clap(short, long, env)]
+        addr: std::net::SocketAddrV6,
+        #[command(subcommand)]
+        command: AttestCommand,
+    },
+
+    /// Execute some operation from the appraisal process that requires
+    /// communication with the RoT through the HIFFY SpRot interface
+    #[cfg(feature = "hiffy")]
+    Sprot {
+        #[command(subcommand)]
+        command: AttestCommand,
+    },
+
+    /// Perform a miscelanous opeartion on some set of attestation artifacts
+    Util {
+        #[command(subcommand)]
+        command: UtilCommand,
+    },
 }
 
 /// An enum of the HIF operations supported by the `Attest` interface.
@@ -60,12 +99,6 @@ enum AttestCommand {
     CertChain,
     /// Get the log of measurements recorded by the RoT.
     Log,
-    /// Get the PlatformId string from the provided PkiPath
-    PlatformId {
-        /// Path to file holding the certificate chain / PkiPath
-        #[clap(env)]
-        cert_chain: PathBuf,
-    },
     Verify {
         /// Path to file holding trust anchor for the associated PKI.
         #[clap(
@@ -98,6 +131,28 @@ enum AttestCommand {
         #[clap(env, env = "VERIFIER_CLI_CORPUS")]
         corpus: Option<PathBuf>,
     },
+}
+
+/// Commands that perform a step in the appraisal process. These commands
+/// operate on the attestation artifacts directly. They do not communicate
+/// with the RoT.
+#[derive(Clone, Debug, Subcommand)]
+enum AppraiseCommand {
+    /// Verify the measurements from the log and cert chain against the
+    /// provided measurement corpus.
+    AppraiseMeasurements {
+        /// Path to file holding the certificate chain / PkiPath.
+        #[clap(env)]
+        cert_chain: PathBuf,
+
+        /// Path to file holding the log
+        #[clap(env)]
+        log: PathBuf,
+
+        /// Path to file holding the reference measurement corpus
+        #[clap(env)]
+        corpus: PathBuf,
+    },
     /// Verify signature over Attestation
     VerifyAttestation {
         /// Path to file holding the alias cert
@@ -122,65 +177,35 @@ enum AttestCommand {
         #[clap(long, env, conflicts_with = "self_signed")]
         ca_cert: Option<PathBuf>,
 
+        /// Path to file holding the certificate chain / PkiPath.
+        #[clap(env)]
+        cert_chain: PathBuf,
+
         /// Verify the final cert in the provided PkiPath against itself.
         #[clap(long, env, conflicts_with = "ca_cert")]
         self_signed: bool,
-
-        /// Path to file holding the certificate chain / PkiPath.
-        #[clap(env)]
-        cert_chain: PathBuf,
     },
-    /// Verify the measurements from the log and cert chain against the
-    /// provided measurement corpus.
-    VerifyMeasurements {
-        /// Path to file holding the certificate chain / PkiPath.
-        #[clap(env)]
+}
+
+/// Utility commands that operate on data from the attestation artifacts.
+/// These commands do not interact with the RoT.
+#[derive(Clone, Debug, Subcommand)]
+enum UtilCommand {
+    /// Show the set of measurements recorded in the provided artifacts
+    MeasurementSet {
+        /// Path to file holding the certificate chain / PkiPath
+        #[clap(long, env)]
         cert_chain: PathBuf,
 
         /// Path to file holding the log
-        #[clap(env)]
+        #[clap(long, env)]
         log: PathBuf,
-
-        /// Path to file holding the reference measurement corpus
-        #[clap(env)]
-        corpus: PathBuf,
     },
-    /// Show the set of measurements currently on the RoT. This includes
-    /// the cert chain and the measurement log
-    MeasurementSet,
-}
-
-#[derive(Clone, Debug, Subcommand)]
-enum Interface {
-    #[cfg(feature = "ipcc")]
-    Ipcc {
-        #[command(subcommand)]
-        command: AttestCommand,
-    },
-    // this is a "dummy" interface required to quiet the compiler when no
-    // features are enabled
-    #[cfg(not(any(
-        feature = "hiffy",
-        feature = "ipcc",
-        feature = "sled-agent",
-    )))]
-    Not,
-    #[cfg(feature = "hiffy")]
-    Rot {
-        #[command(subcommand)]
-        command: AttestCommand,
-    },
-    #[cfg(feature = "sled-agent")]
-    SledAgent {
-        #[clap(short, long, env)]
-        addr: std::net::SocketAddrV6,
-        #[command(subcommand)]
-        command: AttestCommand,
-    },
-    #[cfg(feature = "hiffy")]
-    Sprot {
-        #[command(subcommand)]
-        command: AttestCommand,
+    /// Get the PlatformId string from the provided cert chain
+    PlatformId {
+        /// Path to file holding the certificate chain
+        #[clap(long, env)]
+        cert_chain: PathBuf,
     },
 }
 
@@ -222,45 +247,117 @@ async fn main() -> Result<()> {
     let drain = slog_async::Async::new(drain).build().fuse();
     let logger = Logger::root(drain, slog::o!());
 
-    match args.interface {
+    match args.command_group {
+        CommandGroup::Appraise { command } => {
+            let _ = logger;
+            appraise_command(&command)?;
+        }
         #[cfg(feature = "ipcc")]
-        Interface::Ipcc { command } => {
+        CommandGroup::Ipcc { command } => {
             let _ = logger;
             let rot = AttestIpcc::new();
             rot_command(&rot, &command).await?;
         }
-        #[cfg(not(any(
-            feature = "hiffy",
-            feature = "ipcc",
-            feature = "sled-agent",
-        )))]
-        Interface::Not => {
-            let _ = logger;
-        }
         #[cfg(feature = "hiffy")]
-        Interface::Rot { command } => {
+        CommandGroup::Rot { command } => {
             let rot = AttestHiffy::new(AttestTask::Rot, &logger);
             rot_command(&rot, &command).await?;
         }
         #[cfg(feature = "sled-agent")]
-        Interface::SledAgent { addr, command } => {
+        CommandGroup::SledAgent { addr, command } => {
             let rot = AttestSledAgent::new(addr, &logger);
             rot_command(&rot, &command).await?;
         }
         #[cfg(feature = "hiffy")]
-        Interface::Sprot { command } => {
+        CommandGroup::Sprot { command } => {
             let rot = AttestHiffy::new(AttestTask::Sprot, &logger);
             rot_command(&rot, &command).await?;
+        }
+        CommandGroup::Util { command } => util_command(&command)?,
+    }
+
+    Ok(())
+}
+
+fn appraise_command(command: &AppraiseCommand) -> Result<()> {
+    match command {
+        AppraiseCommand::AppraiseMeasurements {
+            cert_chain,
+            log,
+            corpus,
+        } => verify_measurements(cert_chain, log, corpus),
+        AppraiseCommand::VerifyAttestation {
+            alias_cert,
+            attestation,
+            log,
+            nonce,
+        } => verify_attestation(alias_cert, attestation, log, nonce),
+        AppraiseCommand::VerifyCertChain {
+            ca_cert,
+            cert_chain,
+            self_signed,
+        } => verify_cert_chain(ca_cert.as_deref(), cert_chain, *self_signed),
+    }
+}
+
+fn util_command(command: &UtilCommand) -> Result<()> {
+    use std::fs;
+
+    match command {
+        UtilCommand::MeasurementSet { cert_chain, log } => {
+            let cert_chain = fs::read(cert_chain).context(format!(
+                "Read cert chain from file: {}",
+                cert_chain.display()
+            ))?;
+            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+                .context("loading PkiPath from PEM cert chain")?;
+
+            let log = fs::read_to_string(log).context(format!(
+                "Reading measurement log from file: {}",
+                log.display()
+            ))?;
+            let log: Log = serde_json::from_str(&log)
+                .context("Deserialize Log from JSON")?;
+
+            let measurements =
+                MeasurementSet::from_artifacts(&cert_chain, &log)
+                    .context("MeasurementSet from artifacts")?;
+
+            for measurement in measurements.into_iter() {
+                println!("* {measurement}");
+            }
+        }
+        UtilCommand::PlatformId { cert_chain } => {
+            let cert_chain = fs::read(cert_chain).context(format!(
+                "Read attestation certificate chain bytes from file: {}",
+                cert_chain.display()
+            ))?;
+            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+                .context("Parse certificate chain")?;
+
+            let platform_id = PlatformId::try_from(&cert_chain)
+                .context("PlatformId from attestation cert chain")?;
+            let platform_id = platform_id.as_str();
+
+            println!("{platform_id}");
         }
     }
 
     Ok(())
 }
 
-async fn rot_command<A: Attest>(
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent",))]
+async fn rot_command<A: platform_rot::Attest>(
     attest: &A,
     command: &AttestCommand,
 ) -> Result<()> {
+    use pem_rfc7468::LineEnding;
+    use std::{
+        fs,
+        io::{self, Write},
+    };
+    use x509_cert::der::EncodePem;
+
     match command {
         AttestCommand::Attest { nonce } => {
             let nonce = fs::read(nonce)
@@ -313,20 +410,6 @@ async fn rot_command<A: Attest>(
                 .context("Write measurement log to stdout")?;
             io::stdout().flush().context("Flush stdout")?;
         }
-        AttestCommand::PlatformId { cert_chain } => {
-            let cert_chain = fs::read(cert_chain).context(format!(
-                "Read attestation certificate chain bytes from file: {}",
-                cert_chain.display()
-            ))?;
-            let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
-                .context("Parse certificate chain")?;
-
-            let platform_id = PlatformId::try_from(&cert_chain)
-                .context("PlatformId from attestation cert chain")?;
-            let platform_id = platform_id.as_str();
-
-            println!("{platform_id}");
-        }
         AttestCommand::Verify {
             ca_cert,
             corpus,
@@ -365,67 +448,9 @@ async fn rot_command<A: Attest>(
 
             println!("{platform_id}");
         }
-        AttestCommand::VerifyAttestation {
-            alias_cert,
-            attestation,
-            log,
-            nonce,
-        } => {
-            verify_attestation(alias_cert, attestation, log, nonce)?;
-        }
-        AttestCommand::VerifyCertChain {
-            cert_chain,
-            ca_cert,
-            self_signed,
-        } => {
-            verify_cert_chain(ca_cert.as_deref(), cert_chain, *self_signed)?;
-        }
-        AttestCommand::VerifyMeasurements {
-            cert_chain,
-            log,
-            corpus,
-        } => {
-            verify_measurements(cert_chain, log, corpus)?;
-        }
-        AttestCommand::MeasurementSet => {
-            let set = measurement_set(attest).await?;
-            for item in set.into_iter() {
-                println!("* {item}");
-            }
-        }
     }
 
     Ok(())
-}
-
-async fn measurement_set<A: Attest>(attest: &A) -> Result<MeasurementSet> {
-    info!("getting measurement log");
-    let log = attest
-        .get_measurement_log()
-        .await
-        .context("Get measurement log from attestor")?;
-    let mut cert_chain = Vec::new();
-
-    let certs = attest
-        .get_certificates()
-        .await
-        .context("Get certificate chain from attestor")?;
-
-    for (index, cert) in certs.iter().enumerate() {
-        info!("writing cert[{index}]");
-        let pem = cert
-            .to_pem(LineEnding::default())
-            .context(format!("Encode cert {index} as PEM"))?;
-        cert_chain
-            .write_all(pem.as_bytes())
-            .context(format!("Write cert {index}",))?;
-    }
-
-    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
-        .context("loading PkiPath from PEM cert chain")?;
-
-    MeasurementSet::from_artifacts(&cert_chain, &log)
-        .context("MeasurementSet from PkiPath")
 }
 
 // Check that the measurments in `cert_chain` and `log` are all present in
@@ -437,6 +462,8 @@ fn verify_measurements(
     log: &Path,
     corpus: &Path,
 ) -> Result<()> {
+    use std::fs;
+
     let corpus = Corim::from_file(corpus)
         .context(format!("Corim from file path: {}", corpus.display()))?;
     let corpus = ReferenceMeasurements::try_from(std::slice::from_ref(&corpus))
@@ -463,13 +490,22 @@ fn verify_measurements(
         .context("Verify measurements")
 }
 
-async fn verify<A: Attest>(
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent",))]
+async fn verify<A: platform_rot::Attest>(
     attest: &A,
     ca_cert: Option<&Path>,
     corpus: Option<&Path>,
     self_signed: bool,
     work_dir: &Path,
 ) -> Result<PlatformId> {
+    use attest_data::Nonce32;
+    use pem_rfc7468::LineEnding;
+    use std::{
+        fs::{self, File},
+        io::Write,
+    };
+    use x509_cert::der::EncodePem;
+
     // generate nonce from RNG
     info!("getting Nonce from platform RNG");
     let nonce = Nonce::from_platform_rng(Nonce32::LENGTH)
@@ -587,6 +623,8 @@ fn verify_attestation(
     log: &Path,
     nonce: &Path,
 ) -> Result<()> {
+    use std::fs;
+
     info!("verifying attestation");
     let attestation = fs::read_to_string(attestation).context(format!(
         "Read Attestation from file: {}",
@@ -626,6 +664,8 @@ fn verify_cert_chain(
     cert_chain: &Path,
     self_signed: bool,
 ) -> Result<()> {
+    use std::fs;
+
     info!("veryfying cert chain");
     if !self_signed && ca_cert.is_none() {
         return Err(anyhow!("`ca-cert` or `self-signed` is required"));
