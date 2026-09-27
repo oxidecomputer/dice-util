@@ -44,6 +44,24 @@ enum CommandGroup {
         command: AppraiseCommand,
     },
 
+    /// Execute a command against the Oxide RoT
+    #[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
+    Oxide {
+        #[command(subcommand)]
+        interface: OxideRotInterface,
+    },
+
+    /// Perform a miscelanous opeartion on some set of attestation artifacts
+    Util {
+        #[command(subcommand)]
+        command: UtilCommand,
+    },
+}
+
+/// An enum of the interfaces available for communication with the oxide rot
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
+#[derive(Clone, Debug, Subcommand)]
+enum OxideRotInterface {
     /// Execute some operation from the appraisal process that requires
     /// communication with the RoT through the IPCC interface
     #[cfg(feature = "ipcc")]
@@ -52,8 +70,8 @@ enum CommandGroup {
         command: AttestCommand,
     },
 
-    /// Execute some operation from the appraisal process that requires
-    /// communication with the RoT through the HIFFY RoT interface
+    /// Execute some operation from the appraisal process by communicating
+    /// with the Oxide RoT through the HIFFY RoT interface
     #[cfg(feature = "hiffy")]
     Rot {
         #[command(subcommand)]
@@ -76,12 +94,6 @@ enum CommandGroup {
     Sprot {
         #[command(subcommand)]
         command: AttestCommand,
-    },
-
-    /// Perform a miscelanous opeartion on some set of attestation artifacts
-    Util {
-        #[command(subcommand)]
-        command: UtilCommand,
     },
 }
 
@@ -250,33 +262,48 @@ async fn main() -> Result<()> {
     match args.command_group {
         CommandGroup::Appraise { command } => {
             let _ = logger;
-            appraise_command(&command)?;
+            appraise_command(&command)
         }
+        #[cfg(any(
+            feature = "ipcc",
+            feature = "hiffy",
+            feature = "sled-agent"
+        ))]
+        CommandGroup::Oxide { interface } => {
+            oxide_rot_interface(interface, &logger).await
+        }
+        CommandGroup::Util { command } => util_command(&command),
+    }
+}
+
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
+async fn oxide_rot_interface(
+    interface: OxideRotInterface,
+    logger: &Logger,
+) -> Result<()> {
+    match interface {
         #[cfg(feature = "ipcc")]
-        CommandGroup::Ipcc { command } => {
+        OxideRotInterface::Ipcc { command } => {
             let _ = logger;
             let rot = AttestIpcc::new();
-            rot_command(&rot, &command).await?;
+            rot_command(&rot, &command).await
         }
         #[cfg(feature = "hiffy")]
-        CommandGroup::Rot { command } => {
-            let rot = AttestHiffy::new(AttestTask::Rot, &logger);
-            rot_command(&rot, &command).await?;
+        OxideRotInterface::Rot { command } => {
+            let rot = AttestHiffy::new(AttestTask::Rot, logger);
+            rot_command(&rot, &command).await
         }
         #[cfg(feature = "sled-agent")]
-        CommandGroup::SledAgent { addr, command } => {
-            let rot = AttestSledAgent::new(addr, &logger);
-            rot_command(&rot, &command).await?;
+        OxideRotInterface::SledAgent { addr, command } => {
+            let rot = AttestSledAgent::new(addr, logger);
+            rot_command(&rot, &command).await
         }
         #[cfg(feature = "hiffy")]
-        CommandGroup::Sprot { command } => {
-            let rot = AttestHiffy::new(AttestTask::Sprot, &logger);
-            rot_command(&rot, &command).await?;
+        OxideRotInterface::Sprot { command } => {
+            let rot = AttestHiffy::new(AttestTask::Sprot, logger);
+            rot_command(&rot, &command).await
         }
-        CommandGroup::Util { command } => util_command(&command)?,
     }
-
-    Ok(())
 }
 
 fn appraise_command(command: &AppraiseCommand) -> Result<()> {
