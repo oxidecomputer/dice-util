@@ -7,6 +7,7 @@ use attest_data::{Attestation, Log, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
 use dice_verifier::platform_rot::{MeasurementSet, ReferenceMeasurements};
+use helios_rot::HeliosRot;
 use log::{info, warn};
 #[cfg(feature = "hiffy")]
 use platform_rot::hiffy::{AttestHiffy, AttestTask};
@@ -44,6 +45,12 @@ enum CommandGroup {
         command: AppraiseCommand,
     },
 
+    /// Execute a command against the Helios RoT
+    Helios {
+        #[command(subcommand)]
+        interface: HeliosRotInterface,
+    },
+
     /// Execute a command against the Oxide RoT
     #[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
     Oxide {
@@ -55,6 +62,54 @@ enum CommandGroup {
     Util {
         #[command(subcommand)]
         command: UtilCommand,
+    },
+}
+
+#[derive(Clone, Debug, Subcommand)]
+enum HeliosRotInterface {
+    Ioctl {
+        #[command(subcommand)]
+        command: HeliosRotCommand,
+    },
+    Mock {
+        #[clap(short, long, env)]
+        cert_chain: PathBuf,
+
+        #[clap(short, long, env)]
+        signing_key: PathBuf,
+
+        #[command(subcommand)]
+        command: HeliosRotCommand,
+    },
+}
+
+#[derive(Clone, Debug, Subcommand)]
+enum HeliosRotCommand {
+    /// Provide your own nonce, get back an attestation
+    Attest {
+        /// Path to file holding the nonce
+        #[clap(env)]
+        nonce: PathBuf,
+    },
+    /// Get the full cert chain from the RoT
+    CertChain,
+    /// Get an attestation from the RoT, verify the cert chain, the attestation
+    /// and appraise the measurements
+    Verify {
+        /// Path to file holding trust anchor for the associated PKI.
+        #[clap(long, env = "VERIFIER_CLI_CA_CERT")]
+        ca_cert: PathBuf,
+
+        /// Caller provided directory where artifacts are stored. If this
+        /// option is provided it will be used by this tool to store
+        /// artifacts retrieved from the RoT as part of the attestation
+        /// process. If omitted a temp directory will be used instead.
+        #[clap(long, env = "VERIFIER_CLI_WORK_DIR")]
+        work_dir: Option<PathBuf>,
+
+        /// Path to file holding the reference measurement corpus
+        #[clap(long, env = "VERIFIER_CLI_CORPUS")]
+        corpus: PathBuf,
     },
 }
 
@@ -264,6 +319,9 @@ async fn main() -> Result<()> {
             let _ = logger;
             appraise_command(&command)
         }
+        CommandGroup::Helios { interface } => {
+            helios_rot_interface(interface, &logger).await
+        }
         #[cfg(any(
             feature = "ipcc",
             feature = "hiffy",
@@ -273,6 +331,184 @@ async fn main() -> Result<()> {
             oxide_rot_interface(interface, &logger).await
         }
         CommandGroup::Util { command } => util_command(&command),
+    }
+}
+
+async fn helios_rot_interface(
+    interface: HeliosRotInterface,
+    logger: &Logger,
+) -> Result<()> {
+    match interface {
+        HeliosRotInterface::Ioctl { command } => {
+            use helios_rot::HeliosOsRot;
+
+            let rot = HeliosOsRot::new()?;
+            helios_rot_command(&rot, command, logger).await
+        }
+        HeliosRotInterface::Mock {
+            cert_chain,
+            signing_key,
+            command,
+        } => {
+            use helios_rot::HeliosRotMock;
+
+            let mock = HeliosRotMock::load(cert_chain, signing_key)?;
+            helios_rot_command(&mock, command, logger).await
+        }
+    }
+}
+
+async fn helios_rot_command<R: HeliosRot>(
+    rot: &R,
+    command: HeliosRotCommand,
+    logger: &Logger,
+) -> Result<()>
+where
+    <R as HeliosRot>::Error: 'static,
+{
+    use dice_verifier::helios_rot::{MeasurementList, ReferenceMeasurementMap};
+    use helios_rot::{Nonce, Nonce48};
+    use pem_rfc7468::LineEnding;
+    use std::{
+        fs,
+        io::{self, Write},
+    };
+    use x509_cert::der::EncodePem;
+
+    slog::info!(logger, "executing command: {command:?}");
+
+    match command {
+        HeliosRotCommand::Attest { nonce } => {
+            slog::info!(
+                logger,
+                "getting attestation HeliosRot w/ nonce from: {}",
+                nonce.display()
+            );
+
+            let nonce = fs::read(&nonce).with_context(|| {
+                format!("Nonce bytes from file: {}", nonce.display())
+            })?;
+            let nonce = Nonce::try_from(&nonce[..]).with_context(|| {
+                format!("HeliosRot Nonce from file {:?}", nonce)
+            })?;
+
+            let attestation = rot
+                .attest(&nonce)
+                .await
+                .context("Getting attestation with provided Nonce")?;
+            let mut attestation = serde_json::to_string(&attestation)
+                .context("HeliosRot attestation to JSON")?;
+            attestation.push('\n');
+
+            io::stdout()
+                .write_all(attestation.as_bytes())
+                .context("Write Attestation as JSON to stdout")?;
+            io::stdout().flush().context("Flush stdout")
+        }
+        HeliosRotCommand::CertChain => {
+            slog::info!(logger, "getting certificate chain from HeliosRot");
+            for cert in rot.get_certificates().await? {
+                let cert = cert
+                    .to_pem(LineEnding::default())
+                    .context("Encode certificate as PEM")?;
+
+                io::stdout()
+                    .write_all(cert.as_bytes())
+                    .context("Write cert chain to stdout")?;
+            }
+
+            io::stdout().flush().context("Flush stdout")
+        }
+        HeliosRotCommand::Verify {
+            ca_cert,
+            work_dir,
+            corpus,
+        } => {
+            slog::info!(
+                logger,
+                "collecting and verifying attestation from HeliosRot: \
+                ca_cert: {}, corpus: {}",
+                ca_cert.display(),
+                corpus.display()
+            );
+
+            let ca_cert = fs::read(&ca_cert).with_context(|| {
+                format!("Read CA cert from file: {}", ca_cert.display())
+            })?;
+            let ca_cert = Certificate::from_pem(&ca_cert)
+                .context("Parse alias cert from PEM")?;
+
+            // get nonce
+            let nonce = Nonce::from_platform_rng(Nonce48::LENGTH)
+                .context("Nonce from platform RNG")?;
+
+            if let Some(ref work_dir) = work_dir {
+                let out = work_dir.join("nonce.bin");
+                fs::write(&out, nonce).context(format!(
+                    "Write nonce to file: {}",
+                    out.display()
+                ))?;
+            }
+
+            let attestation = rot
+                .attest(&nonce)
+                .await
+                .context("get attestation with nonce")?;
+            if let Some(ref work_dir) = work_dir {
+                // serialize attestation to json & write to file
+                let mut attestation = serde_json::to_string(&attestation)
+                    .context("Serialize attestation to JSON")?;
+                attestation.push('\n');
+
+                let out = work_dir.join("attest.json");
+                fs::write(&out, &attestation).context(format!(
+                    "Write attestation to file: {}",
+                    out.display()
+                ))?;
+            }
+
+            let cert_chain = rot
+                .get_certificates()
+                .await
+                .context("Get certificate chain from HeliosRot")?;
+            if let Some(work_dir) = work_dir {
+                let out = work_dir.join("cert-chain.pem");
+                certs_to_path(&cert_chain, &out).with_context(|| {
+                    format!("Write cert chain to: {}", out.display())
+                })?;
+            }
+
+            dice_verifier::verify_cert_chain(
+                &cert_chain,
+                Some(std::slice::from_ref(&ca_cert)),
+            )
+            .context("Verify HeliosRot cert chain")?;
+
+            dice_verifier::helios_rot::verify_attestation(
+                &cert_chain[0],
+                &attestation,
+                &nonce,
+            )
+            .context("Verify HeliosRot attestation")?;
+
+            let corpus = Corim::from_file(&corpus).context(format!(
+                "Corim from file path: {}",
+                corpus.display()
+            ))?;
+            let corpus = ReferenceMeasurementMap::try_from(
+                std::slice::from_ref(&corpus),
+            )
+            .context("ReferenceMeasurements from CoRIM")?;
+
+            let measurements = MeasurementList::from_artifacts(&cert_chain)
+                .context("MeasurementSet from PkiPath")?;
+
+            dice_verifier::helios_rot::verify_measurements(
+                &measurements,
+                &corpus,
+            )
+            .context("Appraise HealiosRot measurements")
+        }
     }
 }
 
@@ -527,10 +763,7 @@ async fn verify<A: platform_rot::Attest>(
 ) -> Result<PlatformId> {
     use attest_data::Nonce32;
     use pem_rfc7468::LineEnding;
-    use std::{
-        fs::{self, File},
-        io::Write,
-    };
+    use std::fs;
     use x509_cert::der::EncodePem;
 
     // generate nonce from RNG
@@ -582,17 +815,17 @@ async fn verify<A: platform_rot::Attest>(
 
     // get cert chain
     info!("getting cert chain");
-    let cert_chain_path = work_dir.join("cert-chain.pem");
-    let mut cert_chain = File::create(&cert_chain_path).context(format!(
-        "Create file for cert chain: {}",
-        cert_chain_path.display()
-    ))?;
-    let alias_cert_path = work_dir.join("alias.pem");
 
     let certs = attest
         .get_certificates()
         .await
         .context("Get certificate chain from attestor")?;
+
+    let cert_chain_path = work_dir.join("cert-chain.pem");
+    certs_to_path(&certs, &cert_chain_path)
+        .context("writing cert chain to disk")?;
+
+    let alias_cert_path = work_dir.join("alias.pem");
 
     // the first cert in the chain / the leaf cert is the one
     // used to sign attestations
@@ -601,17 +834,6 @@ async fn verify<A: platform_rot::Attest>(
         .to_pem(LineEnding::default())
         .context("Encode alias cert as PEM")?;
     fs::write(&alias_cert_path, pem)?;
-
-    for (index, cert) in certs.iter().enumerate() {
-        info!("writing cert[{}] to: {}", index, cert_chain_path.display());
-        let pem = cert
-            .to_pem(LineEnding::default())
-            .context(format!("Encode cert {index} as PEM"))?;
-        cert_chain.write_all(pem.as_bytes()).context(format!(
-            "Write cert {index} to file: {}",
-            cert_chain_path.display()
-        ))?;
-    }
 
     verify_cert_chain(ca_cert, &cert_chain_path, self_signed)?;
     info!("cert chain verified");
@@ -716,6 +938,28 @@ fn verify_cert_chain(
 
     let _ = dice_verifier::verify_cert_chain(&cert_chain, roots.as_deref())
         .context("Verify cert chain")?;
+
+    Ok(())
+}
+
+fn certs_to_path(certs: &PkiPath, out: &Path) -> Result<()> {
+    use pem_rfc7468::LineEnding;
+    use std::{fs::File, io::Write};
+    use x509_cert::der::EncodePem;
+
+    let mut cert_chain = File::create(out)
+        .context(format!("Create file for cert chain: {}", out.display()))?;
+
+    for (index, cert) in certs.iter().enumerate() {
+        info!("writing cert[{}] to: {}", index, out.display());
+        let pem = cert
+            .to_pem(LineEnding::default())
+            .context(format!("Encode cert {index} as PEM"))?;
+        cert_chain.write_all(pem.as_bytes()).context(format!(
+            "Write cert {index} to file: {}",
+            out.display()
+        ))?;
+    }
 
     Ok(())
 }
