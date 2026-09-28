@@ -45,10 +45,10 @@ enum CommandGroup {
         command: AppraiseCommand,
     },
 
-    /// Execute a command against the Helios RoT
+    /// Run a command specific to the Helios RoT
     Helios {
         #[command(subcommand)]
-        interface: HeliosRotInterface,
+        group: HeliosRotGroup,
     },
 
     /// Execute a command against the Oxide RoT
@@ -65,24 +65,80 @@ enum CommandGroup {
     },
 }
 
+/// Groups of things we do using either the Helios RoT, or artifacts produced by it
 #[derive(Clone, Debug, Subcommand)]
-enum HeliosRotInterface {
+enum HeliosRotGroup {
+    /// Perform operations from the appraisal process
+    Appraise {
+        /// Command to execute against the Helios RoT
+        #[command(subcommand)]
+        command: HeliosRotAppraise,
+    },
+    /// Send commands to the Helios Rot through the IOCTL interface
     Ioctl {
+        /// Command to execute against the Helios RoT
         #[command(subcommand)]
         command: HeliosRotCommand,
     },
+    /// Send commands to a mock instance of the Helios Rot
     Mock {
+        /// Certificate chain that links the signing_key back to the first
+        /// intermediate before the PKI root
         #[clap(short, long, env)]
         cert_chain: PathBuf,
 
+        /// PEM encoded, PKCS#8 structured signing key
         #[clap(short, long, env)]
         signing_key: PathBuf,
 
+        /// Command to execute against the Helios RoT
         #[command(subcommand)]
         command: HeliosRotCommand,
     },
 }
 
+/// Commands executed as part of the appraisal process
+#[derive(Clone, Debug, Subcommand)]
+enum HeliosRotAppraise {
+    /// Verify an attestation / signature produced by the Helios RoT using the
+    /// artifacts provided
+    Attestation {
+        /// Path to file holding the attestation
+        #[clap(env)]
+        attestation: PathBuf,
+
+        /// Path to file holding the qualifying data
+        #[clap(long, env)]
+        qdata: PathBuf,
+
+        /// Path to file holding the alias cert
+        #[clap(long, env)]
+        signer_cert: PathBuf,
+    },
+    /// Verify the provided cert chain produced by the Helios RoT using the
+    /// artifacts provided
+    CertChain {
+        /// Path to file holding trust anchor for the associated PKI.
+        #[clap(long, env)]
+        ca_cert: PathBuf,
+
+        /// Path to file holding the certificate chain
+        #[clap(env)]
+        cert_chain: PathBuf,
+    },
+    /// Appraise the measurements from `cert_chain` against the provided `corpus`
+    Measurements {
+        /// Path to file holding the certificate chain / PkiPath.
+        #[clap(env)]
+        cert_chain: PathBuf,
+
+        /// Path to CoRIM file holding the reference measurement corpus
+        #[clap(env)]
+        corpus: PathBuf,
+    },
+}
+
+/// Commands that require interaction with the Helios RoT
 #[derive(Clone, Debug, Subcommand)]
 enum HeliosRotCommand {
     /// Provide your own nonce, get back an attestation
@@ -319,8 +375,8 @@ async fn main() -> Result<()> {
             let _ = logger;
             appraise_command(&command)
         }
-        CommandGroup::Helios { interface } => {
-            helios_rot_interface(interface, &logger).await
+        CommandGroup::Helios { group } => {
+            helios_rot_group(group, &logger).await
         }
         #[cfg(any(
             feature = "ipcc",
@@ -334,18 +390,22 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn helios_rot_interface(
-    interface: HeliosRotInterface,
+/// Handle data from the caller received via `HeliosRotGroup`
+async fn helios_rot_group(
+    group: HeliosRotGroup,
     logger: &Logger,
 ) -> Result<()> {
-    match interface {
-        HeliosRotInterface::Ioctl { command } => {
+    match group {
+        HeliosRotGroup::Appraise { command } => {
+            helios_rot_appraise_command(command)
+        }
+        HeliosRotGroup::Ioctl { command } => {
             use helios_rot::HeliosOsRot;
 
             let rot = HeliosOsRot::new()?;
             helios_rot_command(&rot, command, logger).await
         }
-        HeliosRotInterface::Mock {
+        HeliosRotGroup::Mock {
             cert_chain,
             signing_key,
             command,
@@ -358,6 +418,7 @@ async fn helios_rot_interface(
     }
 }
 
+/// Execute the requested command using the provided `HeliosRot` impl
 async fn helios_rot_command<R: HeliosRot>(
     rot: &R,
     command: HeliosRotCommand,
@@ -940,6 +1001,119 @@ fn verify_cert_chain(
         .context("Verify cert chain")?;
 
     Ok(())
+}
+
+/// Handle data from the caller received via `HeliosRotAppraise`
+fn helios_rot_appraise_command(command: HeliosRotAppraise) -> Result<()> {
+    match command {
+        HeliosRotAppraise::Attestation {
+            signer_cert,
+            attestation,
+            qdata,
+        } => helios_rot_verify_attestation(&attestation, &qdata, &signer_cert),
+        HeliosRotAppraise::CertChain {
+            ca_cert,
+            cert_chain,
+        } => helios_rot_verify_cert_chain(&ca_cert, &cert_chain),
+        HeliosRotAppraise::Measurements { cert_chain, corpus } => {
+            helios_rot_appraise_measurements(&cert_chain, &corpus)
+        }
+    }
+}
+
+fn helios_rot_appraise_measurements<P: AsRef<Path>>(
+    cert_chain: P,
+    corpus: P,
+) -> Result<()> {
+    use dice_verifier::helios_rot::{MeasurementList, ReferenceMeasurementMap};
+
+    use std::fs;
+
+    let cert_chain = fs::read(&cert_chain).context(format!(
+        "Read cert chain from file: {}",
+        cert_chain.as_ref().display()
+    ))?;
+    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+        .context("loading PkiPath from PEM cert chain")?;
+
+    let corpus = Corim::from_file(&corpus).context(format!(
+        "Corim from file path: {}",
+        corpus.as_ref().display()
+    ))?;
+    let corpus =
+        ReferenceMeasurementMap::try_from(std::slice::from_ref(&corpus))
+            .context("ReferenceMeasurements from CoRIM")?;
+
+    let measurements = MeasurementList::from_artifacts(&cert_chain)
+        .context("MeasurementSet from PkiPath")?;
+
+    dice_verifier::helios_rot::verify_measurements(&measurements, &corpus)
+        .context("Appraise measurements from Helios RoT artifacts")
+}
+
+fn helios_rot_verify_cert_chain<P: AsRef<Path>>(
+    ca_cert: P,
+    cert_chain: P,
+) -> Result<()> {
+    use std::fs;
+
+    let ca_cert = fs::read(&ca_cert).context(format!(
+        "Read cert chain from file: {}",
+        ca_cert.as_ref().display()
+    ))?;
+    let ca_cert =
+        Certificate::from_pem(&ca_cert).context("CA cert from PEM")?;
+
+    let cert_chain = fs::read(&cert_chain).context(format!(
+        "Read cert chain from file: {}",
+        cert_chain.as_ref().display()
+    ))?;
+    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
+        .context("loading PkiPath from PEM cert chain")?;
+
+    dice_verifier::verify_cert_chain(
+        &cert_chain,
+        Some(std::slice::from_ref(&ca_cert)),
+    )
+    .context("Verify cert chain")
+    .map(|_| ())
+}
+
+fn helios_rot_verify_attestation<P: AsRef<Path>>(
+    attestation: P,
+    qdata: P,
+    signer_cert: P,
+) -> Result<()> {
+    use helios_rot::{Attestation, Nonce};
+    use std::fs;
+
+    let attestation = fs::read_to_string(&attestation).context(format!(
+        "Read Attestation from file: {}",
+        attestation.as_ref().display()
+    ))?;
+    let attestation: Attestation = serde_json::from_str(&attestation)
+        .context("Deserialize Attestation from JSON")?;
+
+    let qdata = fs::read(&qdata).context(format!(
+        "Read Nonce from file: {}",
+        qdata.as_ref().display()
+    ))?;
+    let qdata = Nonce::try_from(qdata.as_slice())
+        .context("Deserialize Nonce from binary")?;
+
+    let signer_cert = fs::read(&signer_cert).context(format!(
+        "Read alias cert from file: {}",
+        signer_cert.as_ref().display()
+    ))?;
+    let signer_cert = Certificate::from_pem(&signer_cert)
+        .context("Parse alias cert from PEM")?;
+
+    dice_verifier::helios_rot::verify_attestation(
+        &signer_cert,
+        &attestation,
+        &qdata,
+    )
+    .context("Verify HeliosRotAttestation")
 }
 
 fn certs_to_path(certs: &PkiPath, out: &Path) -> Result<()> {
