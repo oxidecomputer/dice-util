@@ -740,35 +740,20 @@ async fn rot_command<A: platform_rot::Attest>(
             skip_appraisal,
             work_dir,
         } => {
-            // Use the directory provided by the caller to hold intermediate
-            // files, or fall back to a temp dir.
-            let platform_id = match work_dir {
-                Some(w) => {
-                    verify(
-                        attest,
-                        ca_cert.as_deref(),
-                        corpus.as_deref(),
-                        *self_signed,
-                        w,
-                    )
-                    .await?
-                }
-                None => {
-                    if corpus.is_none() && !skip_appraisal {
-                        return Err(anyhow!("no corpus provided but not instructed to skip measurement log appraisal"));
-                    }
-                    let work_dir = tempfile::tempdir()?;
-                    verify(
-                        attest,
-                        ca_cert.as_deref(),
-                        corpus.as_deref(),
-                        *self_signed,
-                        work_dir.as_ref(),
-                    )
-                    .await?
-                }
-            };
-
+            if ca_cert.is_none() && !skip_appraisal {
+                return Err(anyhow!(
+                    "no corpus provided but not instructed to skip \
+                    measurement log appraisal"
+                ));
+            }
+            let platform_id = verify(
+                attest,
+                ca_cert.as_deref(),
+                corpus.as_deref(),
+                *self_signed,
+                work_dir.as_deref(),
+            )
+            .await?;
             println!("{platform_id}");
         }
     }
@@ -819,7 +804,7 @@ async fn verify<A: platform_rot::Attest>(
     ca_cert: Option<&Path>,
     corpus: Option<&Path>,
     self_signed: bool,
-    work_dir: &Path,
+    work_dir: Option<&Path>,
 ) -> Result<PlatformId> {
     use attest_data::Nonce32;
     use pem_rfc7468::LineEnding;
@@ -831,11 +816,14 @@ async fn verify<A: platform_rot::Attest>(
     let nonce = Nonce::from_platform_rng(Nonce32::LENGTH)
         .context("Nonce from platform RNG")?;
 
-    // write nonce to temp dir
-    let nonce_path = work_dir.join("nonce.bin");
-    info!("writing nonce to: {}", nonce_path.display());
-    fs::write(&nonce_path, nonce)
-        .context(format!("Write nonce to file: {}", nonce_path.display()))?;
+    if let Some(work_dir) = work_dir {
+        let nonce_path = work_dir.join("nonce.bin");
+        info!("writing nonce to: {}", nonce_path.display());
+        fs::write(&nonce_path, nonce).context(format!(
+            "Write nonce to file: {}",
+            nonce_path.display()
+        ))?;
+    }
 
     // get attestation
     info!("getting attestation");
@@ -844,17 +832,19 @@ async fn verify<A: platform_rot::Attest>(
         .await
         .context("Get attestation with nonce")?;
 
-    // serialize attestation to json & write to file
-    let mut attestation = serde_json::to_string(&attestation)
-        .context("Serialize attestation to JSON")?;
-    attestation.push('\n');
+    if let Some(work_dir) = work_dir {
+        // serialize attestation to json & write to file
+        let mut attestation = serde_json::to_string(&attestation)
+            .context("Serialize attestation to JSON")?;
+        attestation.push('\n');
 
-    let attestation_path = work_dir.join("attest.json");
-    info!("writing attestation to: {}", attestation_path.display());
-    fs::write(&attestation_path, &attestation).context(format!(
-        "Write attestation to file: {}",
-        attestation_path.display()
-    ))?;
+        let attestation_path = work_dir.join("attest.json");
+        info!("writing attestation to: {}", attestation_path.display());
+        fs::write(&attestation_path, &attestation).context(format!(
+            "Write attestation to file: {}",
+            attestation_path.display()
+        ))?;
+    }
 
     // get log
     info!("getting measurement log");
@@ -862,16 +852,19 @@ async fn verify<A: platform_rot::Attest>(
         .get_measurement_log()
         .await
         .context("Get measurement log from attestor")?;
-    let mut log = serde_json::to_string(&log)
-        .context("Serialize measurement log to JSON")?;
-    log.push('\n');
 
-    let log_path = work_dir.join("log.json");
-    info!("writing measurement log to: {}", log_path.display());
-    fs::write(&log_path, &log).context(format!(
-        "Write measurement log to file: {}",
-        log_path.display()
-    ))?;
+    if let Some(work_dir) = work_dir {
+        let mut log = serde_json::to_string(&log)
+            .context("Serialize measurement log to JSON")?;
+        log.push('\n');
+
+        let log_path = work_dir.join("log.json");
+        info!("writing measurement log to: {}", log_path.display());
+        fs::write(&log_path, &log).context(format!(
+            "Write measurement log to file: {}",
+            log_path.display()
+        ))?;
+    }
 
     // get cert chain
     info!("getting cert chain");
@@ -881,49 +874,72 @@ async fn verify<A: platform_rot::Attest>(
         .await
         .context("Get certificate chain from attestor")?;
 
-    let cert_chain_path = work_dir.join("cert-chain.pem");
-    certs_to_path(&certs, &cert_chain_path)
-        .context("writing cert chain to disk")?;
+    if let Some(work_dir) = work_dir {
+        let cert_chain_path = work_dir.join("cert-chain.pem");
+        certs_to_path(&certs, &cert_chain_path)
+            .context("writing cert chain to disk")?;
 
-    let alias_cert_path = work_dir.join("alias.pem");
+        let alias_cert_path = work_dir.join("alias.pem");
 
-    // the first cert in the chain / the leaf cert is the one
-    // used to sign attestations
-    info!("writing alias cert to: {}", alias_cert_path.display());
-    let pem = certs[0]
-        .to_pem(LineEnding::default())
-        .context("Encode alias cert as PEM")?;
-    fs::write(&alias_cert_path, pem)?;
+        // the first cert in the chain / the leaf cert is the one
+        // used to sign attestations
+        info!("writing alias cert to: {}", alias_cert_path.display());
+        let pem = certs[0]
+            .to_pem(LineEnding::default())
+            .context("Encode alias cert as PEM")?;
+        fs::write(&alias_cert_path, pem)?;
+    }
 
-    verify_cert_chain(ca_cert, &cert_chain_path, self_signed)?;
+    if !self_signed && ca_cert.is_none() {
+        return Err(anyhow!("`ca-cert` or `self-signed` is required"));
+    }
+    let roots = if let Some(p) = ca_cert {
+        let cert = fs::read(p).with_context(|| {
+            format!("Reading CA cert from file: {}", p.display())
+        })?;
+        let cert =
+            Certificate::from_pem(cert).context("Certificate from PEM")?;
+        Some(vec![cert])
+    } else {
+        warn!("allowing self-signed cert chain");
+        None
+    };
+
+    let _ = dice_verifier::verify_cert_chain(&certs, roots.as_deref())
+        .context("Verify cert chain")?;
     info!("cert chain verified");
 
-    verify_attestation(
-        &alias_cert_path,
-        &attestation_path,
-        &log_path,
-        &nonce_path,
-    )?;
+    dice_verifier::platform_rot::verify_attestation(
+        &certs[0],
+        &attestation,
+        &log,
+        &nonce,
+    )
+    .context("Verify attestation")?;
     info!("attestation verified");
 
     if let Some(corpus) = corpus {
-        verify_measurements(&cert_chain_path, &log_path, corpus)?;
+        let measurements = MeasurementSet::from_artifacts(&certs, &log)
+            .context("MeasurementSet from artifacts")?;
+        let corpus = Corim::from_file(corpus).with_context(|| {
+            format!("Corim from file path: {}", corpus.display())
+        })?;
+        let corpus =
+            ReferenceMeasurements::try_from(std::slice::from_ref(&corpus))
+                .context("ReferenceMeasurements from CoRIM")?;
+
+        dice_verifier::platform_rot::verify_measurements(
+            &measurements,
+            &corpus,
+        )
+        .context("Verify measurements")?;
         info!("measurements verified");
     } else {
-        warn!("measurement corpus is None: skipping log appraisal");
+        warn!("measurement corpus is None: skipping measurement appraisal");
     }
 
-    let cert_chain = fs::read(&cert_chain_path).context(format!(
-        "read cert chain from path: {}",
-        cert_chain_path.display()
-    ))?;
-    let cert_chain: PkiPath = Certificate::load_pem_chain(&cert_chain)
-        .context("Parse cert chain from PEM")?;
-
-    let platform_id = PlatformId::try_from(&cert_chain)
-        .context("PlatformId from attestation cert chain")?;
-
-    Ok(platform_id)
+    PlatformId::try_from(&certs)
+        .context("PlatformId from attestation cert chain")
 }
 
 fn verify_attestation(
