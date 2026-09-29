@@ -8,7 +8,7 @@ members = [
     "dice-cert-tmpl",
     "dice-mfg",
     "dice-mfg-msgs",
-    "platform-rot",
+    "oxide-rot",
     "yhsm-audit",
     "verifier-cli",
 ]

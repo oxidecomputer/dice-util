@@ -256,7 +256,7 @@ pub fn verify_measurements(
 
 #[cfg(test)]
 mod tests {
-    use crate::platform_rot::*;
+    use crate::oxide_rot::*;
     use crate::*;
 
     use std::collections::HashSet;

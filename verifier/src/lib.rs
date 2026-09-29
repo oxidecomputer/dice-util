@@ -21,7 +21,7 @@ mod ed25519;
 use ed25519::{Ed25519CertVerifier, Ed25519CertVerifierError};
 
 pub mod helios_rot;
-pub mod platform_rot;
+pub mod oxide_rot;
 
 mod rsa;
 use rsa::{RsaCertVerifier, RsaCertVerifierError};

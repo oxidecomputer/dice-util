@@ -5,10 +5,10 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 #[cfg(feature = "hiffy")]
-use platform_rot::hiffy::{AttestHiffy, AttestTask};
+use oxide_rot::hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
-use platform_rot::ipcc::AttestIpcc;
-use platform_rot::{Attest, Nonce};
+use oxide_rot::ipcc::AttestIpcc;
+use oxide_rot::{Attest, Nonce};
 use std::{
     fmt,
     io::{self, Write},

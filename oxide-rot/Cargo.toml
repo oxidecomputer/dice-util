@@ -1,8 +1,8 @@
 [package]
-name = "platform-rot"
+name = "oxide-rot"
 version = "0.1.0"
 edition = "2024"
-description = "a library crate implementing an interface to the Helios RoT"
+description = "a library crate implementing an interface to the Oxide RoT"
 license = "MPL-2.0"
 
 [dependencies]
@@ -37,7 +37,7 @@ pki-playground = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
-platform-rot = { path = "../platform-rot", features = ["unittest"] }
+oxide-rot = { path = "../oxide-rot", features = ["unittest"] }
 
 [features]
 default = ["hiffy"]
