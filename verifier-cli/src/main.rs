@@ -740,7 +740,7 @@ async fn rot_command<A: oxide_rot::Attest>(
             skip_appraisal,
             work_dir,
         } => {
-            if ca_cert.is_none() && !skip_appraisal {
+            if corpus.is_none() && !skip_appraisal {
                 return Err(anyhow!(
                     "no corpus provided but not instructed to skip \
                     measurement log appraisal"
