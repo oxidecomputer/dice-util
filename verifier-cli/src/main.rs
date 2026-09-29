@@ -39,12 +39,6 @@ struct Args {
 /// Top level subcommand structure for Clap UI
 #[derive(Clone, Debug, Subcommand)]
 enum CommandGroup {
-    /// Perform a single operation in the appraisal process
-    Appraise {
-        #[command(subcommand)]
-        command: AppraiseCommand,
-    },
-
     /// Run a command specific to the Helios RoT
     Helios {
         #[command(subcommand)]
@@ -173,6 +167,12 @@ enum HeliosRotCommand {
 #[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
 #[derive(Clone, Debug, Subcommand)]
 enum OxideRotInterface {
+    /// Perform operations from the appraisal process
+    Appraise {
+        /// Command from the appraisal process
+        #[command(subcommand)]
+        command: OxideRotAppraise,
+    },
     /// Execute some operation from the appraisal process that requires
     /// communication with the RoT through the IPCC interface
     #[cfg(feature = "ipcc")]
@@ -260,10 +260,9 @@ enum AttestCommand {
 /// operate on the attestation artifacts directly. They do not communicate
 /// with the RoT.
 #[derive(Clone, Debug, Subcommand)]
-enum AppraiseCommand {
-    /// Verify the measurements from the log and cert chain against the
-    /// provided measurement corpus.
-    AppraiseMeasurements {
+enum OxideRotAppraise {
+    /// Appraise the measurements from the artifacts provided
+    Measurements {
         /// Path to file holding the certificate chain / PkiPath.
         #[clap(env)]
         cert_chain: PathBuf,
@@ -272,12 +271,12 @@ enum AppraiseCommand {
         #[clap(env)]
         log: PathBuf,
 
-        /// Path to file holding the reference measurement corpus
+        /// Path to CoRIM file holding the reference measurement corpus
         #[clap(env)]
         corpus: PathBuf,
     },
     /// Verify signature over Attestation
-    VerifyAttestation {
+    Attestation {
         /// Path to file holding the alias cert
         #[clap(long, env)]
         alias_cert: PathBuf,
@@ -295,7 +294,7 @@ enum AppraiseCommand {
         nonce: PathBuf,
     },
     /// Walk the PkiPath formatted certificate chain verifying each link.
-    VerifyCertChain {
+    CertChain {
         /// Path to file holding trust anchor for the associated PKI.
         #[clap(long, env, conflicts_with = "self_signed")]
         ca_cert: Option<PathBuf>,
@@ -371,10 +370,6 @@ async fn main() -> Result<()> {
     let logger = Logger::root(drain, slog::o!());
 
     match args.command_group {
-        CommandGroup::Appraise { command } => {
-            let _ = logger;
-            appraise_command(&command)
-        }
         CommandGroup::Helios { group } => {
             helios_rot_group(group, &logger).await
         }
@@ -579,6 +574,10 @@ async fn oxide_rot_interface(
     logger: &Logger,
 ) -> Result<()> {
     match interface {
+        OxideRotInterface::Appraise { command } => {
+            let _ = logger;
+            appraise_command(&command)
+        }
         #[cfg(feature = "ipcc")]
         OxideRotInterface::Ipcc { command } => {
             let _ = logger;
@@ -603,20 +602,20 @@ async fn oxide_rot_interface(
     }
 }
 
-fn appraise_command(command: &AppraiseCommand) -> Result<()> {
+fn appraise_command(command: &OxideRotAppraise) -> Result<()> {
     match command {
-        AppraiseCommand::AppraiseMeasurements {
+        OxideRotAppraise::Measurements {
             cert_chain,
             log,
             corpus,
         } => verify_measurements(cert_chain, log, corpus),
-        AppraiseCommand::VerifyAttestation {
+        OxideRotAppraise::Attestation {
             alias_cert,
             attestation,
             log,
             nonce,
         } => verify_attestation(alias_cert, attestation, log, nonce),
-        AppraiseCommand::VerifyCertChain {
+        OxideRotAppraise::CertChain {
             ca_cert,
             cert_chain,
             self_signed,
