@@ -6,15 +6,15 @@ use anyhow::{anyhow, Context, Result};
 use attest_data::{Attestation, Log, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
-use dice_verifier::platform_rot::{MeasurementSet, ReferenceMeasurements};
+use dice_verifier::oxide_rot::{MeasurementSet, ReferenceMeasurements};
 use helios_rot::HeliosRot;
 use log::{info, warn};
 #[cfg(feature = "hiffy")]
-use platform_rot::hiffy::{AttestHiffy, AttestTask};
+use oxide_rot::hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
-use platform_rot::ipcc::AttestIpcc;
+use oxide_rot::ipcc::AttestIpcc;
 #[cfg(feature = "sled-agent")]
-use platform_rot::sled_agent::AttestSledAgent;
+use oxide_rot::sled_agent::AttestSledAgent;
 use rats_corim::Corim;
 use slog::{Drain, FilterLevel, Logger};
 use std::{
@@ -670,7 +670,7 @@ fn util_command(command: &UtilCommand) -> Result<()> {
 }
 
 #[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent",))]
-async fn rot_command<A: platform_rot::Attest>(
+async fn rot_command<A: oxide_rot::Attest>(
     attest: &A,
     command: &AttestCommand,
 ) -> Result<()> {
@@ -794,12 +794,12 @@ fn verify_measurements(
     let measurements = MeasurementSet::from_artifacts(&cert_chain, &log)
         .context("MeasurementSet from PkiPath")?;
 
-    dice_verifier::platform_rot::verify_measurements(&measurements, &corpus)
+    dice_verifier::oxide_rot::verify_measurements(&measurements, &corpus)
         .context("Verify measurements")
 }
 
 #[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent",))]
-async fn verify<A: platform_rot::Attest>(
+async fn verify<A: oxide_rot::Attest>(
     attest: &A,
     ca_cert: Option<&Path>,
     corpus: Option<&Path>,
@@ -909,7 +909,7 @@ async fn verify<A: platform_rot::Attest>(
         .context("Verify cert chain")?;
     info!("cert chain verified");
 
-    dice_verifier::platform_rot::verify_attestation(
+    dice_verifier::oxide_rot::verify_attestation(
         &certs[0],
         &attestation,
         &log,
@@ -928,11 +928,8 @@ async fn verify<A: platform_rot::Attest>(
             ReferenceMeasurements::try_from(std::slice::from_ref(&corpus))
                 .context("ReferenceMeasurements from CoRIM")?;
 
-        dice_verifier::platform_rot::verify_measurements(
-            &measurements,
-            &corpus,
-        )
-        .context("Verify measurements")?;
+        dice_verifier::oxide_rot::verify_measurements(&measurements, &corpus)
+            .context("Verify measurements")?;
         info!("measurements verified");
     } else {
         warn!("measurement corpus is None: skipping measurement appraisal");
@@ -975,7 +972,7 @@ fn verify_attestation(
     let alias =
         Certificate::from_pem(&alias).context("Parse alias cert from PEM")?;
 
-    dice_verifier::platform_rot::verify_attestation(
+    dice_verifier::oxide_rot::verify_attestation(
         &alias,
         &attestation,
         &log,

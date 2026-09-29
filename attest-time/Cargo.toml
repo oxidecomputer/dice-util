@@ -11,7 +11,7 @@ clap-verbosity.workspace = true
 ctrlc.workspace = true
 env_logger.workspace = true
 log.workspace = true
-platform-rot = { path = "../platform-rot", default-features = false }
+oxide-rot = { path = "../oxide-rot", default-features = false }
 tokio = { workspace = true, features = ["full"] }
 slog.workspace = true
 slog-async.workspace = true
@@ -21,5 +21,5 @@ slog-term.workspace = true
 
 [features]
 default = ["hiffy"]
-ipcc = ["platform-rot/ipcc"]
+ipcc = ["oxide-rot/ipcc"]
 hiffy = []

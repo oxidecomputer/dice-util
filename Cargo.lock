@@ -353,7 +353,7 @@ dependencies = [
  "ctrlc",
  "env_logger",
  "log",
- "platform-rot",
+ "oxide-rot",
  "slog",
  "slog-async",
  "slog-envlogger",
@@ -3979,6 +3979,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "oxide-rot"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "attest-data",
+ "attest-mock",
+ "cfg-if",
+ "der",
+ "ed25519-dalek",
+ "hubpack",
+ "humility-core",
+ "humility-hiffy",
+ "humility-idol",
+ "humility-probes-core",
+ "libipcc",
+ "oxide-rot",
+ "p384",
+ "pki-playground",
+ "serde",
+ "serde_with",
+ "sha3",
+ "sled-agent-client",
+ "sled-agent-types-versions",
+ "slog",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "x509-cert",
+]
+
+[[package]]
 name = "oxnet"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4296,38 +4328,6 @@ name = "plain"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
-
-[[package]]
-name = "platform-rot"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "attest-data",
- "attest-mock",
- "cfg-if",
- "der",
- "ed25519-dalek",
- "hubpack",
- "humility-core",
- "humility-hiffy",
- "humility-idol",
- "humility-probes-core",
- "libipcc",
- "p384",
- "pki-playground",
- "platform-rot",
- "serde",
- "serde_with",
- "sha3",
- "sled-agent-client",
- "sled-agent-types-versions",
- "slog",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "x509-cert",
-]
 
 [[package]]
 name = "polling"
@@ -7102,9 +7102,9 @@ dependencies = [
  "helios-rot",
  "hubpack",
  "log",
+ "oxide-rot",
  "p384",
  "pem-rfc7468 1.0.0",
- "platform-rot",
  "rats-corim",
  "serde_json",
  "sha3",

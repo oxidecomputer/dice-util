@@ -16,7 +16,7 @@ helios-rot.workspace = true
 hubpack.workspace = true
 log.workspace = true
 p384 = { workspace = true, default-features = true }
-platform-rot = { path = "../platform-rot", default-features = false }
+oxide-rot = { path = "../oxide-rot", default-features = false }
 pem-rfc7468 = { workspace = true, features = ["alloc", "std"] }
 rats-corim.workspace = true
 sha3.workspace = true
@@ -33,6 +33,6 @@ tokio = { workspace = true, features = ["full"] }
 
 [features]
 default = ["hiffy"]
-hiffy = ["platform-rot/hiffy"]
-ipcc = ["platform-rot/ipcc"]
-sled-agent = ["platform-rot/sled-agent"]
+hiffy = ["oxide-rot/hiffy"]
+ipcc = ["oxide-rot/ipcc"]
+sled-agent = ["oxide-rot/sled-agent"]
