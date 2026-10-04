@@ -196,7 +196,53 @@ pub fn verify_cert_chain<'a>(
     pki_path: &'a PkiPath,
     roots: Option<&'a [Certificate]>,
 ) -> Result<&'a Certificate, PkiPathSignatureVerifierError> {
-    PkiPathSignatureVerifier::new(roots)?.verify(pki_path)
+    let verifier = PkiPathSignatureVerifier::new(roots)?;
+    match verifier.verify(pki_path) {
+        Ok(c) => Ok(c),
+        Err(e) => match e {
+            // These are the errors encountered when signature verification
+            // fails. In these cases we reverse the cert chain and try again.
+            // We may be better off explicitly checking the first and last cert
+            // against the available roots. This code does effectively that,
+            // but we may end up getting errors from elsewhere in the chain.
+            // This could / will make debugging harder.
+            PkiPathSignatureVerifierError::VerifierFailed(
+                CertVerifierError::SignatureType,
+            )
+            | PkiPathSignatureVerifierError::VerifierFailed(
+                CertVerifierError::Signature(_),
+            ) => {
+                // TODO: we should be able to do this w/o cloning
+                let pki_path_rev: PkiPath =
+                    pki_path.iter().rev().cloned().collect();
+                // `verify` returns the root `&Certificate` that successfully
+                // completed the provided pki_path. The reversed cert chain
+                // has been allocated locally, so we can't return a reference
+                // to it. We hack around this by finding the equivalent cert
+                // in the parameters passed by the caller.
+                let matched_root = verifier.verify(&pki_path_rev)?;
+                match roots {
+                    Some(roots) => {
+                        for root in roots.iter() {
+                            if root == matched_root {
+                                return Ok(root);
+                            }
+                        }
+                        Err(PkiPathSignatureVerifierError::NoMatchingRoot)
+                    }
+                    None => {
+                        for cert in pki_path.iter() {
+                            if cert == matched_root {
+                                return Ok(cert);
+                            }
+                        }
+                        Err(PkiPathSignatureVerifierError::NoMatchingRoot)
+                    }
+                }
+            }
+            e => Err(e),
+        },
+    }
 }
 
 #[cfg(test)]
@@ -368,6 +414,25 @@ mod tests {
         out.push("helios-rot.certlist.pem");
         let cert_chain = get_cert_chain_from_file(&out);
 
+        let anchor = verify_cert_chain(
+            &cert_chain,
+            Some(std::slice::from_ref(&root_cert)),
+        )
+        .unwrap();
+
+        assert_eq!(anchor, &root_cert);
+    }
+
+    #[test]
+    fn helios_rot_amd_turin_reversed() {
+        let mut out = PathBuf::from(env::var("OUT_DIR").unwrap());
+        out.push("amd-root-ca-r4.cert.pem");
+        let root_cert = get_cert_from_file(&out);
+        out.pop();
+        out.push("helios-rot.certlist.pem");
+        let cert_chain = get_cert_chain_from_file(&out);
+
+        let cert_chain = cert_chain.into_iter().rev().collect();
         let anchor = verify_cert_chain(
             &cert_chain,
             Some(std::slice::from_ref(&root_cert)),
