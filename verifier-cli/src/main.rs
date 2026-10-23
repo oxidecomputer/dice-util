@@ -93,6 +93,19 @@ enum HeliosRotGroup {
         #[command(subcommand)]
         command: HeliosRotCommand,
     },
+
+    /// Execute some operation from the appraisal process that requires
+    /// communication with the RoT through the SledAgent interface
+    #[cfg(feature = "sled-agent")]
+    SledAgent {
+        /// IPv6 address & port of target sled-agent
+        #[clap(short, long, env)]
+        addr: std::net::SocketAddrV6,
+
+        /// Command to execute against the Helios RoT
+        #[command(subcommand)]
+        command: HeliosRotCommand,
+    },
 }
 
 /// Commands executed as part of the appraisal process
@@ -413,6 +426,13 @@ async fn helios_rot_group(
 
             let mock = HeliosRotMock::load(cert_chain, signing_key)?;
             helios_rot_command(&mock, command, logger).await
+        }
+        #[cfg(feature = "sled-agent")]
+        HeliosRotGroup::SledAgent { addr, command } => {
+            use helios_rot::HeliosRotSledAgent;
+
+            let rot = HeliosRotSledAgent::new(addr, logger);
+            helios_rot_command(&rot, command, logger).await
         }
     }
 }
