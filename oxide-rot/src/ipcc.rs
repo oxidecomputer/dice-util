@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use attest_data::{
-    Attestation, Log, Nonce, Nonce32,
+    Attestation, Log, QualifyingData, QualifyingData32,
     messages::{HostToRotCommand, RotToHost},
 };
 pub use libipcc::IpccError;
@@ -13,15 +13,15 @@ use x509_cert::{
     der::{self, Decode, Encode, Reader},
 };
 
-use crate::{Attest, AttestError};
+use crate::{OxideRot, OxideRotError};
 
-/// The `AttestIpcc` type communicates with the RoT `Attest` task through the
+/// The `OxideRotIpcc` type communicates with the RoT `Attest` task through the
 /// IPCC interface / <https://github.com/oxidecomputer/ipcc-rs>.
 ///
 /// The actual handle to the IPCC interface is created and released on-demand.
-pub struct AttestIpcc {}
+pub struct OxideRotIpcc {}
 
-impl AttestIpcc {
+impl OxideRotIpcc {
     /// Creates a new `Ipcc` instance.
     pub fn new() -> Self {
         Self {}
@@ -49,44 +49,44 @@ impl AttestIpcc {
 }
 
 #[async_trait::async_trait]
-impl Attest for AttestIpcc {
-    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
+impl OxideRot for OxideRotIpcc {
+    async fn get_measurement_log(&self) -> Result<Log, OxideRotError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let len = attest_data::messages::serialize(
             &mut rot_message,
             &HostToRotCommand::GetMeasurementLog,
             |_| 0,
         )
-        .map_err(AttestError::Serialize)?;
+        .map_err(OxideRotError::Serialize)?;
         rot_message.truncate(len);
         let rot_resp = self.do_rot_request(rot_message).await?;
         let data = attest_data::messages::parse_response(
             &rot_resp,
             RotToHost::RotMeasurementLog,
         )
-        .map_err(AttestError::HostToRot)?;
+        .map_err(OxideRotError::HostToRot)?;
 
         let (log, _): (Log, _) =
-            hubpack::deserialize(data).map_err(AttestError::Deserialize)?;
+            hubpack::deserialize(data).map_err(OxideRotError::Deserialize)?;
 
         Ok(log)
     }
 
-    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&self) -> Result<PkiPath, OxideRotError> {
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let len = attest_data::messages::serialize(
             &mut rot_message,
             &HostToRotCommand::GetCertificates,
             |_| 0,
         )
-        .map_err(AttestError::Serialize)?;
+        .map_err(OxideRotError::Serialize)?;
         rot_message.truncate(len);
         let rot_resp = self.do_rot_request(rot_message).await?;
         let cert_chain_bytes = attest_data::messages::parse_response(
             &rot_resp,
             RotToHost::RotCertificates,
         )
-        .map_err(AttestError::HostToRot)?;
+        .map_err(OxideRotError::HostToRot)?;
 
         let mut idx = 0;
 
@@ -111,28 +111,31 @@ impl Attest for AttestIpcc {
         Ok(certs)
     }
 
-    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
-        let nonce: &Nonce32 = nonce.try_into()?;
+    async fn attest(
+        &self,
+        qdata: &QualifyingData,
+    ) -> Result<Attestation, OxideRotError> {
+        let qdata: &QualifyingData32 = qdata.try_into()?;
         let mut rot_message = vec![0; attest_data::messages::MAX_REQUEST_SIZE];
         let len = attest_data::messages::serialize(
             &mut rot_message,
             &HostToRotCommand::Attest,
             |buf| {
-                buf[..Nonce32::LENGTH].copy_from_slice(nonce.as_ref());
-                Nonce32::LENGTH
+                buf[..QualifyingData32::LENGTH].copy_from_slice(qdata.as_ref());
+                QualifyingData32::LENGTH
             },
         )
-        .map_err(AttestError::Serialize)?;
+        .map_err(OxideRotError::Serialize)?;
         rot_message.truncate(len);
         let rot_resp = self.do_rot_request(rot_message).await?;
         let data = attest_data::messages::parse_response(
             &rot_resp,
             RotToHost::RotAttestation,
         )
-        .map_err(AttestError::HostToRot)?;
+        .map_err(OxideRotError::HostToRot)?;
 
         let (attestation, _): (Attestation, _) =
-            hubpack::deserialize(data).map_err(AttestError::Deserialize)?;
+            hubpack::deserialize(data).map_err(OxideRotError::Deserialize)?;
 
         Ok(attestation)
     }

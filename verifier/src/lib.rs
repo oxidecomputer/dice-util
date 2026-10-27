@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-pub use attest_data::{Attestation, Log, Measurement, Nonce, Nonce32};
+pub use attest_data::{
+    Attestation, Log, Measurement, QualifyingData, QualifyingData32,
+};
 use const_oid::{
     db::{
         rfc5912::{ID_EC_PUBLIC_KEY, RSA_ENCRYPTION},

@@ -5,10 +5,10 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 #[cfg(feature = "hiffy")]
-use oxide_rot::hiffy::{AttestHiffy, AttestTask};
+use oxide_rot::hiffy::{OxideRotHiffy, OxideRotTask};
 #[cfg(feature = "ipcc")]
-use oxide_rot::ipcc::AttestIpcc;
-use oxide_rot::{Attest, Nonce};
+use oxide_rot::ipcc::OxideRotIpcc;
+use oxide_rot::{OxideRot, QualifyingData};
 use std::{
     fmt,
     io::{self, Write},
@@ -53,7 +53,7 @@ enum Commands {
 #[derive(Debug, Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Command from the vm_attest_trait::AttestMock to sample.
+    /// Command from the vm_attest_trait::OxideRotMock to sample.
     #[clap(value_enum, long, default_value_t = Commands::Attest)]
     command: Commands,
 
@@ -91,9 +91,9 @@ async fn main() -> Result<()> {
     // `println!`
     let mut stdout = io::stdout().lock();
 
-    let attest: Box<dyn Attest> = match args.interface {
+    let attest: Box<dyn OxideRot> = match args.interface {
         #[cfg(feature = "ipcc")]
-        Interface::Ipcc => Box::new(AttestIpcc::new()),
+        Interface::Ipcc => Box::new(OxideRotIpcc::new()),
         Interface::Hiffy => {
             #[cfg(feature = "hiffy")]
             {
@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
                 let drain = slog_async::Async::new(drain).build().fuse();
                 let logger = slog::Logger::root(drain, slog::o!());
 
-                Box::new(AttestHiffy::new(AttestTask::Rot, &logger))
+                Box::new(OxideRotHiffy::new(OxideRotTask::Rot, &logger))
             }
             #[cfg(not(feature = "hiffy"))]
             {
@@ -121,7 +121,7 @@ async fn main() -> Result<()> {
 
     // we do not care about the nonce, all 0's will require the same amount of
     // work from the underlying impl
-    let nonce = Nonce::N32(attest_data::Array([0u8; 32]));
+    let nonce = QualifyingData::Q32(attest_data::Array([0u8; 32]));
 
     // time calls to `VmInstanceAttestMock::attest`, output duration in µs
     let mut count: usize = 0;
