@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use attest_data::{AttestDataError, DiceTcbInfo, DICE_TCB_INFO};
-pub use attest_data::{Attestation, Log, Measurement, Nonce};
+pub use attest_data::{Attestation, Log, Measurement, QualifyingData};
 use hubpack::SerializedSize;
 pub use rats_corim::Corim;
 use sha3::{Digest, Sha3_256};
@@ -186,13 +186,13 @@ pub enum VerifyAttestationError {
 }
 
 /// This function uses the provided artifacts to establish trust in the Log.
-/// The trustworthiness of the alias certificate and the attestation / nonce
+/// The trustworthiness of the alias certificate and the attestation / qdata
 /// must be established independently (see
 pub fn verify_attestation(
     alias: &Certificate,
     attestation: &Attestation,
     log: &Log,
-    nonce: &Nonce,
+    qdata: &QualifyingData,
 ) -> Result<(), VerifyAttestationError> {
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
@@ -209,10 +209,10 @@ pub fn verify_attestation(
     let log = buf;
 
     // - message: the data that's signed by the RoT to produce an
-    //   attestation `sha3_256(log | nonce)`
+    //   attestation `sha3_256(log | qdata)`
     let mut message = Sha3_256::new();
     message.update(log);
-    message.update(nonce);
+    message.update(qdata);
     let message = message.finalize();
 
     let alias = alias

@@ -2,20 +2,20 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{Attest, AttestError};
+use crate::{OxideRot, OxideRotError};
 
 use std::net::SocketAddrV6;
 
-use attest_data::{Attestation, Log, Measurement, Nonce};
+use attest_data::{Attestation, Log, Measurement, QualifyingData};
 use sled_agent_client::Client as SledAgentClient;
 use sled_agent_types_versions::latest::rot as SledAgentTypes;
 use x509_cert::{Certificate, PkiPath, der::DecodePem};
 
-pub struct AttestSledAgent {
+pub struct OxideRotSledAgent {
     client: SledAgentClient,
 }
 
-impl AttestSledAgent {
+impl OxideRotSledAgent {
     pub fn new(addr: SocketAddrV6, log: &slog::Logger) -> Self {
         let client = SledAgentClient::new(
             &format!("http://{addr}"),
@@ -26,8 +26,8 @@ impl AttestSledAgent {
 }
 
 #[async_trait::async_trait]
-impl Attest for AttestSledAgent {
-    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
+impl OxideRot for OxideRotSledAgent {
+    async fn get_measurement_log(&self) -> Result<Log, OxideRotError> {
         let mut log = Log::default();
         let measurments = self
             .client
@@ -44,7 +44,7 @@ impl Attest for AttestSledAgent {
         Ok(log)
     }
 
-    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&self) -> Result<PkiPath, OxideRotError> {
         let certs = self
             .client
             .rot_certificate_chain(&SledAgentTypes::Rot::Oxide)
@@ -57,13 +57,16 @@ impl Attest for AttestSledAgent {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
-        let &Nonce::N32(nonce) = nonce;
+    async fn attest(
+        &self,
+        qdata: &QualifyingData,
+    ) -> Result<Attestation, OxideRotError> {
+        let &QualifyingData::Q32(qdata) = qdata;
         let attestation = self
             .client
             .rot_attest(
                 &SledAgentTypes::Rot::Oxide,
-                &SledAgentTypes::Nonce::N32(nonce.0),
+                &SledAgentTypes::Nonce::N32(qdata.0),
             )
             .await?
             .into_inner();

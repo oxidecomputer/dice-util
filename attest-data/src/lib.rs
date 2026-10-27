@@ -49,12 +49,15 @@ pub enum AttestDataError {
 
 #[cfg_attr(feature = "std", derive(Error))]
 #[derive(Debug, PartialEq)]
-pub enum NonceError {
-    #[cfg_attr(feature = "std", error("unsupported Nonce length ({0})"))]
+pub enum QualifyingDataError {
+    #[cfg_attr(
+        feature = "std",
+        error("unsupported QualifyingData length ({0})")
+    )]
     UnsupportedLen(usize),
     #[cfg_attr(
         feature = "std",
-        error("Failed to get random Nonce from the platform")
+        error("Failed to get random QualifyingData from the platform")
     )]
     GetRandom,
 }
@@ -98,10 +101,10 @@ impl<const N: usize> TryFrom<&[u8]> for Array<N> {
 
     /// Attempt to create an `Array<N>` from the slice provided.
     fn try_from(item: &[u8]) -> Result<Self, Self::Error> {
-        let nonce: [u8; N] = item
+        let qdata: [u8; N] = item
             .try_into()
             .map_err(|_| Self::Error::TryFromSliceError)?;
-        Ok(Array::<N>(nonce))
+        Ok(Array::<N>(qdata))
     }
 }
 
@@ -130,9 +133,9 @@ pub type Sha3_256Digest = Array<SHA3_256_DIGEST_SIZE>;
 /// An array of bytes sized appropriately for a sha3-256 digest.
 pub type Ed25519Signature = Array<SIGNATURE_SERIALIZED_LENGTH>;
 
-pub type Nonce32 = Array<SHA3_256_DIGEST_SIZE>;
+pub type QualifyingData32 = Array<SHA3_256_DIGEST_SIZE>;
 
-/// A Nonce is supplied as part of the attestation challenge to guarantee
+/// QualifyingData is supplied as part of the attestation challenge to guarantee
 /// freshness. Callers are expected to use a random Nonce with a length that's
 /// appropriate for the specific digest and signing algorithms in use. We may
 /// in the future extend this to accept arbitrarily sized values.
@@ -142,86 +145,88 @@ pub type Nonce32 = Array<SHA3_256_DIGEST_SIZE>;
     Debug,
     Deserialize,
     PartialEq,
-    // The current RoT Attest API takes the nonce bytes directly (i.e. a
-    // `Nonce32`/`Array<32>`) rather than this more generic `Nonce` type.
+    // The current RoT Attest API takes the qualifying_data bytes directly (i.e. a
+    // `QualifyingData32`/`Array<32>`) rather than this more generic `QualifyingData` type.
     // To prevent accidentally accepting this type where it currently shouldn't
     // be accepted, we omit these for now until hubris#2375 is fixed.
     // Serialize, SerializedSize,
 )]
-pub enum Nonce {
-    /// A 32-byte Nonce value.
-    N32(Nonce32),
+pub enum QualifyingData {
+    /// A 32-byte QualifyingData value.
+    Q32(QualifyingData32),
 }
 
 #[cfg(feature = "std")]
-impl fmt::Display for Nonce {
+impl fmt::Display for QualifyingData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Nonce({})", hex::encode(self.as_ref()))
+        write!(f, "QualifyingData({})", hex::encode(self.as_ref()))
     }
 }
 
-impl Nonce {
+impl QualifyingData {
     #[cfg(feature = "std")]
-    pub fn from_platform_rng(len: usize) -> Result<Self, NonceError> {
-        // We currently only support 32-byte Nonce's
-        if len != Nonce32::LENGTH {
-            return Err(NonceError::UnsupportedLen(len));
+    pub fn from_platform_rng(len: usize) -> Result<Self, QualifyingDataError> {
+        // We currently only support 32-byte QualifyingData's
+        if len != QualifyingData32::LENGTH {
+            return Err(QualifyingDataError::UnsupportedLen(len));
         }
-        let mut nonce = Array([0u8; Nonce32::LENGTH]);
-        getrandom::fill(nonce.0.as_mut_slice())
-            .map_err(|_| NonceError::GetRandom)?;
-        Ok(Nonce::N32(nonce))
+        let mut qdata = Array([0u8; QualifyingData32::LENGTH]);
+        getrandom::fill(qdata.0.as_mut_slice())
+            .map_err(|_| QualifyingDataError::GetRandom)?;
+        Ok(QualifyingData::Q32(qdata))
     }
 }
 
 #[cfg(feature = "std")]
-impl AsRef<[u8]> for Nonce {
+impl AsRef<[u8]> for QualifyingData {
     fn as_ref(&self) -> &[u8] {
         match self {
-            Nonce::N32(n) => n.as_ref(),
+            QualifyingData::Q32(n) => n.as_ref(),
         }
     }
 }
 
-impl TryFrom<&[u8]> for Nonce {
-    type Error = NonceError;
+impl TryFrom<&[u8]> for QualifyingData {
+    type Error = QualifyingDataError;
 
     fn try_from(item: &[u8]) -> Result<Self, Self::Error> {
         match item.len() {
-            Nonce32::LENGTH => {
+            QualifyingData32::LENGTH => {
                 // SAFETY: We've already checked the length is correct.
-                Ok(Nonce::N32(item.try_into().unwrap()))
+                Ok(QualifyingData::Q32(item.try_into().unwrap()))
             }
-            len => Err(NonceError::UnsupportedLen(len)),
+            len => Err(QualifyingDataError::UnsupportedLen(len)),
         }
     }
 }
 
 #[cfg(feature = "std")]
-impl TryFrom<Vec<u8>> for Nonce {
-    type Error = NonceError;
+impl TryFrom<Vec<u8>> for QualifyingData {
+    type Error = QualifyingDataError;
 
     fn try_from(item: Vec<u8>) -> Result<Self, Self::Error> {
         item[..].try_into()
     }
 }
 
-impl TryFrom<Nonce> for Nonce32 {
-    type Error = NonceError;
+impl TryFrom<QualifyingData> for QualifyingData32 {
+    type Error = QualifyingDataError;
 
-    fn try_from(item: Nonce) -> Result<Nonce32, Self::Error> {
+    fn try_from(item: QualifyingData) -> Result<QualifyingData32, Self::Error> {
         match item {
-            Nonce::N32(n) => Ok(n),
+            QualifyingData::Q32(n) => Ok(n),
         }
     }
 }
 
-impl<'a> TryFrom<&'a Nonce> for &'a Nonce32 {
-    type Error = NonceError;
+impl<'a> TryFrom<&'a QualifyingData> for &'a QualifyingData32 {
+    type Error = QualifyingDataError;
 
-    fn try_from(item: &Nonce) -> Result<&Nonce32, Self::Error> {
+    fn try_from(
+        item: &QualifyingData,
+    ) -> Result<&QualifyingData32, Self::Error> {
         match item {
-            Nonce::N32(n) => Ok(n),
+            QualifyingData::Q32(n) => Ok(n),
         }
     }
 }
@@ -512,21 +517,22 @@ mod tests {
 
     #[cfg(feature = "std")]
     #[test]
-    fn nonce_from_bytes() {
-        let empty_nonce = Nonce::try_from([].as_ref());
-        assert_eq!(empty_nonce, Err(NonceError::UnsupportedLen(0)));
+    fn qdata_from_bytes() {
+        let empty_qdata = QualifyingData::try_from([].as_ref());
+        assert_eq!(empty_qdata, Err(QualifyingDataError::UnsupportedLen(0)));
 
-        let short_nonce = Nonce::try_from([1].as_ref());
-        assert_eq!(short_nonce, Err(NonceError::UnsupportedLen(1)));
+        let short_qdata = QualifyingData::try_from([1].as_ref());
+        assert_eq!(short_qdata, Err(QualifyingDataError::UnsupportedLen(1)));
 
-        let n32 = [0; 32];
-        let nonce = Nonce::try_from(n32.as_ref()).expect("32-byte Nonce");
-        assert_eq!(nonce, Nonce::N32(Array(n32)));
+        let q32 = [0; 32];
+        let qdata = QualifyingData::try_from(q32.as_ref())
+            .expect("32-byte QualifyingData");
+        assert_eq!(qdata, QualifyingData::Q32(Array(q32)));
 
-        let nonce32 = Nonce32::try_from(nonce);
-        assert_eq!(nonce32, Ok(Array(n32)));
+        let qdata32 = QualifyingData32::try_from(qdata);
+        assert_eq!(qdata32, Ok(Array(q32)));
 
-        let _ = Nonce::from_platform_rng(Nonce32::LENGTH)
-            .expect("random 32-byte Nonce");
+        let _ = QualifyingData::from_platform_rng(QualifyingData32::LENGTH)
+            .expect("random 32-byte QualifyingData");
     }
 }

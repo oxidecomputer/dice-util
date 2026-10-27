@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use attest_data::Log;
 #[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
-use attest_data::{Attestation, Nonce};
+use attest_data::{Attestation, QualifyingData};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
 use dice_verifier::oxide_rot::MeasurementSet;
@@ -14,11 +14,11 @@ use dice_verifier::oxide_rot::ReferenceMeasurements;
 use helios_rot::HeliosRot;
 use log::info;
 #[cfg(feature = "hiffy")]
-use oxide_rot::hiffy::{AttestHiffy, AttestTask};
+use oxide_rot::hiffy::{OxideRotHiffy, OxideRotTask};
 #[cfg(feature = "ipcc")]
-use oxide_rot::ipcc::AttestIpcc;
+use oxide_rot::ipcc::OxideRotIpcc;
 #[cfg(feature = "sled-agent")]
-use oxide_rot::sled_agent::AttestSledAgent;
+use oxide_rot::sled_agent::OxideRotSledAgent;
 use rats_corim::Corim;
 use slog::{Drain, FilterLevel, Logger};
 use std::{
@@ -139,11 +139,11 @@ enum HeliosRotAppraise {
 /// Commands that require interaction with the Helios RoT
 #[derive(Clone, Debug, Subcommand)]
 enum HeliosRotCommand {
-    /// Provide your own nonce, get back an attestation
+    /// Provide your own qdata, get back an attestation
     Attest {
-        /// Path to file holding the nonce
+        /// Path to file holding the qdata
         #[clap(env)]
-        nonce: PathBuf,
+        qdata: PathBuf,
     },
     /// Get the full cert chain from the RoT
     CertChain,
@@ -182,7 +182,7 @@ enum OxideRotInterface {
     #[cfg(feature = "ipcc")]
     Ipcc {
         #[command(subcommand)]
-        command: AttestCommand,
+        command: OxideRotCommand,
     },
 
     /// Execute some operation from the appraisal process by communicating
@@ -190,7 +190,7 @@ enum OxideRotInterface {
     #[cfg(feature = "hiffy")]
     Rot {
         #[command(subcommand)]
-        command: AttestCommand,
+        command: OxideRotCommand,
     },
 
     /// Execute some operation from the appraisal process that requires
@@ -200,7 +200,7 @@ enum OxideRotInterface {
         #[clap(short, long, env)]
         addr: std::net::SocketAddrV6,
         #[command(subcommand)]
-        command: AttestCommand,
+        command: OxideRotCommand,
     },
 
     /// Execute some operation from the appraisal process that requires
@@ -208,19 +208,19 @@ enum OxideRotInterface {
     #[cfg(feature = "hiffy")]
     Sprot {
         #[command(subcommand)]
-        command: AttestCommand,
+        command: OxideRotCommand,
     },
 }
 
-/// An enum of the HIF operations supported by the `Attest` interface.
+/// An enum of the HIF operations supported by the `OxideRot` interface.
 #[derive(Clone, Debug, Subcommand)]
-enum AttestCommand {
+enum OxideRotCommand {
     /// Get an attestation, this is a signature over the serialized measurement log and the
-    /// provided nonce: `sha3_256(log | nonce)`.
+    /// provided qdata: `sha3_256(log | qdata)`.
     Attest {
-        /// Path to file holding the nonce
+        /// Path to file holding the qdata
         #[clap(env)]
-        nonce: PathBuf,
+        qdata: PathBuf,
     },
     /// Get the full cert chain from the RoT encoded per RFC 6066 (PKI path)
     CertChain,
@@ -293,9 +293,9 @@ enum OxideRotAppraise {
         #[clap(long, env)]
         log: PathBuf,
 
-        /// Path to file holding the nonce
+        /// Path to file holding the qdata
         #[clap(long, env)]
-        nonce: PathBuf,
+        qdata: PathBuf,
     },
     /// Walk the PkiPath formatted certificate chain verifying each link.
     CertChain {
@@ -438,22 +438,22 @@ where
     slog::info!(logger, "executing command: {command:?}");
 
     match command {
-        HeliosRotCommand::Attest { nonce } => {
+        HeliosRotCommand::Attest { qdata } => {
             slog::info!(
                 logger,
-                "getting attestation HeliosRot w/ nonce from: {}",
-                nonce.display()
+                "getting attestation HeliosRot w/ qdata from: {}",
+                qdata.display()
             );
 
-            let nonce = fs::read(&nonce).with_context(|| {
-                format!("Nonce bytes from file: {}", nonce.display())
+            let qdata = fs::read(&qdata).with_context(|| {
+                format!("Nonce bytes from file: {}", qdata.display())
             })?;
-            let nonce = Nonce::try_from(&nonce[..]).with_context(|| {
-                format!("HeliosRot Nonce from file {:?}", nonce)
+            let qdata = Nonce::try_from(&qdata[..]).with_context(|| {
+                format!("HeliosRot Nonce from file {:?}", qdata)
             })?;
 
             let attestation = rot
-                .attest(&nonce)
+                .attest(&qdata)
                 .await
                 .context("Getting attestation with provided Nonce")?;
             let mut attestation = serde_json::to_string(&attestation)
@@ -498,22 +498,22 @@ where
             let ca_cert = Certificate::from_pem(&ca_cert)
                 .context("Parse alias cert from PEM")?;
 
-            // get nonce
-            let nonce = Nonce::from_platform_rng(Nonce48::LENGTH)
+            // get qdata
+            let qdata = Nonce::from_platform_rng(Nonce48::LENGTH)
                 .context("Nonce from platform RNG")?;
 
             if let Some(ref work_dir) = work_dir {
-                let out = work_dir.join("nonce.bin");
-                fs::write(&out, nonce).context(format!(
-                    "Write nonce to file: {}",
+                let out = work_dir.join("qdata.bin");
+                fs::write(&out, qdata).context(format!(
+                    "Write qdata to file: {}",
                     out.display()
                 ))?;
             }
 
             let attestation = rot
-                .attest(&nonce)
+                .attest(&qdata)
                 .await
-                .context("get attestation with nonce")?;
+                .context("get attestation with qdata")?;
             if let Some(ref work_dir) = work_dir {
                 // serialize attestation to json & write to file
                 let mut attestation = serde_json::to_string(&attestation)
@@ -547,7 +547,7 @@ where
             dice_verifier::helios_rot::verify_attestation(
                 &cert_chain[0],
                 &attestation,
-                &nonce,
+                &qdata,
             )
             .context("Verify HeliosRot attestation")?;
 
@@ -585,22 +585,22 @@ async fn oxide_rot_interface(
         #[cfg(feature = "ipcc")]
         OxideRotInterface::Ipcc { command } => {
             let _ = logger;
-            let rot = AttestIpcc::new();
+            let rot = OxideRotIpcc::new();
             rot_command(&rot, &command).await
         }
         #[cfg(feature = "hiffy")]
         OxideRotInterface::Rot { command } => {
-            let rot = AttestHiffy::new(AttestTask::Rot, logger);
+            let rot = OxideRotHiffy::new(OxideRotTask::Rot, logger);
             rot_command(&rot, &command).await
         }
         #[cfg(feature = "sled-agent")]
         OxideRotInterface::SledAgent { addr, command } => {
-            let rot = AttestSledAgent::new(addr, logger);
+            let rot = OxideRotSledAgent::new(addr, logger);
             rot_command(&rot, &command).await
         }
         #[cfg(feature = "hiffy")]
         OxideRotInterface::Sprot { command } => {
-            let rot = AttestHiffy::new(AttestTask::Sprot, logger);
+            let rot = OxideRotHiffy::new(OxideRotTask::Sprot, logger);
             rot_command(&rot, &command).await
         }
     }
@@ -618,8 +618,8 @@ fn appraise_command(command: &OxideRotAppraise) -> Result<()> {
             alias_cert,
             attestation,
             log,
-            nonce,
-        } => verify_attestation(alias_cert, attestation, log, nonce),
+            qdata,
+        } => verify_attestation(alias_cert, attestation, log, qdata),
         OxideRotAppraise::CertChain {
             ca_cert,
             cert_chain,
@@ -675,9 +675,9 @@ fn util_command(command: &UtilCommand) -> Result<()> {
 }
 
 #[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent",))]
-async fn rot_command<A: oxide_rot::Attest>(
+async fn rot_command<A: oxide_rot::OxideRot>(
     attest: &A,
-    command: &AttestCommand,
+    command: &OxideRotCommand,
 ) -> Result<()> {
     use anyhow::anyhow;
     use pem_rfc7468::LineEnding;
@@ -688,15 +688,15 @@ async fn rot_command<A: oxide_rot::Attest>(
     use x509_cert::der::EncodePem;
 
     match command {
-        AttestCommand::Attest { nonce } => {
-            let nonce = fs::read(nonce)
-                .context(format!("Nonce bytes from: {}", nonce.display()))?;
-            let nonce =
-                Nonce::try_from(nonce).context("Nonce from file contents")?;
+        OxideRotCommand::Attest { qdata } => {
+            let qdata = fs::read(qdata)
+                .context(format!("Nonce bytes from: {}", qdata.display()))?;
+            let qdata = QualifyingData::try_from(qdata)
+                .context("QualifyingData from file contents")?;
             let attestation = attest
-                .attest(&nonce)
+                .attest(&qdata)
                 .await
-                .context("Getting attestation with provided Nonce")?;
+                .context("Getting attestation with provided QualifyingData")?;
 
             // serialize attestation to json & write to file
             let mut attestation = serde_json::to_string(&attestation)
@@ -708,7 +708,7 @@ async fn rot_command<A: oxide_rot::Attest>(
                 .context("Write Attestation as JSON to stdout")?;
             io::stdout().flush().context("Flush stdout")?;
         }
-        AttestCommand::CertChain => {
+        OxideRotCommand::CertChain => {
             let cert_chain = attest
                 .get_certificates()
                 .await
@@ -725,7 +725,7 @@ async fn rot_command<A: oxide_rot::Attest>(
             }
             io::stdout().flush().context("Flush stdout")?;
         }
-        AttestCommand::Log => {
+        OxideRotCommand::Log => {
             let log = attest
                 .get_measurement_log()
                 .await
@@ -739,7 +739,7 @@ async fn rot_command<A: oxide_rot::Attest>(
                 .context("Write measurement log to stdout")?;
             io::stdout().flush().context("Flush stdout")?;
         }
-        AttestCommand::Verify {
+        OxideRotCommand::Verify {
             ca_cert,
             corpus,
             self_signed,
@@ -806,7 +806,7 @@ fn verify_measurements(
 }
 
 #[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent",))]
-async fn verify<A: oxide_rot::Attest>(
+async fn verify<A: oxide_rot::OxideRot>(
     attest: &A,
     ca_cert: Option<&Path>,
     corpus: Option<&Path>,
@@ -814,32 +814,32 @@ async fn verify<A: oxide_rot::Attest>(
     work_dir: Option<&Path>,
 ) -> Result<PlatformId> {
     use anyhow::anyhow;
-    use attest_data::Nonce32;
+    use attest_data::QualifyingData32;
     use log::warn;
     use pem_rfc7468::LineEnding;
     use std::fs;
     use x509_cert::der::EncodePem;
 
-    // generate nonce from RNG
-    info!("getting Nonce from platform RNG");
-    let nonce = Nonce::from_platform_rng(Nonce32::LENGTH)
-        .context("Nonce from platform RNG")?;
+    // generate qdata from RNG
+    info!("getting QualifyingData from platform RNG");
+    let qdata = QualifyingData::from_platform_rng(QualifyingData32::LENGTH)
+        .context("QualifyingData from platform RNG")?;
 
     if let Some(work_dir) = work_dir {
-        let nonce_path = work_dir.join("nonce.bin");
-        info!("writing nonce to: {}", nonce_path.display());
-        fs::write(&nonce_path, nonce).context(format!(
-            "Write nonce to file: {}",
-            nonce_path.display()
+        let qdata_path = work_dir.join("qdata.bin");
+        info!("writing qdata to: {}", qdata_path.display());
+        fs::write(&qdata_path, qdata).context(format!(
+            "Write qdata to file: {}",
+            qdata_path.display()
         ))?;
     }
 
     // get attestation
     info!("getting attestation");
     let attestation = attest
-        .attest(&nonce)
+        .attest(&qdata)
         .await
-        .context("Get attestation with nonce")?;
+        .context("Get attestation with qdata")?;
 
     if let Some(work_dir) = work_dir {
         // serialize attestation to json & write to file
@@ -922,7 +922,7 @@ async fn verify<A: oxide_rot::Attest>(
         &certs[0],
         &attestation,
         &log,
-        &nonce,
+        &qdata,
     )
     .context("Verify attestation")?;
     info!("attestation verified");
@@ -953,7 +953,7 @@ fn verify_attestation(
     alias_cert: &Path,
     attestation: &Path,
     log: &Path,
-    nonce: &Path,
+    qdata: &Path,
 ) -> Result<()> {
     use std::fs;
 
@@ -970,10 +970,12 @@ fn verify_attestation(
     let log: Log =
         serde_json::from_str(&log).context("Deserialize Log from JSON")?;
 
-    let nonce = fs::read(nonce)
-        .context(format!("Read Nonce from file: {}", nonce.display()))?;
-    let nonce =
-        Nonce::try_from(nonce).context("Deserialize Nonce from JSON")?;
+    let qdata = fs::read(qdata).context(format!(
+        "Read QualifyingData from file: {}",
+        qdata.display()
+    ))?;
+    let qdata = QualifyingData::try_from(qdata)
+        .context("Deserialize QualifyingData from JSON")?;
 
     let alias = fs::read(alias_cert).context(format!(
         "Read alias cert from file: {}",
@@ -986,7 +988,7 @@ fn verify_attestation(
         &alias,
         &attestation,
         &log,
-        &nonce,
+        &qdata,
     )
     .context("Verify attestation")
 }
@@ -1106,7 +1108,7 @@ fn helios_rot_verify_cert_chain<P: AsRef<Path>>(
 
 fn helios_rot_verify_attestation<P: AsRef<Path>>(
     attestation: P,
-    qdata: P,
+    nonce: P,
     signer_cert: P,
 ) -> Result<()> {
     use helios_rot::{Attestation, Nonce};
@@ -1119,11 +1121,11 @@ fn helios_rot_verify_attestation<P: AsRef<Path>>(
     let attestation: Attestation = serde_json::from_str(&attestation)
         .context("Deserialize Attestation from JSON")?;
 
-    let qdata = fs::read(&qdata).context(format!(
+    let nonce = fs::read(&nonce).context(format!(
         "Read Nonce from file: {}",
-        qdata.as_ref().display()
+        nonce.as_ref().display()
     ))?;
-    let qdata = Nonce::try_from(qdata.as_slice())
+    let nonce = Nonce::try_from(nonce.as_slice())
         .context("Deserialize Nonce from binary")?;
 
     let signer_cert = fs::read(&signer_cert).context(format!(
@@ -1136,7 +1138,7 @@ fn helios_rot_verify_attestation<P: AsRef<Path>>(
     dice_verifier::helios_rot::verify_attestation(
         &signer_cert,
         &attestation,
-        &qdata,
+        &nonce,
     )
     .context("Verify HeliosRotAttestation")
 }

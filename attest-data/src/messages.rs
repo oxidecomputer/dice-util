@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{Nonce32, SHA3_256_DIGEST_SIZE};
+use crate::{QualifyingData32, SHA3_256_DIGEST_SIZE};
 use hubpack::error::Error as HubpackError;
 use hubpack::SerializedSize;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -19,7 +19,7 @@ const fn const_max(a: usize, b: usize) -> usize {
     [a, b][(a < b) as usize]
 }
 pub const MAX_DATA_LEN: usize =
-    const_max(Nonce32::LENGTH, SHA3_256_DIGEST_SIZE);
+    const_max(QualifyingData32::LENGTH, SHA3_256_DIGEST_SIZE);
 
 pub const MAX_REQUEST_SIZE: usize =
     HostRotHeader::MAX_SIZE + HostToRotCommand::MAX_SIZE + MAX_DATA_LEN;
@@ -271,7 +271,7 @@ pub fn parse_message(
             }
         }
         HostToRotCommand::Attest => {
-            if leftover.len() != Nonce32::LENGTH {
+            if leftover.len() != QualifyingData32::LENGTH {
                 return Err(HostToRotError::IncorrectDataLen);
             }
         }
