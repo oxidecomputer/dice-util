@@ -480,6 +480,7 @@ fn test_policy(
 
 // our default `FnPolicy` that will always fail till we have mkeys tracked in
 // OANA: https://github.com/oxidecomputer/oana/issues/44
+#[cfg(not(feature = "unittest"))]
 fn fail_policy(
     _measurements: &MeasurementList,
     _corpus: &ReferenceMeasurementMap,
