@@ -2,13 +2,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use anyhow::{anyhow, Context, Result};
-use attest_data::{Attestation, Log, Nonce};
+use anyhow::{Context, Result};
+use attest_data::Log;
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
+use attest_data::{Attestation, Nonce};
 use clap::{Parser, Subcommand, ValueEnum};
 use dice_mfg_msgs::PlatformId;
-use dice_verifier::oxide_rot::{MeasurementSet, ReferenceMeasurements};
+use dice_verifier::oxide_rot::MeasurementSet;
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
+use dice_verifier::oxide_rot::ReferenceMeasurements;
 use helios_rot::HeliosRot;
-use log::{info, warn};
+use log::info;
 #[cfg(feature = "hiffy")]
 use oxide_rot::hiffy::{AttestHiffy, AttestTask};
 #[cfg(feature = "ipcc")]
@@ -602,6 +606,7 @@ async fn oxide_rot_interface(
     }
 }
 
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
 fn appraise_command(command: &OxideRotAppraise) -> Result<()> {
     match command {
         OxideRotAppraise::Measurements {
@@ -674,6 +679,7 @@ async fn rot_command<A: oxide_rot::Attest>(
     attest: &A,
     command: &AttestCommand,
 ) -> Result<()> {
+    use anyhow::anyhow;
     use pem_rfc7468::LineEnding;
     use std::{
         fs,
@@ -765,6 +771,7 @@ async fn rot_command<A: oxide_rot::Attest>(
 // the `corpus`.
 // NOTE: The output of this function is only as trustworthy as its inputs.
 // These must be verified independently.
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
 fn verify_measurements(
     cert_chain: &Path,
     log: &Path,
@@ -806,7 +813,9 @@ async fn verify<A: oxide_rot::Attest>(
     self_signed: bool,
     work_dir: Option<&Path>,
 ) -> Result<PlatformId> {
+    use anyhow::anyhow;
     use attest_data::Nonce32;
+    use log::warn;
     use pem_rfc7468::LineEnding;
     use std::fs;
     use x509_cert::der::EncodePem;
@@ -939,6 +948,7 @@ async fn verify<A: oxide_rot::Attest>(
         .context("PlatformId from attestation cert chain")
 }
 
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
 fn verify_attestation(
     alias_cert: &Path,
     attestation: &Path,
@@ -981,11 +991,14 @@ fn verify_attestation(
     .context("Verify attestation")
 }
 
+#[cfg(any(feature = "ipcc", feature = "hiffy", feature = "sled-agent"))]
 fn verify_cert_chain(
     ca_cert: Option<&Path>,
     cert_chain: &Path,
     self_signed: bool,
 ) -> Result<()> {
+    use anyhow::anyhow;
+    use log::warn;
     use std::fs;
 
     info!("veryfying cert chain");
