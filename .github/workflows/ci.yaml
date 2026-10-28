@@ -3,6 +3,9 @@ on: [push, pull_request]
 permissions:
   contents: read
 
+env:
+  RUSTFLAGS: "-D warnings"
+
 jobs:
   build:
     name: cargo build
