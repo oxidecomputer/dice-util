@@ -273,13 +273,13 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.89"
+version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
+checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.118",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -2566,7 +2566,7 @@ checksum = "15cdd26707701c53297e2fa6afb323d55fbc1d0810c3aec078ae3ef0424c3c15"
 [[package]]
 name = "humility-arch-arm"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/humility?rev=9eb263bf2563dc2c5ae3a1678969774d1d4374b9#9eb263bf2563dc2c5ae3a1678969774d1d4374b9"
+source = "git+https://github.com/oxidecomputer/humility?rev=cfcdf5a266e83648fdce616637c8cda5b92ec501#cfcdf5a266e83648fdce616637c8cda5b92ec501"
 dependencies = [
  "capstone",
  "num-derive",
@@ -2576,7 +2576,7 @@ dependencies = [
 [[package]]
 name = "humility-core"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/humility?rev=9eb263bf2563dc2c5ae3a1678969774d1d4374b9#9eb263bf2563dc2c5ae3a1678969774d1d4374b9"
+source = "git+https://github.com/oxidecomputer/humility?rev=cfcdf5a266e83648fdce616637c8cda5b92ec501#cfcdf5a266e83648fdce616637c8cda5b92ec501"
 dependencies = [
  "addr2line 0.26.1",
  "anyhow",
@@ -2618,7 +2618,7 @@ dependencies = [
 [[package]]
 name = "humility-doppel"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/humility?rev=9eb263bf2563dc2c5ae3a1678969774d1d4374b9#9eb263bf2563dc2c5ae3a1678969774d1d4374b9"
+source = "git+https://github.com/oxidecomputer/humility?rev=cfcdf5a266e83648fdce616637c8cda5b92ec501#cfcdf5a266e83648fdce616637c8cda5b92ec501"
 dependencies = [
  "anyhow",
  "humility-core",
@@ -2629,7 +2629,7 @@ dependencies = [
 [[package]]
 name = "humility-hiffy"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/humility?rev=9eb263bf2563dc2c5ae3a1678969774d1d4374b9#9eb263bf2563dc2c5ae3a1678969774d1d4374b9"
+source = "git+https://github.com/oxidecomputer/humility?rev=cfcdf5a266e83648fdce616637c8cda5b92ec501#cfcdf5a266e83648fdce616637c8cda5b92ec501"
 dependencies = [
  "anyhow",
  "hif",
@@ -2647,7 +2647,7 @@ dependencies = [
 [[package]]
 name = "humility-idol"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/humility?rev=9eb263bf2563dc2c5ae3a1678969774d1d4374b9#9eb263bf2563dc2c5ae3a1678969774d1d4374b9"
+source = "git+https://github.com/oxidecomputer/humility?rev=cfcdf5a266e83648fdce616637c8cda5b92ec501#cfcdf5a266e83648fdce616637c8cda5b92ec501"
 dependencies = [
  "anyhow",
  "hubpack",
@@ -2661,7 +2661,7 @@ dependencies = [
 [[package]]
 name = "humility-log"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/humility?rev=9eb263bf2563dc2c5ae3a1678969774d1d4374b9#9eb263bf2563dc2c5ae3a1678969774d1d4374b9"
+source = "git+https://github.com/oxidecomputer/humility?rev=cfcdf5a266e83648fdce616637c8cda5b92ec501#cfcdf5a266e83648fdce616637c8cda5b92ec501"
 dependencies = [
  "colored",
  "slog",
@@ -2670,7 +2670,7 @@ dependencies = [
 [[package]]
 name = "humility-probes-core"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/humility?rev=9eb263bf2563dc2c5ae3a1678969774d1d4374b9#9eb263bf2563dc2c5ae3a1678969774d1d4374b9"
+source = "git+https://github.com/oxidecomputer/humility?rev=cfcdf5a266e83648fdce616637c8cda5b92ec501#cfcdf5a266e83648fdce616637c8cda5b92ec501"
 dependencies = [
  "anyhow",
  "humility-arch-arm",
@@ -2689,7 +2689,7 @@ dependencies = [
 [[package]]
 name = "humility_load_derive"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/humility?rev=9eb263bf2563dc2c5ae3a1678969774d1d4374b9#9eb263bf2563dc2c5ae3a1678969774d1d4374b9"
+source = "git+https://github.com/oxidecomputer/humility?rev=cfcdf5a266e83648fdce616637c8cda5b92ec501#cfcdf5a266e83648fdce616637c8cda5b92ec501"
 dependencies = [
  "proc-macro2",
  "quote",
