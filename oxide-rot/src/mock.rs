@@ -2,8 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{Attest, AttestError};
-use attest_data::{Attestation, Ed25519Signature, Log, Nonce, Nonce32};
+use crate::{OxideRot, OxideRotError};
+use attest_data::{
+    Attestation, Ed25519Signature, Log, QualifyingData, QualifyingData32,
+};
 use ed25519_dalek::{
     Signer, SigningKey,
     pkcs8::{self, DecodePrivateKey},
@@ -15,7 +17,7 @@ use thiserror::Error;
 use x509_cert::{Certificate, PkiPath, der};
 
 #[derive(Debug, Error)]
-pub enum AttestMockError {
+pub enum OxideRotMockError {
     #[error("Failed to parse certificate: {0}")]
     DerError(#[from] der::Error),
     #[error("Failed to deserialized hubpacked log: {0}")]
@@ -26,18 +28,18 @@ pub enum AttestMockError {
     IoError(#[from] io::Error),
 }
 
-pub struct AttestMock {
+pub struct OxideRotMock {
     certs: PkiPath,
     log: Log,
     alias_key: SigningKey,
 }
 
-impl AttestMock {
+impl OxideRotMock {
     pub fn load<P: AsRef<Path>, L: AsRef<Path>, A: AsRef<Path>>(
         pki_path: P,
         log_path: L,
         alias_path: A,
-    ) -> Result<Self, AttestMockError> {
+    ) -> Result<Self, OxideRotMockError> {
         let certs = fs::read_to_string(pki_path)?;
         let certs = Certificate::load_pem_chain(certs.as_bytes())?;
 
@@ -46,7 +48,7 @@ impl AttestMock {
 
         let alias_key = SigningKey::read_pkcs8_pem_file(alias_path)?;
 
-        Ok(AttestMock {
+        Ok(OxideRotMock {
             certs,
             log,
             alias_key,
@@ -55,24 +57,27 @@ impl AttestMock {
 }
 
 #[async_trait::async_trait]
-impl Attest for AttestMock {
-    async fn get_measurement_log(&self) -> Result<Log, AttestError> {
+impl OxideRot for OxideRotMock {
+    async fn get_measurement_log(&self) -> Result<Log, OxideRotError> {
         Ok(self.log.clone())
     }
 
-    async fn get_certificates(&self) -> Result<PkiPath, AttestError> {
+    async fn get_certificates(&self) -> Result<PkiPath, OxideRotError> {
         Ok(self.certs.clone())
     }
 
-    async fn attest(&self, nonce: &Nonce) -> Result<Attestation, AttestError> {
-        let nonce: &Nonce32 = nonce.try_into()?;
+    async fn attest(
+        &self,
+        qdata: &QualifyingData,
+    ) -> Result<Attestation, OxideRotError> {
+        let qdata: &QualifyingData32 = qdata.try_into()?;
         let mut buf = vec![0u8; Log::MAX_SIZE];
         let len = hubpack::serialize(&mut buf, &self.log)
-            .map_err(AttestError::Serialize)?;
+            .map_err(OxideRotError::Serialize)?;
 
         let mut digest = Sha3_256::new();
         digest.update(&buf[..len]);
-        digest.update(nonce.as_ref());
+        digest.update(qdata.as_ref());
 
         let digest = digest.finalize();
         let sig = self.alias_key.sign(&digest);
@@ -100,30 +105,30 @@ mod test {
     #[test]
     fn bad_path_to_certs() {
         let (_, log, key) = paths();
-        assert!(AttestMock::load("foo", &key, &log).is_err());
+        assert!(OxideRotMock::load("foo", &key, &log).is_err());
     }
 
     #[test]
     fn bad_path_to_log() {
         let (certs, _, key) = paths();
-        assert!(AttestMock::load(&certs, "foo", &key).is_err());
+        assert!(OxideRotMock::load(&certs, "foo", &key).is_err());
     }
 
     #[test]
     fn bad_path_to_key() {
         let (certs, log, _) = paths();
-        assert!(AttestMock::load(&certs, &log, "foo").is_err());
+        assert!(OxideRotMock::load(&certs, &log, "foo").is_err());
     }
 
     #[test]
     fn load() {
         let (certs, log, key) = paths();
-        assert!(AttestMock::load(&certs, &log, &key).is_ok());
+        assert!(OxideRotMock::load(&certs, &log, &key).is_ok());
     }
 
     #[tokio::test]
     async fn attest() {
-        use attest_data::Nonce32;
+        use attest_data::QualifyingData32;
         use ed25519_dalek::{
             Signature, SigningKey, Verifier, VerifyingKey,
             pkcs8::DecodePrivateKey,
@@ -132,11 +137,12 @@ mod test {
         use sha3::{Digest, Sha3_256};
 
         let (cert, log, key) = paths();
-        let mock = AttestMock::load(&cert, &log, &key)
-            .expect("log AttestMock from test inputs");
+        let mock = OxideRotMock::load(&cert, &log, &key)
+            .expect("log OxideRotMock from test inputs");
 
-        let nonce = Nonce::from_platform_rng(32).expect("get Nonce from RNG");
-        let attestation = mock.attest(&nonce).await.expect("attest to log");
+        let qdata =
+            QualifyingData::from_platform_rng(32).expect("get Nonce from RNG");
+        let attestation = mock.attest(&qdata).await.expect("attest to log");
         let log = mock
             .get_measurement_log()
             .await
@@ -157,17 +163,18 @@ mod test {
                 // To verify the attestation we must reconstruct the 'message'
                 // signed by the platform RoT. It is the sha3-256 digest over:
                 // - the hubpack serialized measurement log
-                // - the nonce that we provided to the `attest` function
+                // - the qdata that we provided to the `attest` function
                 let mut buf = vec![0u8; Log::MAX_SIZE];
                 let len = hubpack::serialize(&mut buf, &log)
                     .expect("hubpack serialize Log to buffer");
 
-                let nonce: Nonce32 =
-                    nonce.try_into().expect("Nonce into Nonce32");
+                let qdata: QualifyingData32 = qdata
+                    .try_into()
+                    .expect("QualifyingData into QualifyingData32");
 
                 let mut digest = Sha3_256::new();
                 digest.update(&buf[..len]);
-                digest.update(nonce.as_ref());
+                digest.update(qdata.as_ref());
                 let digest = digest.finalize();
 
                 let ret = verifying_key.verify(&digest, &sig);
