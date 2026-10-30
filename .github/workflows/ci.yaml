@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: dtolnay/rust-toolchain@1.99.1
       # The Microsoft Ubuntu mirror is unstable: https://github.com/actions/runner-images/issues/7048
       - name: Disable Microsoft Ubuntu mirror
         run: sudo sed -i '/azure.archive.ubuntu.com/d' /etc/apt/apt-mirrors.txt
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: dtolnay/rust-toolchain@1.99.1
       # The Microsoft Ubuntu mirror is unstable: https://github.com/actions/runner-images/issues/7048
       - name: Disable Microsoft Ubuntu mirror
         run: sudo sed -i '/azure.archive.ubuntu.com/d' /etc/apt/apt-mirrors.txt
@@ -47,7 +47,7 @@ jobs:
       RUSTDOCFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: dtolnay/rust-toolchain@1.99.1
       # The Microsoft Ubuntu mirror is unstable: https://github.com/actions/runner-images/issues/7048
       - name: Disable Microsoft Ubuntu mirror
         run: sudo sed -i '/azure.archive.ubuntu.com/d' /etc/apt/apt-mirrors.txt
