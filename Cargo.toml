@@ -32,7 +32,7 @@ env_logger = { version = "0.11.11", default-features = false }
 flagset = "0.4.7"
 getrandom = "0.4.3"
 hex.version = "0.4"
-helios-rot = { git = "https://github.com/oxidecomputer/helios-rot", rev = "020eb50ba6ddc92cf059b35e989da7bd19769749" }
+helios-rot = { git = "https://github.com/oxidecomputer/helios-rot", rev = "ad013c82971860e2fb4544b5d7661cbe7efba12b" }
 hubpack = "0.1"
 humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
 humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" , rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
