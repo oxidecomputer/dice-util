@@ -401,7 +401,7 @@ async fn helios_rot_group(
         HeliosRotGroup::Ioctl { command } => {
             use helios_rot::HeliosOsRot;
 
-            let rot = HeliosOsRot::new()?;
+            let rot = HeliosOsRot::default();
             helios_rot_command(&rot, command, logger).await
         }
         HeliosRotGroup::Mock {
@@ -427,7 +427,7 @@ where
     <R as HeliosRot>::Error: 'static,
 {
     use dice_verifier::helios_rot::{MeasurementList, ReferenceMeasurementMap};
-    use helios_rot::{Nonce, Nonce48};
+    use helios_rot::{QualifyingData, QualifyingData48};
     use pem_rfc7468::LineEnding;
     use std::{
         fs,
@@ -448,9 +448,10 @@ where
             let qdata = fs::read(&qdata).with_context(|| {
                 format!("Nonce bytes from file: {}", qdata.display())
             })?;
-            let qdata = Nonce::try_from(&qdata[..]).with_context(|| {
-                format!("HeliosRot Nonce from file {:?}", qdata)
-            })?;
+            let qdata =
+                QualifyingData::try_from(&qdata[..]).with_context(|| {
+                    format!("HeliosRot Nonce from file {:?}", qdata)
+                })?;
 
             let attestation = rot
                 .attest(&qdata)
@@ -499,8 +500,9 @@ where
                 .context("Parse alias cert from PEM")?;
 
             // get qdata
-            let qdata = Nonce::from_platform_rng(Nonce48::LENGTH)
-                .context("Nonce from platform RNG")?;
+            let qdata =
+                QualifyingData::from_platform_rng(QualifyingData48::LENGTH)
+                    .context("Nonce from platform RNG")?;
 
             if let Some(ref work_dir) = work_dir {
                 let out = work_dir.join("qdata.bin");
@@ -1108,10 +1110,10 @@ fn helios_rot_verify_cert_chain<P: AsRef<Path>>(
 
 fn helios_rot_verify_attestation<P: AsRef<Path>>(
     attestation: P,
-    nonce: P,
+    qdata: P,
     signer_cert: P,
 ) -> Result<()> {
-    use helios_rot::{Attestation, Nonce};
+    use helios_rot::{Attestation, QualifyingData};
     use std::fs;
 
     let attestation = fs::read_to_string(&attestation).context(format!(
@@ -1121,11 +1123,11 @@ fn helios_rot_verify_attestation<P: AsRef<Path>>(
     let attestation: Attestation = serde_json::from_str(&attestation)
         .context("Deserialize Attestation from JSON")?;
 
-    let nonce = fs::read(&nonce).context(format!(
+    let qdata = fs::read(&qdata).context(format!(
         "Read Nonce from file: {}",
-        nonce.as_ref().display()
+        qdata.as_ref().display()
     ))?;
-    let nonce = Nonce::try_from(nonce.as_slice())
+    let qdata = QualifyingData::try_from(qdata.as_slice())
         .context("Deserialize Nonce from binary")?;
 
     let signer_cert = fs::read(&signer_cert).context(format!(
@@ -1138,7 +1140,7 @@ fn helios_rot_verify_attestation<P: AsRef<Path>>(
     dice_verifier::helios_rot::verify_attestation(
         &signer_cert,
         &attestation,
-        &nonce,
+        &qdata,
     )
     .context("Verify HeliosRotAttestation")
 }
