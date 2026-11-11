@@ -7,7 +7,7 @@ use der::{
     asn1::{BitString, Int, OctetString},
     Sequence,
 };
-pub use helios_rot::{Attestation, Nonce, Nonce48};
+pub use helios_rot::{Attestation, QualifyingData, QualifyingData48};
 pub use rats_corim::{Corim, Digest};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -32,15 +32,15 @@ pub enum VerifyAttestationError {
     VerifyingKey(#[from] x509_cert::spki::Error),
     #[error("Failed to construct Signature from Attestation")]
     Signature(#[source] p384::ecdsa::Error),
-    #[error("The Attestation provided failed to verify the Nonce")]
+    #[error("The Attestation provided failed to verify the QualifyingData")]
     Verify(#[source] p384::ecdsa::Error),
 }
 
-// An attestation from the helios rot is: attestation = sign_alias(nonce)
+// An attestation from the helios rot is: attestation = sign_alias(qdata)
 pub fn verify_attestation(
     alias: &Certificate,
     attestation: &Attestation,
-    nonce: &Nonce,
+    qdata: &QualifyingData,
 ) -> Result<(), VerifyAttestationError> {
     use p384::ecdsa::{signature::Verifier, Signature, VerifyingKey};
     use x509_cert::der::referenced::OwnedToRef;
@@ -54,7 +54,7 @@ pub fn verify_attestation(
     };
 
     verifying_key
-        .verify(nonce.as_ref(), &signature)
+        .verify(qdata.as_ref(), &signature)
         .map_err(VerifyAttestationError::Verify)?;
 
     Ok(())
@@ -513,7 +513,7 @@ pub fn verify_measurements(
 #[cfg(test)]
 mod test {
     use crate::helios_rot::{
-        self, MeasurementList, Nonce, ReferenceMeasurementMap,
+        self, MeasurementList, QualifyingData, ReferenceMeasurementMap,
     };
     use ::helios_rot::{HeliosRot, HeliosRotMock};
     use std::{
@@ -548,11 +548,11 @@ mod test {
         let rot_mock = HeliosRotMock::load(&cert_chain, &alias_key)
             .expect("Construct HeliosRotMock from files");
 
-        let nonce =
-            Nonce::from_platform_rng(48).expect("Nonce from platform RNG");
+        let qdata = QualifyingData::from_platform_rng(48)
+            .expect("Nonce from platform RNG");
 
         let attestation = rot_mock
-            .attest(&nonce)
+            .attest(&qdata)
             .await
             .expect("Attestation from HeliosRotMock");
 
@@ -560,13 +560,13 @@ mod test {
         let alias_cert = get_cert_from_file(&alias_cert);
 
         let res =
-            helios_rot::verify_attestation(&alias_cert, &attestation, &nonce);
+            helios_rot::verify_attestation(&alias_cert, &attestation, &qdata);
 
         assert!(res.is_ok());
     }
 
     #[tokio::test]
-    async fn verify_attestation_bad_nonce() {
+    async fn verify_attestation_bad_qdata() {
         use crate::helios_rot::VerifyAttestationError;
 
         let out = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -577,23 +577,23 @@ mod test {
         let rot_mock = HeliosRotMock::load(&cert_chain, &alias_key)
             .expect("Construct HeliosRotMock from files");
 
-        let nonce =
-            Nonce::from_platform_rng(48).expect("Nonce from platform RNG");
+        let qdata = QualifyingData::from_platform_rng(48)
+            .expect("Nonce from platform RNG");
 
         let attestation = rot_mock
-            .attest(&nonce)
+            .attest(&qdata)
             .await
             .expect("Attestation from HeliosRotMock");
 
         let alias_cert = out.join("dpe-tcb-0-20b87885cc8c321f.cert.pem");
         let alias_cert = get_cert_from_file(&alias_cert);
 
-        // cause verify_attestation to fail by using a different nonce
-        let nonce =
-            Nonce::from_platform_rng(48).expect("Nonce from platform RNG");
+        // cause verify_attestation to fail by using a different qdata
+        let qdata = QualifyingData::from_platform_rng(48)
+            .expect("Nonce from platform RNG");
 
         let res =
-            helios_rot::verify_attestation(&alias_cert, &attestation, &nonce);
+            helios_rot::verify_attestation(&alias_cert, &attestation, &qdata);
 
         assert!(res.is_err());
         // I wanted to `unwrap_err()` on the `Result` and `assert` on the error
