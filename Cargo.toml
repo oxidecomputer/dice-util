@@ -37,7 +37,7 @@ hubpack = "0.1"
 humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
 humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" , rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
 humility-idol = { git =  "https://github.com/oxidecomputer/humility", rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
-humility-probes-core = { git =  "https://github.com/oxidecomputer/humility", rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
+humility-probes-core = { git =  "https://github.com/oxidecomputer/humility", rev = "df314217bf6955ceb34a6e34705e2b892992d019" }
 knus = "3.4.0"
 libipcc = { git = "https://github.com/oxidecomputer/ipcc-rs", rev = "91f8c989f1cdc29c56720ab7663afdcaf5a96b72" }
 log = { version = "0.4.33", features = ["std"] }
