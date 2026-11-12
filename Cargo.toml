@@ -34,7 +34,7 @@ getrandom = "0.4.3"
 hex.version = "0.4"
 helios-rot = { git = "https://github.com/oxidecomputer/helios-rot", rev = "ceb9fa57ae71abdf93bb2da87dd3d67dbe5fa7f8" }
 hubpack = "0.1"
-humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
+humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "df314217bf6955ceb34a6e34705e2b892992d019" }
 humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" , rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
 humility-idol = { git =  "https://github.com/oxidecomputer/humility", rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
 humility-probes-core = { git =  "https://github.com/oxidecomputer/humility", rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
