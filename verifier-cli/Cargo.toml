@@ -35,4 +35,4 @@ tokio = { workspace = true, features = ["full"] }
 default = ["hiffy"]
 hiffy = ["oxide-rot/hiffy"]
 ipcc = ["oxide-rot/ipcc"]
-sled-agent = ["oxide-rot/sled-agent"]
+sled-agent = ["helios-rot/sled-agent", "oxide-rot/sled-agent"]

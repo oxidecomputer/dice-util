@@ -34,13 +34,19 @@ impl OxideRot for OxideRotSledAgent {
             .rot_measurement_log(&SledAgentTypes::Rot::Oxide)
             .await?
             .into_inner();
-        for m in measurments.0 {
-            assert!(log.push(match m {
-                SledAgentTypes::Measurement::Sha3_256(d) => {
-                    Measurement::Sha3_256(d.0.into())
-                }
-            }));
+
+        if let Some(measurements) = measurments.log {
+            for m in measurements.0 {
+                assert!(log.push(match m {
+                    SledAgentTypes::Measurement::Sha3_256(d) => {
+                        Measurement::Sha3_256(d.0.into())
+                    }
+                }));
+            }
+        } else {
+            return Err(OxideRotError::MissingRequiredLog);
         }
+
         Ok(log)
     }
 
@@ -66,7 +72,7 @@ impl OxideRot for OxideRotSledAgent {
             .client
             .rot_attest(
                 &SledAgentTypes::Rot::Oxide,
-                &SledAgentTypes::Nonce::N32(qdata.0),
+                &SledAgentTypes::QualifyingData::Q32(qdata.0),
             )
             .await?
             .into_inner();
@@ -74,6 +80,7 @@ impl OxideRot for OxideRotSledAgent {
             SledAgentTypes::Attestation::Ed25519(d) => {
                 Attestation::Ed25519(d.0.into())
             }
+            SledAgentTypes::Attestation::P384(_) => todo!("this feels wrong"),
         };
         Ok(attestation)
     }

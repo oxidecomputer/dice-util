@@ -54,6 +54,8 @@ pub enum OxideRotError {
     SledAgent(
         #[from] sled_agent_client::Error<sled_agent_client::types::Error>,
     ),
+    #[error("Required measurement log is missing")]
+    MissingRequiredLog,
 }
 
 /// The `OxideRot` trait is implemented by types that provide access to the RoT

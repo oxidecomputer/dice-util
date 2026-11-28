@@ -32,7 +32,10 @@ env_logger = { version = "0.11.11", default-features = false }
 flagset = "0.4.7"
 getrandom = "0.4.3"
 hex.version = "0.4"
-helios-rot = { git = "https://github.com/oxidecomputer/helios-rot", rev = "ceb9fa57ae71abdf93bb2da87dd3d67dbe5fa7f8" }
+
+# DO NOT COMMIT: these should point to some commit on helios-rot main
+helios-rot = { git = "https://github.com/oxidecomputer/helios-rot", rev = "9ff227b46e648351f919fca6c44388870ee55209" }
+
 hubpack = "0.1"
 humility-core = { git =  "https://github.com/oxidecomputer/humility" , rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
 humility-hiffy = { git =  "https://github.com/oxidecomputer/humility" , rev = "cfcdf5a266e83648fdce616637c8cda5b92ec501" }
@@ -56,8 +59,8 @@ serde_with = { version = "3.21.0", default-features = false }
 serialport = { git = "https://github.com/jgallagher/serialport-rs", branch = "illumos-support" }
 sha2 = "0.10.9"
 sha3 = { version = "0.10.8", default-features = false }
-sled-agent-client = { git = "https://github.com/oxidecomputer/omicron", rev = "5fd53a9c9ff2b0e47bfef3fe842b7516877b0162" }
-sled-agent-types-versions = { git = "https://github.com/oxidecomputer/omicron", rev = "5fd53a9c9ff2b0e47bfef3fe842b7516877b0162" }
+sled-agent-client = { git = "https://github.com/oxidecomputer/omicron", rev = "31be12b53aa3f7186d7dd6dc986a8a540dcbe677" }
+sled-agent-types-versions = { git = "https://github.com/oxidecomputer/omicron", rev = "31be12b53aa3f7186d7dd6dc986a8a540dcbe677" }
 slog = { version = "2.8.2", default-features = false }
 slog-async = "2.8.0"
 slog-envlogger = "2.2.0"
